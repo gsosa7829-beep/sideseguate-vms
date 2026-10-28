@@ -1,0 +1,7 @@
+{
+  "name": "SIDESEGUATE Streaming - Videovigilancia Web en Vivo",
+  "description": "Plataforma de streaming y videovigilancia web para SIDESEGUATE: Conecta DVRs Hikvision y cámaras IP vía RTSP/MediaMTX y genera enlaces privados para clientes sin instalar apps.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
+

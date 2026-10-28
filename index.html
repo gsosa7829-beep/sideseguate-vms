@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#0a0a0a" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="SIDESEGUATE" />
+    <link rel="icon" type="image/svg+xml" href="/icon.svg" />
+    <link rel="icon" type="image/png" href="/favicon.png" />
+    <link rel="shortcut icon" href="/favicon.png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Outfit:wght@500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+    <title>SIDESEGUATE Streaming - Videovigilancia Web en Vivo</title>
+    <meta name="description" content="Plataforma de streaming y videovigilancia web para SIDESEGUATE: Conecta DVRs Hikvision y cámaras IP vía RTSP/MediaMTX y genera enlaces privados para clientes sin instalar apps." />
+    <meta property="og:title" content="SIDESEGUATE Streaming - Videovigilancia Web en Vivo" />
+    <meta property="og:description" content="Plataforma de streaming y videovigilancia web para SIDESEGUATE: Conecta DVRs Hikvision y cámaras IP vía RTSP/MediaMTX y genera enlaces privados para clientes sin instalar apps." />
+    <meta property="og:image" content="/logo-sideseguate.jpg" />
+    <meta property="og:type" content="website" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <script>
+      (function() {
+        // Ensure window.fetch has both getter and setter so Chrome extensions can safely wrap/intercept it
+        try {
+          var originalFetch = window.fetch ? window.fetch.bind(window) : undefined;
+          var _currentFetch = originalFetch;
+          Object.defineProperty(window, 'fetch', {
+            configurable: true,
+            enumerable: true,
+            get: function() {
+              return _currentFetch;
+            },
+            set: function(newFetch) {
+              _currentFetch = newFetch;
+            }
+          });
+        } catch (e) {
+          // Fallback if defineProperty fails
+        }
+
+        // Suppress external chrome-extension errors from polluting app error reporting
+        window.addEventListener('error', function(e) {
+          if (e.filename && e.filename.indexOf('chrome-extension://') !== -1) {
+            e.preventDefault();
+            e.stopPropagation();
+            return true;
+          }
+          if (e.message && e.message.indexOf('Cannot set property fetch of #<Window>') !== -1) {
+            e.preventDefault();
+            e.stopPropagation();
+            return true;
+          }
+        }, true);
+      })();
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
+

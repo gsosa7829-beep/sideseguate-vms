@@ -1,0 +1,15 @@
+node_modules/
+build/
+dist/
+coverage/
+.DS_Store
+*.log
+.env*
+!.env.example
+
+.playwright-cli/
+.aistudio/
+mediamtx.exe
+mediamtx.zip
+test_ch*.jpg
+live-ch*.jpg

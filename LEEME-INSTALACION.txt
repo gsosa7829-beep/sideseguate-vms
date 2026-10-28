@@ -1,0 +1,24 @@
+====================================================================
+SIDESEGUATE STREAMING - PROYECTO COMPLETO (CODIGO FUENTE + GATEWAY)
+====================================================================
+
+1. REQUISITOS EN TU PC:
+   - Node.js 18 o superior instalado (https://nodejs.org)
+
+2. COMO EJECUTAR EL PROYECTO EN TU PC:
+   Abre una terminal (PowerShell o CMD) dentro de esta carpeta y ejecuta:
+
+   npm install
+   npm run dev
+
+   Luego abre en tu navegador: http://localhost:3000
+
+3. COMO COMPILAR PARA PRODUCCION (FIREBASE HOSTING / VERCEL):
+   npm run build
+
+4. ESTRUCTURA DEL PROYECTO:
+   - /src/components : Interfaz del Muro de Video, Reproductor en Vivo, Mapa Tactico, Escaneo SADP, Portal de Clientes y Seguridad.
+   - /src/lib        : Generador RTSP Hikvision, MediaMTX YAML, Tunel Cloudflare 4G, Sincronizacion Cloud Firestore y Autenticacion.
+   - firestore.rules : Reglas de seguridad de Google Cloud Firestore.
+   - firebase-applet-config.json : Configuracion de conexion a tu base de datos Cloud Firestore.
+====================================================================

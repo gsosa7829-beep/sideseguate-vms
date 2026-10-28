@@ -1,0 +1,18 @@
+version: '3.8'
+
+services:
+  # MediaMTX Streaming Gateway (RTSP a HLS / WebRTC)
+  mediamtx:
+    image: bluenviron/mediamtx:latest-ffmpeg
+    container_name: sideseguate-mediamtx
+    restart: always
+    network_mode: host
+    environment:
+      - MTX_WEBRTCADDITIONALHOSTS=stream.sideseguate.gt
+    volumes:
+      - ./mediamtx.yml:/mediamtx.yml:ro
+    ports:
+      - "8554:8554/tcp"  # Ingesta RTSP
+      - "8888:8888/tcp"  # Salida HLS
+      - "8889:8889/tcp"  # Salida WebRTC WHEP
+      - "8189:8189/udp"  # WebRTC ICE UDP

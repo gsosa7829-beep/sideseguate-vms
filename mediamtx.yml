@@ -1,0 +1,80 @@
+# ===================================================================
+# SIDESEGUATE - Configuración de Producción MediaMTX (Windows / Linux)
+# Equipos del Cliente:
+#   1. Hikvision iDS-7108HQHI-M1/S0 AcuSense 8CH (SN: L18365299)
+#   2. Hikvision iDS-7204HUHI-M1/S AcuSense 4CH (SN: 0420240307CCWRFB2200254WCVU)
+#   3. Hikvision DS-7108HGHI-F1/N TurboHD 8CH (SN: F30392314)
+# Credenciales Configuradas:
+#   Usuario: vi1fdr | Password: Dvr232323 | Código Verificación: HELGDM
+# ===================================================================
+
+logLevel: info
+logDestinations: [stdout, file]
+logFile: mediamtx.log
+
+# API de Control y Estado en Tiempo Real
+api: yes
+apiAddress: :9997
+
+# RTSP Server
+rtsp: yes
+protocols: [tcp]
+rtspAddress: :8554
+
+# WebRTC Server (Baja latencia ~200ms WHEP para navegador web)
+webrtc: yes
+webrtcAddress: :8889
+webrtcEncryption: no
+webrtcAllowOrigin: '*'
+
+# HLS Server (Compatibilidad universal iOS Safari / Chrome Android / Web)
+hls: yes
+hlsAddress: :8888
+hlsAlwaysRemux: no
+hlsVariant: fmp4
+hlsSegmentCount: 5
+hlsSegmentDuration: 1s
+hlsPartDuration: 200ms
+hlsAllowOrigin: '*'
+
+paths:
+  all_others:
+    source: publisher
+
+  # Rutas sincronizadas automáticamente con el catálogo de cámaras SIDESEGUATE
+  # DVR detectado en iVMS-4200: EQUIPO DE PRUEBA (SN: FB2200254 · Código: HELGDM · IP: 192.168.1.81)
+  cam_cam-ids-_ch1__camera_01___entrada_principal__192_168_1_41_:
+    source: rtsp://admin:HELGDM@192.168.1.81:554/Streaming/Channels/101
+    sourceOnDemand: yes
+    sourceOnDemandStartTimeout: 10s
+    sourceOnDemandCloseAfter: 30s
+
+  cam_cam-ids-_ch2__camera_02___bodega___and_n__192_168_1_41_:
+    source: rtsp://admin:HELGDM@192.168.1.81:554/Streaming/Channels/201
+    sourceOnDemand: yes
+    sourceOnDemandStartTimeout: 10s
+    sourceOnDemandCloseAfter: 30s
+
+  cam_cam-ids-_ch3__camera_03___parqueo__192_168_1_41_substream_:
+    source: rtsp://admin:HELGDM@192.168.1.81:554/Streaming/Channels/302
+    sourceOnDemand: yes
+    sourceOnDemandStartTimeout: 10s
+    sourceOnDemandCloseAfter: 30s
+
+  cam_cam-ids-_ch4__camera_04___per_metro_exterior__192_168_1_41_:
+    source: rtsp://admin:HELGDM@192.168.1.81:554/Streaming/Channels/401
+    sourceOnDemand: yes
+    sourceOnDemandStartTimeout: 10s
+    sourceOnDemandCloseAfter: 30s
+
+  cam_cam-ds71_ch5__recepci_n___oficinas__dvr_8ch_192_168_1_41_:
+    source: rtsp://admin:HELGDM@192.168.1.81:554/Streaming/Channels/501
+    sourceOnDemand: yes
+    sourceOnDemandStartTimeout: 10s
+    sourceOnDemandCloseAfter: 30s
+
+  cam_cam-ds71_ch6__pasillo_administrativo__dvr_8ch_192_168_1_41_:
+    source: rtsp://admin:HELGDM@192.168.1.81:554/Streaming/Channels/602
+    sourceOnDemand: yes
+    sourceOnDemandStartTimeout: 10s
+    sourceOnDemandCloseAfter: 30s

@@ -1,0 +1,529 @@
+{
+  "entities": {
+    "AdminProfile": {
+      "title": "AdminProfile",
+      "description": "Administrator user record for SIDESEGUATE VMS platform.",
+      "type": "object",
+      "properties": {
+        "ownerId": {
+          "type": "string",
+          "description": "UID of the administrator",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "displayName": {
+          "type": "string",
+          "description": "Public display name of the operator",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp of creation"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp of last update"
+        }
+      },
+      "required": ["ownerId", "displayName", "createdAt", "updatedAt"]
+    },
+    "VmsSnapshot": {
+      "title": "VmsSnapshot",
+      "description": "Synchronized SIDESEGUATE VMS configuration state per administrator.",
+      "type": "object",
+      "properties": {
+        "ownerId": {
+          "type": "string",
+          "description": "UID of the owning administrator",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "gatewayHost": {
+          "type": "string",
+          "description": "Gateway hostname or IP address",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "projectsCount": {
+          "type": "number",
+          "description": "Number of configured projects"
+        },
+        "camerasCount": {
+          "type": "number",
+          "description": "Number of configured cameras"
+        },
+        "shareLinksCount": {
+          "type": "number",
+          "description": "Number of configured share links"
+        },
+        "status": {
+          "type": "string",
+          "description": "Workspace operational status",
+          "enum": ["active", "archived"]
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server creation timestamp"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server update timestamp"
+        }
+      },
+      "required": [
+        "ownerId",
+        "gatewayHost",
+        "projectsCount",
+        "camerasCount",
+        "shareLinksCount",
+        "status",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "CloudProject": {
+      "title": "CloudProject",
+      "description": "Client or camera sales demo record synchronized in Firestore.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "ownerId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "clientName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 150
+        },
+        "clientPhone": {
+          "type": "string",
+          "minLength": 0,
+          "maxLength": 60
+        },
+        "location": {
+          "type": "string",
+          "minLength": 0,
+          "maxLength": 250
+        },
+        "status": {
+          "type": "string",
+          "enum": ["demo_venta", "instalado_activo", "prospecto", "activo", "en_instalacion"]
+        },
+        "equipmentNotes": {
+          "type": "string",
+          "minLength": 0,
+          "maxLength": 1000
+        },
+        "createdAtIso": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "ownerId",
+        "name",
+        "clientName",
+        "clientPhone",
+        "location",
+        "status",
+        "equipmentNotes",
+        "createdAtIso",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "CloudCamera": {
+      "title": "CloudCamera",
+      "description": "Registered camera or DVR channel synchronized in Firestore for cross-device live viewing.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "ownerId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "projectId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "deviceType": {
+          "type": "string",
+          "enum": ["hikvision_dvr", "hikvision_ip", "v380_4g", "generic_rtsp"]
+        },
+        "host": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "port": {
+          "type": "number"
+        },
+        "onvifPort": {
+          "type": "number"
+        },
+        "username": {
+          "type": "string",
+          "minLength": 0,
+          "maxLength": 100
+        },
+        "password": {
+          "type": "string",
+          "minLength": 0,
+          "maxLength": 100
+        },
+        "channel": {
+          "type": "number"
+        },
+        "streamType": {
+          "type": "string",
+          "enum": ["main", "sub"]
+        },
+        "rtspUrl": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500
+        },
+        "hlsStreamUrl": {
+          "type": "string",
+          "minLength": 0,
+          "maxLength": 500
+        },
+        "webrtcUrl": {
+          "type": "string",
+          "minLength": 0,
+          "maxLength": 500
+        },
+        "status": {
+          "type": "string",
+          "enum": ["online", "offline", "warning"]
+        },
+        "fps": {
+          "type": "number"
+        },
+        "resolution": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "bitrateKbps": {
+          "type": "number"
+        },
+        "codec": {
+          "type": "string",
+          "enum": ["H.264", "H.265"]
+        },
+        "locationDesc": {
+          "type": "string",
+          "minLength": 0,
+          "maxLength": 300
+        },
+        "ptzSupported": {
+          "type": "boolean"
+        },
+        "nightVision": {
+          "type": "boolean"
+        },
+        "verificationCode": {
+          "type": "string",
+          "minLength": 0,
+          "maxLength": 64
+        },
+        "cloudId": {
+          "type": "string",
+          "minLength": 0,
+          "maxLength": 128
+        },
+        "notes": {
+          "type": "string",
+          "minLength": 0,
+          "maxLength": 1000
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "ownerId",
+        "projectId",
+        "name",
+        "deviceType",
+        "host",
+        "port",
+        "onvifPort",
+        "username",
+        "password",
+        "channel",
+        "streamType",
+        "rtspUrl",
+        "hlsStreamUrl",
+        "webrtcUrl",
+        "status",
+        "fps",
+        "resolution",
+        "bitrateKbps",
+        "codec",
+        "locationDesc",
+        "ptzSupported",
+        "nightVision",
+        "verificationCode",
+        "cloudId",
+        "notes",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "CloudShareLink": {
+      "title": "CloudShareLink",
+      "description": "Shared camera access link and PIN synchronized in Firestore keyed by capability token.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "ownerId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "projectId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "token": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "clientName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 150
+        },
+        "cameraIds": {
+          "type": "array"
+        },
+        "pinCode": {
+          "type": "string",
+          "minLength": 0,
+          "maxLength": 16
+        },
+        "expiresAtIso": {
+          "type": "string",
+          "minLength": 0,
+          "maxLength": 64
+        },
+        "isActive": {
+          "type": "boolean"
+        },
+        "allowPtz": {
+          "type": "boolean"
+        },
+        "allowAudio": {
+          "type": "boolean"
+        },
+        "allowSnapshot": {
+          "type": "boolean"
+        },
+        "showWatermark": {
+          "type": "boolean"
+        },
+        "maxConcurrentViewers": {
+          "type": "number"
+        },
+        "accessCount": {
+          "type": "number"
+        },
+        "lastAccessedAtIso": {
+          "type": "string",
+          "minLength": 0,
+          "maxLength": 64
+        },
+        "createdAtIso": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "ownerId",
+        "projectId",
+        "token",
+        "title",
+        "clientName",
+        "cameraIds",
+        "pinCode",
+        "expiresAtIso",
+        "isActive",
+        "allowPtz",
+        "allowAudio",
+        "allowSnapshot",
+        "showWatermark",
+        "maxConcurrentViewers",
+        "accessCount",
+        "lastAccessedAtIso",
+        "createdAtIso",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "CloudAccessLog": {
+      "title": "CloudAccessLog",
+      "description": "Audit log entry recorded when a buyer opens or interacts with a shared camera link.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "ownerId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "shareLinkId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "clientIp": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "deviceInfo": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 250
+        },
+        "timestampIso": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "durationSeconds": {
+          "type": "number"
+        },
+        "action": {
+          "type": "string",
+          "enum": ["stream_started", "ptz_used", "snapshot_taken", "auth_failed"]
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "ownerId",
+        "shareLinkId",
+        "clientIp",
+        "deviceInfo",
+        "timestampIso",
+        "durationSeconds",
+        "action",
+        "createdAt"
+      ]
+    }
+  },
+  "firestore": {
+    "/admins/{adminId}": {
+      "schema": "AdminProfile",
+      "description": "Trusted administrator registry keyed by UID"
+    },
+    "/vms_workspaces/{workspaceId}": {
+      "schema": "VmsSnapshot",
+      "description": "Per-operator VMS configuration summary in Google Cloud Firestore"
+    },
+    "/cloud_projects/{projectId}": {
+      "schema": "CloudProject",
+      "description": "Real-time cloud-synchronized client and camera demo projects"
+    },
+    "/cloud_cameras/{cameraId}": {
+      "schema": "CloudCamera",
+      "description": "Real-time cloud-synchronized cameras and DVR channels"
+    },
+    "/cloud_share_links/{token}": {
+      "schema": "CloudShareLink",
+      "description": "Real-time cloud-synchronized shared links keyed by capability token"
+    },
+    "/cloud_access_logs/{logId}": {
+      "schema": "CloudAccessLog",
+      "description": "Real-time cloud-synchronized buyer access audit logs"
+    }
+  }
+}

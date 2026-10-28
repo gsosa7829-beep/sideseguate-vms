@@ -1,0 +1,512 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 1. Global Safety Net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // 2. Hardened Global Primitives
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null && request.auth.token.email_verified == true;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && (
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid)) ||
+        request.auth.token.email == 'gsosa7829@gmail.com'
+      );
+    }
+
+    function isAuthorizedOperator(ownerId) {
+      return isValidId(ownerId) && (
+        ownerId == 'sideseguate_cloud_v1' ||
+        (isSignedIn() && ownerId == request.auth.uid) ||
+        isAdmin()
+      );
+    }
+
+    // 3. Entity Validation Blueprints
+    function isValidAdminProfile(data) {
+      return data.keys().hasAll(['ownerId', 'displayName', 'createdAt', 'updatedAt']) &&
+        data.keys().hasOnly(['ownerId', 'displayName', 'createdAt', 'updatedAt']) &&
+        data.ownerId is string && data.ownerId.size() >= 1 && data.ownerId.size() <= 128 &&
+        data.ownerId.matches('^[a-zA-Z0-9_\\-]+$') &&
+        data.ownerId == request.auth.uid &&
+        data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 100 &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidVmsSnapshot(data) {
+      return data.keys().hasAll([
+          'ownerId',
+          'gatewayHost',
+          'projectsCount',
+          'camerasCount',
+          'shareLinksCount',
+          'status',
+          'createdAt',
+          'updatedAt'
+        ]) &&
+        data.keys().hasOnly([
+          'ownerId',
+          'gatewayHost',
+          'projectsCount',
+          'camerasCount',
+          'shareLinksCount',
+          'status',
+          'createdAt',
+          'updatedAt'
+        ]) &&
+        data.ownerId is string && data.ownerId.size() >= 1 && data.ownerId.size() <= 128 &&
+        data.ownerId.matches('^[a-zA-Z0-9_\\-]+$') &&
+        data.ownerId == request.auth.uid &&
+        data.gatewayHost is string && data.gatewayHost.size() >= 1 && data.gatewayHost.size() <= 200 &&
+        data.projectsCount is int && data.projectsCount >= 0 && data.projectsCount <= 500 &&
+        data.camerasCount is int && data.camerasCount >= 0 && data.camerasCount <= 2000 &&
+        data.shareLinksCount is int && data.shareLinksCount >= 0 && data.shareLinksCount <= 2000 &&
+        data.status is string && data.status in ['active', 'archived'] &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidCloudProject(data) {
+      return data.keys().hasAll([
+          'id',
+          'ownerId',
+          'name',
+          'clientName',
+          'clientPhone',
+          'location',
+          'status',
+          'equipmentNotes',
+          'createdAtIso',
+          'createdAt',
+          'updatedAt'
+        ]) &&
+        data.keys().hasOnly([
+          'id',
+          'ownerId',
+          'name',
+          'clientName',
+          'clientPhone',
+          'location',
+          'status',
+          'equipmentNotes',
+          'createdAtIso',
+          'createdAt',
+          'updatedAt'
+        ]) &&
+        isValidId(data.id) &&
+        isAuthorizedOperator(data.ownerId) &&
+        data.name is string && data.name.size() >= 1 && data.name.size() <= 200 &&
+        data.clientName is string && data.clientName.size() >= 1 && data.clientName.size() <= 150 &&
+        data.clientPhone is string && data.clientPhone.size() >= 0 && data.clientPhone.size() <= 60 &&
+        data.location is string && data.location.size() >= 0 && data.location.size() <= 250 &&
+        data.status is string && data.status in ['demo_venta', 'instalado_activo', 'prospecto', 'activo', 'en_instalacion'] &&
+        data.equipmentNotes is string && data.equipmentNotes.size() >= 0 && data.equipmentNotes.size() <= 1000 &&
+        data.createdAtIso is string && data.createdAtIso.size() >= 1 && data.createdAtIso.size() <= 64 &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidCloudCamera(data) {
+      return data.keys().hasAll([
+          'id',
+          'ownerId',
+          'projectId',
+          'name',
+          'deviceType',
+          'host',
+          'port',
+          'onvifPort',
+          'username',
+          'password',
+          'channel',
+          'streamType',
+          'rtspUrl',
+          'hlsStreamUrl',
+          'webrtcUrl',
+          'status',
+          'fps',
+          'resolution',
+          'bitrateKbps',
+          'codec',
+          'locationDesc',
+          'ptzSupported',
+          'nightVision',
+          'verificationCode',
+          'cloudId',
+          'notes',
+          'createdAt',
+          'updatedAt'
+        ]) &&
+        data.keys().hasOnly([
+          'id',
+          'ownerId',
+          'projectId',
+          'name',
+          'deviceType',
+          'host',
+          'port',
+          'onvifPort',
+          'username',
+          'password',
+          'channel',
+          'streamType',
+          'rtspUrl',
+          'hlsStreamUrl',
+          'webrtcUrl',
+          'status',
+          'fps',
+          'resolution',
+          'bitrateKbps',
+          'codec',
+          'locationDesc',
+          'ptzSupported',
+          'nightVision',
+          'verificationCode',
+          'cloudId',
+          'notes',
+          'createdAt',
+          'updatedAt'
+        ]) &&
+        isValidId(data.id) &&
+        isAuthorizedOperator(data.ownerId) &&
+        isValidId(data.projectId) &&
+        data.name is string && data.name.size() >= 1 && data.name.size() <= 200 &&
+        data.deviceType is string && data.deviceType in ['hikvision_dvr', 'hikvision_ip', 'v380_4g', 'generic_rtsp'] &&
+        data.host is string && data.host.size() >= 1 && data.host.size() <= 200 &&
+        data.port is int && data.port >= 1 && data.port <= 65535 &&
+        data.onvifPort is int && data.onvifPort >= 1 && data.onvifPort <= 65535 &&
+        data.username is string && data.username.size() >= 0 && data.username.size() <= 100 &&
+        data.password is string && data.password.size() >= 0 && data.password.size() <= 100 &&
+        data.channel is int && data.channel >= 1 && data.channel <= 128 &&
+        data.streamType is string && data.streamType in ['main', 'sub'] &&
+        data.rtspUrl is string && data.rtspUrl.size() >= 1 && data.rtspUrl.size() <= 500 &&
+        data.hlsStreamUrl is string && data.hlsStreamUrl.size() >= 0 && data.hlsStreamUrl.size() <= 500 &&
+        data.webrtcUrl is string && data.webrtcUrl.size() >= 0 && data.webrtcUrl.size() <= 500 &&
+        data.status is string && data.status in ['online', 'offline', 'warning'] &&
+        data.fps is int && data.fps >= 1 && data.fps <= 120 &&
+        data.resolution is string && data.resolution.size() >= 1 && data.resolution.size() <= 100 &&
+        data.bitrateKbps is int && data.bitrateKbps >= 64 && data.bitrateKbps <= 32768 &&
+        data.codec is string && data.codec in ['H.264', 'H.265'] &&
+        data.locationDesc is string && data.locationDesc.size() >= 0 && data.locationDesc.size() <= 300 &&
+        data.ptzSupported is bool &&
+        data.nightVision is bool &&
+        data.verificationCode is string && data.verificationCode.size() >= 0 && data.verificationCode.size() <= 64 &&
+        data.cloudId is string && data.cloudId.size() >= 0 && data.cloudId.size() <= 128 &&
+        data.notes is string && data.notes.size() >= 0 && data.notes.size() <= 1000 &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidCloudShareLink(data) {
+      return data.keys().hasAll([
+          'id',
+          'ownerId',
+          'projectId',
+          'token',
+          'title',
+          'clientName',
+          'cameraIds',
+          'pinCode',
+          'expiresAtIso',
+          'isActive',
+          'allowPtz',
+          'allowAudio',
+          'allowSnapshot',
+          'showWatermark',
+          'maxConcurrentViewers',
+          'accessCount',
+          'lastAccessedAtIso',
+          'createdAtIso',
+          'createdAt',
+          'updatedAt'
+        ]) &&
+        data.keys().hasOnly([
+          'id',
+          'ownerId',
+          'projectId',
+          'token',
+          'title',
+          'clientName',
+          'cameraIds',
+          'pinCode',
+          'expiresAtIso',
+          'isActive',
+          'allowPtz',
+          'allowAudio',
+          'allowSnapshot',
+          'showWatermark',
+          'maxConcurrentViewers',
+          'accessCount',
+          'lastAccessedAtIso',
+          'createdAtIso',
+          'createdAt',
+          'updatedAt'
+        ]) &&
+        isValidId(data.id) &&
+        isAuthorizedOperator(data.ownerId) &&
+        isValidId(data.projectId) &&
+        isValidId(data.token) &&
+        data.title is string && data.title.size() >= 1 && data.title.size() <= 200 &&
+        data.clientName is string && data.clientName.size() >= 1 && data.clientName.size() <= 150 &&
+        data.cameraIds is list && data.cameraIds.size() <= 64 &&
+        (data.cameraIds.size() == 0 || (data.cameraIds[0] is string && data.cameraIds[0].size() >= 1 && data.cameraIds[0].size() <= 128)) &&
+        data.pinCode is string && data.pinCode.size() >= 0 && data.pinCode.size() <= 16 &&
+        data.expiresAtIso is string && data.expiresAtIso.size() >= 0 && data.expiresAtIso.size() <= 64 &&
+        data.isActive is bool &&
+        data.allowPtz is bool &&
+        data.allowAudio is bool &&
+        data.allowSnapshot is bool &&
+        data.showWatermark is bool &&
+        data.maxConcurrentViewers is int && data.maxConcurrentViewers >= 1 && data.maxConcurrentViewers <= 100 &&
+        data.accessCount is int && data.accessCount >= 0 && data.accessCount <= 1000000 &&
+        data.lastAccessedAtIso is string && data.lastAccessedAtIso.size() >= 0 && data.lastAccessedAtIso.size() <= 64 &&
+        data.createdAtIso is string && data.createdAtIso.size() >= 1 && data.createdAtIso.size() <= 64 &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidCloudAccessLog(data) {
+      return data.keys().hasAll([
+          'id',
+          'ownerId',
+          'shareLinkId',
+          'clientIp',
+          'deviceInfo',
+          'timestampIso',
+          'durationSeconds',
+          'action',
+          'createdAt'
+        ]) &&
+        data.keys().hasOnly([
+          'id',
+          'ownerId',
+          'shareLinkId',
+          'clientIp',
+          'deviceInfo',
+          'timestampIso',
+          'durationSeconds',
+          'action',
+          'createdAt'
+        ]) &&
+        isValidId(data.id) &&
+        isAuthorizedOperator(data.ownerId) &&
+        isValidId(data.shareLinkId) &&
+        data.clientIp is string && data.clientIp.size() >= 1 && data.clientIp.size() <= 100 &&
+        data.deviceInfo is string && data.deviceInfo.size() >= 1 && data.deviceInfo.size() <= 250 &&
+        data.timestampIso is string && data.timestampIso.size() >= 1 && data.timestampIso.size() <= 64 &&
+        data.durationSeconds is int && data.durationSeconds >= 0 && data.durationSeconds <= 86400 &&
+        data.action is string && data.action in ['stream_started', 'ptz_used', 'snapshot_taken', 'auth_failed'] &&
+        data.createdAt is timestamp;
+    }
+
+    // 4. Collection Rules: /admins/{adminId}
+    match /admins/{adminId} {
+      allow get: if isSignedIn() && isValidId(adminId) && (resource == null || adminId == request.auth.uid || isAdmin());
+      allow list: if false;
+      allow create: if isSignedIn() &&
+        isValidId(adminId) &&
+        adminId == request.auth.uid &&
+        isValidAdminProfile(incoming()) &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time &&
+        request.auth.token.email == 'gsosa7829@gmail.com';
+      allow update: if isSignedIn() &&
+        isValidId(adminId) &&
+        adminId == request.auth.uid &&
+        isValidAdminProfile(incoming()) &&
+        incoming().ownerId == existing().ownerId &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time &&
+        incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'updatedAt']) &&
+        isAdmin();
+      allow delete: if false;
+    }
+
+    // 5. Collection Rules: /vms_workspaces/{workspaceId}
+    match /vms_workspaces/{workspaceId} {
+      allow get: if isSignedIn() && isValidId(workspaceId) && (resource == null || existing().ownerId == request.auth.uid || isAdmin());
+      allow list: if isSignedIn() && (existing().ownerId == request.auth.uid || isAdmin());
+      allow create: if isSignedIn() &&
+        isValidId(workspaceId) &&
+        workspaceId == request.auth.uid &&
+        isValidVmsSnapshot(incoming()) &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time;
+      allow update: if isSignedIn() &&
+        isValidId(workspaceId) &&
+        workspaceId == request.auth.uid &&
+        isValidVmsSnapshot(incoming()) &&
+        incoming().ownerId == existing().ownerId &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time &&
+        (existing().status != 'archived' || isAdmin()) &&
+        (
+          isAdmin() ||
+          incoming().diff(existing()).affectedKeys().hasOnly([
+            'gatewayHost',
+            'projectsCount',
+            'camerasCount',
+            'shareLinksCount',
+            'status',
+            'updatedAt'
+          ])
+        );
+      allow delete: if isSignedIn() && isValidId(workspaceId) && (existing().ownerId == request.auth.uid || isAdmin());
+    }
+
+    // 6. Collection Rules: /cloud_projects/{projectId}
+    match /cloud_projects/{projectId} {
+      allow get: if isValidId(projectId) && (resource == null || isAuthorizedOperator(existing().ownerId));
+      allow list: if isAuthorizedOperator(existing().ownerId);
+      allow create: if isValidId(projectId) &&
+        projectId == incoming().id &&
+        isValidCloudProject(incoming()) &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time;
+      allow update: if isValidId(projectId) &&
+        isValidCloudProject(incoming()) &&
+        incoming().id == existing().id &&
+        incoming().ownerId == existing().ownerId &&
+        incoming().createdAtIso == existing().createdAtIso &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time &&
+        (
+          isAdmin() ||
+          incoming().diff(existing()).affectedKeys().hasOnly([
+            'name',
+            'clientName',
+            'clientPhone',
+            'location',
+            'status',
+            'equipmentNotes',
+            'updatedAt'
+          ])
+        );
+      allow delete: if isValidId(projectId) && isAuthorizedOperator(existing().ownerId);
+    }
+
+    // 7. Collection Rules: /cloud_cameras/{cameraId}
+    match /cloud_cameras/{cameraId} {
+      allow get: if isValidId(cameraId) && (resource == null || isAuthorizedOperator(existing().ownerId));
+      allow list: if isAuthorizedOperator(existing().ownerId);
+      allow create: if isValidId(cameraId) &&
+        cameraId == incoming().id &&
+        isValidCloudCamera(incoming()) &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time;
+      allow update: if isValidId(cameraId) &&
+        isValidCloudCamera(incoming()) &&
+        incoming().id == existing().id &&
+        incoming().ownerId == existing().ownerId &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time &&
+        (
+          isAdmin() ||
+          incoming().diff(existing()).affectedKeys().hasOnly([
+            'projectId',
+            'name',
+            'deviceType',
+            'host',
+            'port',
+            'onvifPort',
+            'username',
+            'password',
+            'channel',
+            'streamType',
+            'rtspUrl',
+            'hlsStreamUrl',
+            'webrtcUrl',
+            'status',
+            'fps',
+            'resolution',
+            'bitrateKbps',
+            'codec',
+            'locationDesc',
+            'ptzSupported',
+            'nightVision',
+            'verificationCode',
+            'cloudId',
+            'notes',
+            'updatedAt'
+          ])
+        );
+      allow delete: if isValidId(cameraId) && isAuthorizedOperator(existing().ownerId);
+    }
+
+    // 8. Collection Rules: /cloud_share_links/{token}
+    match /cloud_share_links/{token} {
+      allow get: if isValidId(token) && (resource == null || isAuthorizedOperator(existing().ownerId));
+      allow list: if isAuthorizedOperator(existing().ownerId);
+      allow create: if isValidId(token) &&
+        token == incoming().token &&
+        isValidCloudShareLink(incoming()) &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time;
+      allow update: if isValidId(token) &&
+        isValidCloudShareLink(incoming()) &&
+        incoming().id == existing().id &&
+        incoming().token == existing().token &&
+        incoming().ownerId == existing().ownerId &&
+        incoming().createdAtIso == existing().createdAtIso &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time &&
+        (
+          isAdmin() ||
+          // Action 1: Buyer / Viewer Telemetry Increment
+          incoming().diff(existing()).affectedKeys().hasOnly([
+            'accessCount',
+            'lastAccessedAtIso',
+            'updatedAt'
+          ]) ||
+          // Action 2: Operator Link Configuration Update
+          incoming().diff(existing()).affectedKeys().hasOnly([
+            'projectId',
+            'title',
+            'clientName',
+            'cameraIds',
+            'pinCode',
+            'expiresAtIso',
+            'isActive',
+            'allowPtz',
+            'allowAudio',
+            'allowSnapshot',
+            'showWatermark',
+            'maxConcurrentViewers',
+            'accessCount',
+            'lastAccessedAtIso',
+            'updatedAt'
+          ])
+        );
+      allow delete: if isValidId(token) && isAuthorizedOperator(existing().ownerId);
+    }
+
+    // 9. Collection Rules: /cloud_access_logs/{logId}
+    match /cloud_access_logs/{logId} {
+      allow get: if isValidId(logId) && (resource == null || isAuthorizedOperator(existing().ownerId));
+      allow list: if isAuthorizedOperator(existing().ownerId);
+      allow create: if isValidId(logId) &&
+        logId == incoming().id &&
+        isValidCloudAccessLog(incoming()) &&
+        incoming().createdAt == request.time;
+      allow update: if false;
+      allow delete: if isValidId(logId) && isAuthorizedOperator(existing().ownerId);
+    }
+  }
+}

@@ -1,0 +1,82 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-display: 'Outfit', 'Plus Jakarta Sans', sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, monospace;
+  --color-neutral-950: #06090f;
+  --color-neutral-900: #0c111b;
+  --color-neutral-850: #121927;
+  --color-neutral-800: #1b2537;
+  --color-neutral-750: #25324a;
+  --color-neutral-700: #334361;
+}
+
+:root,
+[data-ui-theme="tactical"] {
+  --color-neutral-950: #06090f;
+  --color-neutral-900: #0c111b;
+  --color-neutral-850: #121927;
+  --color-neutral-800: #1b2537;
+  --color-neutral-750: #25324a;
+}
+
+[data-ui-theme="sapphire"] {
+  --color-neutral-950: #040b18;
+  --color-neutral-900: #09152b;
+  --color-neutral-850: #0f2140;
+  --color-neutral-800: #19315c;
+  --color-neutral-750: #244379;
+}
+
+[data-ui-theme="titanium"] {
+  --color-neutral-950: #11151c;
+  --color-neutral-900: #181e29;
+  --color-neutral-850: #202836;
+  --color-neutral-800: #2c374b;
+  --color-neutral-750: #394760;
+}
+
+@layer base {
+  body {
+    background-color: var(--color-neutral-950);
+    color: #f1f5f9;
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    letter-spacing: 0.004em;
+  }
+
+  h1, h2, h3, .font-display {
+    font-family: var(--font-display);
+    letter-spacing: -0.015em;
+  }
+
+  code, pre, .font-mono {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Custom Sleek Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(6, 9, 15, 0.6);
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(51, 67, 97, 0.65);
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(56, 189, 248, 0.65);
+}
