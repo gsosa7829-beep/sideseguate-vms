@@ -45,7 +45,7 @@ export const AdminLoginScreen: React.FC<AdminLoginScreenProps> = ({
   };
 
   return (
-    <div className="min-h-screen bg-neutral-950 text-neutral-100 flex flex-col justify-center items-center p-4 sm:p-6 relative overflow-hidden selection:bg-sky-500 selection:text-white">
+    <div className="min-h-dvh bg-neutral-950 text-neutral-100 flex flex-col justify-center items-center p-4 sm:p-6 relative overflow-hidden selection:bg-sky-500 selection:text-white">
       {/* Background ambient lighting */}
       <div
         className="absolute inset-0 opacity-20 pointer-events-none"

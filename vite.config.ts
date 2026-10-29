@@ -8,6 +8,34 @@ import {cloudFramesProxy} from './vite-plugin-cloud-frames';
 export default defineConfig(() => {
   return {
     base: './',
+    build: {
+      chunkSizeWarningLimit: 600,
+      rolldownOptions: {
+        output: {
+          // Separa los vendors pesados del código de la app: la carga inicial baja mucho en 4G.
+          codeSplitting: {
+            groups: [
+              {
+                name: 'vendor-firebase',
+                test: /node_modules[\\/](@firebase|firebase)[\\/]/,
+              },
+              {
+                name: 'vendor-video',
+                test: /node_modules[\\/](hls\.js|mux\.js)[\\/]/,
+              },
+              {
+                name: 'vendor-react',
+                test: /node_modules[\\/](react|react-dom|scheduler)[\\/]/,
+              },
+              {
+                name: 'vendor',
+                test: /node_modules[\\/]/,
+              },
+            ],
+          },
+        },
+      },
+    },
     plugins: [
       cloudFramesProxy(),
       react(),

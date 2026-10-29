@@ -18,6 +18,11 @@ export interface CloudP2PState {
   frames: Record<string, string>;
 }
 
+// Proxy del dev/preview server (vite-plugin-cloud-frames): evita CORS, cuotas y bloqueos de red.
+const LOCAL_PROXY_FRAME_BASE = '/p2p/frame';
+const LOCAL_PROXY_ENDPOINT_URL = '/p2p/endpoint.json';
+const LOCAL_PROXY_FULL_STATE_URL = '/p2p/live-frames.json';
+
 // CDNs with NO API rate limits (raw CDN + jsDelivr mirror)
 const RAW_ENDPOINT_URLS = [
   'https://raw.githubusercontent.com/gsosa7829-beep/sideseguate-vms/cloud-state/endpoint.json',
@@ -55,6 +60,9 @@ class CloudP2PClient {
   private localReachable = false;
   private sameOriginReachable = false;
   private consecutiveFailures = 0;
+  private proxyReachable = false;
+  private proxyFails = 0;
+  private proxyCooldownUntil = 0;
 
   constructor() {
     if (typeof window !== 'undefined') {
@@ -73,6 +81,11 @@ class CloudP2PClient {
   public getBestFrameUrl(channel: number): string | null {
     const ch = Math.min(4, Math.max(1, channel || 1));
     const now = Date.now();
+
+    // 0. Proxy del dev/preview server: JPEG del propio origen, sin CORS ni cuotas.
+    if (this.proxyReachable) {
+      return `${LOCAL_PROXY_FRAME_BASE}/${ch}?t=${now}`;
+    }
 
     // 1. Same origin (if running directly on server port or tunnel)
     if (this.sameOriginReachable && typeof window !== 'undefined') {
@@ -154,6 +167,38 @@ class CloudP2PClient {
 
   private async pollOnce() {
     const nowIso = new Date().toISOString();
+
+    // 0a. Proxy del dev/preview server (existe solo con Vite; arrastra los frames como JPEG).
+    if (Date.now() > this.proxyCooldownUntil) {
+      try {
+        const res = await this.fetchWithTimeout(`${LOCAL_PROXY_ENDPOINT_URL}?t=${Date.now()}`, 4000);
+        if (res.ok) {
+          const data = await res.json();
+          if (data?.online) {
+            this.proxyReachable = true;
+            this.proxyFails = 0;
+            this.consecutiveFailures = 0;
+            this.state = {
+              ...this.state,
+              online: true,
+              source: 'cloud-github-24-7',
+              mode: data.mode || 'github-cloud-runner-24-7',
+              serial: data.serial || this.state.serial,
+              model: data.model || this.state.model,
+              encryption: data.encryption || this.state.encryption,
+              tunnelUrl: data.tunnelUrl || this.state.tunnelUrl,
+              updatedAt: data.updatedAt || nowIso,
+              channels: data.channels || this.state.channels,
+            };
+            this.notify();
+            return;
+          }
+        }
+        this.disableProxy();
+      } catch {
+        this.disableProxy();
+      }
+    }
 
     // 0. Check same-origin /status first if served from port 8890 or trycloudflare.com
     if (
@@ -319,57 +364,6 @@ class CloudP2PClient {
         updatedAt: nowIso,
       };
       this.notify();
-    }
-    for (const file of remoteFiles) {
-      for (const url of remoteStateUrls(file)) {
-        sources.push({ url, viaProxy: false });
-      }
-    }
-
-    // Deduplicamos conservando el orden.
-    const seen = new Set<string>();
-    const orderedSources = sources.filter((s) => {
-      const key = `${s.viaProxy ? 'p' : 'r'}:${s.url.split('?')[0].split('&')[0]}`;
-      if (seen.has(key)) return false;
-      seen.add(key);
-      return true;
-    });
-
-    for (const source of orderedSources) {
-      try {
-        const res = await fetch(source.url, {
-          headers: { Accept: 'application/vnd.github.v3.raw' },
-          cache: 'no-store',
-        });
-        if (!res.ok) {
-          if (source.viaProxy) this.disableProxy();
-          continue;
-        }
-        const cloudData = (await res.json()) as CloudStatePayload;
-        if (!cloudData?.online) {
-          if (source.viaProxy) this.disableProxy();
-          continue;
-        }
-        this.proxyReachable = source.viaProxy;
-        this.state = {
-          online: true,
-          source: cloudData.tunnelUrl ? 'cloud-tunnel-24-7' : 'cloud-github-24-7',
-          mode: cloudData.mode || 'github-cloud-runner-24-7',
-          serial: cloudData.serial || 'FB2200254',
-          model: cloudData.model || 'iDS-7204HUHI-M1/S',
-          encryption: cloudData.encryption || 'HELGDM',
-          tunnelUrl: cloudData.tunnelUrl || '',
-          updatedAt: cloudData.updatedAt || new Date().toISOString(),
-          channels: cloudData.channels || {},
-          // Conservamos los últimos frames conocidos si la fuente es el endpoint ligero.
-          frames: cloudData.frames || this.state.frames || {},
-        };
-        this.notify();
-        return;
-      } catch {
-        if (source.viaProxy) this.disableProxy();
-        // Probamos la siguiente fuente.
-      }
     }
   }
 

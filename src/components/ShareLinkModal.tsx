@@ -273,7 +273,7 @@ export const ShareLinkModal: React.FC<ShareLinkModalProps> = ({
               <Calendar className="w-3.5 h-3.5 text-blue-400" />
               Tiempo de Validez / Caducidad del Enlace:
             </label>
-            <div className="grid grid-cols-4 gap-2">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
               {(['24h', '7d', '30d', 'never'] as const).map((opt) => (
                 <button
                   type="button"

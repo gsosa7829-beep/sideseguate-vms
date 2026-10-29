@@ -178,10 +178,6 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
     switch (tab) {
       case 'videowall':
         return { section: 'Monitoreo en Vivo', title: 'Muro de Video Multicámara' };
-      case 'tactical_map':
-        return { section: 'Monitoreo en Vivo', title: 'Mapa Táctico y Radar Perimetral 2D' };
-      case 'single_camera':
-        return { section: 'Monitoreo en Vivo', title: 'Inspección y Control PTZ' };
       case 'share_links':
         return { section: 'Accesos de Clientes', title: 'Enlaces Privados para Clientes' };
       case 'client_onboarding':

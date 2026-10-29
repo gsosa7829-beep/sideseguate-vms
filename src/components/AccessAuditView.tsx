@@ -102,8 +102,8 @@ export const AccessAuditView: React.FC<AccessAuditViewProps> = ({
         </div>
       </div>
 
-      {/* Audit Log Table */}
-      <div className="bg-neutral-900/70 border border-neutral-850 rounded-xl overflow-hidden shadow-sm">
+      {/* Audit Log — tabla en PC */}
+      <div className="hidden md:block bg-neutral-900/70 border border-neutral-850 rounded-xl overflow-hidden shadow-sm">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs">
             <thead className="bg-neutral-950 text-neutral-500 font-mono text-[10px] uppercase border-b border-neutral-850">
@@ -176,6 +176,61 @@ export const AccessAuditView: React.FC<AccessAuditViewProps> = ({
             </tbody>
           </table>
         </div>
+      </div>
+
+      {/* Audit Log — tarjetas en móvil */}
+      <div className="md:hidden space-y-2">
+        {filteredLogs.map((log) => (
+          <div
+            key={log.id}
+            className="bg-neutral-900/70 border border-neutral-850 rounded-xl p-3 space-y-2 text-xs"
+          >
+            <div className="flex items-start justify-between gap-2">
+              <div className="font-medium text-white truncate">
+                {getLinkTitle(log.shareLinkId)}
+              </div>
+              <span className="font-mono text-[10px] text-neutral-500 whitespace-nowrap">
+                {new Date(log.timestamp).toLocaleString('es-GT', {
+                  day: '2-digit',
+                  month: 'short',
+                  hour: '2-digit',
+                  minute: '2-digit',
+                })}
+              </span>
+            </div>
+
+            <div className="flex items-center gap-2 text-[11px]">
+              {log.action === 'stream_started' && (
+                <span className="inline-flex items-center gap-1.5 text-emerald-400 font-medium">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                  Streaming Activo
+                </span>
+              )}
+              {log.action === 'snapshot_taken' && (
+                <span className="inline-flex items-center gap-1.5 text-blue-400 font-medium">
+                  <CameraIcon className="w-3.5 h-3.5" />
+                  Captura Guardada
+                </span>
+              )}
+              {log.action === 'auth_failed' && (
+                <span className="inline-flex items-center gap-1.5 text-amber-400 font-medium">
+                  <AlertTriangle className="w-3.5 h-3.5" />
+                  Error de PIN
+                </span>
+              )}
+            </div>
+
+            <div className="grid grid-cols-2 gap-x-3 gap-y-1 pt-2 border-t border-neutral-850 font-mono text-[10px] text-neutral-400">
+              <span className="truncate">IP: {log.clientIp}</span>
+              <span className="text-right text-neutral-300">
+                {log.durationSeconds > 60
+                  ? `${Math.floor(log.durationSeconds / 60)}m ${log.durationSeconds % 60}s`
+                  : `${log.durationSeconds}s`}
+              </span>
+              <span className="col-span-2 truncate text-neutral-500">{log.deviceInfo}</span>
+            </div>
+          </div>
+        ))}
       </div>
     </div>
   );

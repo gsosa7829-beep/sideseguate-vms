@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import Hls from 'hls.js';
+import type HlsType from 'hls.js';
 import { Camera } from '../lib/types';
 import { ivmsLiveBridge, computeIvmsChannelSourceRect } from '../lib/ivmsLiveBridge';
 import { cloudP2pClient } from '../lib/cloudP2pClient';
@@ -138,6 +138,34 @@ export const LiveCameraPlayer: React.FC<LiveCameraPlayerProps> = ({
     };
   }, [camera.channel]);
 
+  // Nitidez en pantallas retina/4K: el lienzo del canvas se ajusta al tamaño real en píxeles
+  // del dispositivo (DPR), con un tope para no castigar la batería de móviles gama baja.
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const resize = () => {
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      const rect = canvas.getBoundingClientRect();
+      if (!rect.width || !rect.height) return;
+      const nextWidth = Math.round(rect.width * dpr);
+      const nextHeight = Math.round(rect.height * dpr);
+      if (canvas.width !== nextWidth || canvas.height !== nextHeight) {
+        canvas.width = nextWidth;
+        canvas.height = nextHeight;
+      }
+    };
+
+    resize();
+    const observer = new ResizeObserver(resize);
+    observer.observe(canvas);
+    window.addEventListener('orientationchange', resize);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener('orientationchange', resize);
+    };
+  }, []);
+
   const isDemoTunnelPlaceholder =
     !!camera.hlsStreamUrl &&
     /sideseguate-[a-z0-9-]*\.trycloudflare\.com|xxxx\.trycloudflare\.com/i.test(
@@ -147,31 +175,51 @@ export const LiveCameraPlayer: React.FC<LiveCameraPlayerProps> = ({
 
   useEffect(() => {
     setHlsLiveReady(false);
-    if (camera.hlsStreamUrl && !isDemoTunnelPlaceholder && videoRef.current) {
+    const video = videoRef.current;
+    if (!camera.hlsStreamUrl || isDemoTunnelPlaceholder || !video) return;
+
+    // hls.js pesa ~565 KB: se descarga solo cuando de verdad hay un stream HLS.
+    let hls: HlsType | null = null;
+    let cancelled = false;
+
+    const start = async () => {
+      const mod = await import('hls.js');
+      if (cancelled) return;
+      const Hls = mod.default;
+
       if (Hls.isSupported()) {
-        const hls = new Hls({ lowLatencyMode: true });
-        hls.loadSource(camera.hlsStreamUrl);
-        hls.attachMedia(videoRef.current);
+        hls = new Hls({ lowLatencyMode: true });
+        hls.loadSource(camera.hlsStreamUrl!);
+        hls.attachMedia(video);
         hls.on(Hls.Events.MANIFEST_PARSED, () => {
+          if (cancelled) return;
           setHlsLiveReady(true);
-          videoRef.current?.play().catch(() => {});
+          video.play().catch(() => {});
         });
         hls.on(Hls.Events.ERROR, (_event, data) => {
           if (data.fatal) {
             setHlsLiveReady(false);
-            hls.destroy();
+            hls?.destroy();
           }
         });
-        return () => hls.destroy();
-      } else if (videoRef.current.canPlayType('application/vnd.apple.mpegurl')) {
-        videoRef.current.src = camera.hlsStreamUrl;
-        videoRef.current.onloadedmetadata = () => {
+      } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+        // Safari/iOS reproduce HLS de forma nativa (sin librería).
+        video.src = camera.hlsStreamUrl!;
+        video.onloadedmetadata = () => {
+          if (cancelled) return;
           setHlsLiveReady(true);
-          videoRef.current?.play().catch(() => {});
+          video.play().catch(() => {});
         };
-        videoRef.current.onerror = () => setHlsLiveReady(false);
+        video.onerror = () => setHlsLiveReady(false);
       }
-    }
+    };
+
+    start().catch(() => setHlsLiveReady(false));
+
+    return () => {
+      cancelled = true;
+      hls?.destroy();
+    };
   }, [camera.hlsStreamUrl, isDemoTunnelPlaceholder]);
 
   // Canvas-based camera renderer (renders native Hikvision P2P V3 stream directly from DVR FB2200254)
@@ -432,7 +480,7 @@ export const LiveCameraPlayer: React.FC<LiveCameraPlayerProps> = ({
             </div>
 
             {/* Quick Presets */}
-            <div className="grid grid-cols-3 gap-1 mb-2">
+            <div className="grid grid-cols-3 gap-1 mb-2 max-w-[220px] mx-auto">
               <button
                 onClick={() => applyPtzPreset(-35, -10, 1.25)}
                 className="px-1.5 py-1 bg-neutral-900 hover:bg-neutral-800 border border-neutral-800 rounded text-[10px] font-medium text-neutral-300 hover:text-white transition whitespace-nowrap"

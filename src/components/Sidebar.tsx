@@ -193,7 +193,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         )}
 
         {/* Scrollable Navigation Groups */}
-        <nav aria-label="Navegación Principal" className="p-3 space-y-5 overflow-y-auto max-h-[calc(100vh-14.5rem)]">
+        <nav aria-label="Navegación Principal" className="p-3 space-y-5 overflow-y-auto max-h-[calc(100dvh-14.5rem)]">
           {menuGroups.map((group, gIdx) => (
             <div key={gIdx} className="space-y-1">
               {!isCollapsed && (
