@@ -38,6 +38,8 @@ export interface Camera {
   nightVision: boolean;
   verificationCode?: string; // Hikvision Stream Encryption / Verification Code (definido por el cliente)
   cloudId?: string; // Hik-Connect / P2P Domain ID
+  /** Serie del equipo (DVR/NVR) al que pertenece el canal. Permite multi-dispositivo. */
+  deviceSerial?: string;
   notes?: string;
   mapX?: number; // 0-100 percentage on tactical floorplan
   mapY?: number; // 0-100 percentage on tactical floorplan

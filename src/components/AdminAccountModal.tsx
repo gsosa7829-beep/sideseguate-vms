@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { AdminAccount, PASSWORD_MIN_LENGTH, changeAdminPassword } from '../lib/adminAuth';
+import { currentTenantId } from '../lib/tenant';
 import {
   ShieldCheck,
   X,
@@ -14,6 +15,7 @@ import {
   Clock,
   LogOut,
   ShieldAlert,
+  Building2,
 } from 'lucide-react';
 
 interface AdminAccountModalProps {
@@ -93,6 +95,14 @@ export const AdminAccountModal: React.FC<AdminAccountModalProps> = ({
     resetForm();
     onShowToast?.('Contraseña del administrador actualizada');
   };
+
+  const spaceId = (() => {
+    try {
+      return currentTenantId();
+    } catch {
+      return 'sideseguate';
+    }
+  })();
 
   const sessionExpiry = (() => {
     try {
@@ -181,6 +191,19 @@ export const AdminAccountModal: React.FC<AdminAccountModalProps> = ({
                   })}
                 </span>
               )}
+            </div>
+          </div>
+
+          {/* Espacio de datos (multi-tenant) */}
+          <div className="bg-neutral-950 border border-neutral-800 rounded-xl p-4 flex items-start gap-2.5">
+            <Building2 className="w-4 h-4 text-sky-400 shrink-0 mt-0.5" />
+            <div className="min-w-0 space-y-0.5">
+              <p className="font-semibold text-white text-[11px]">Espacio de trabajo</p>
+              <p className="text-[11px] text-neutral-400 leading-relaxed">
+                Este panel gestiona únicamente los datos de{' '}
+                <span className="font-mono text-sky-300">{spaceId}</span>. Las cámaras y enlaces
+                de otro cliente nunca se mezclan con los de este espacio.
+              </p>
             </div>
           </div>
 

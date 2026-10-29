@@ -15,9 +15,16 @@ import {
 } from './lib/firebase';
 import { maskRtspUrl, cloneNextDvrChannel } from './lib/rtspHelper';
 import { mergeCloudShareLinks, shareLinkListsDiffer } from './lib/shareLinkMerge';
+import {
+  StreamGateway,
+  loadGateway,
+  saveGateway,
+  resolveStreamUrls,
+  emptyGateway,
+} from './lib/streamGateway';
 import { formatExpirationText, createFlashTemporaryLink, REVOKED_SHARE_TOKENS } from './lib/tokenSecurity';
 import { generateMediaMtxYaml } from './lib/mediaMtxGenerator';
-import { applyTunnelToCameras, formatBuyerAccessNotification, getCameraMediaMtxPath } from './lib/pcLauncherGenerator';
+import { applyTunnelToCameras, formatBuyerAccessNotification } from './lib/pcLauncherGenerator';
 import { LiveCameraPlayer } from './components/LiveCameraPlayer';
 const ClientLivePortal = lazy(() =>
   import('./components/ClientLivePortal').then((m) => ({ default: m.ClientLivePortal }))
@@ -57,6 +64,12 @@ const DesktopProgramModal = lazy(() =>
   import('./components/DesktopProgramModal').then((m) => ({ default: m.DesktopProgramModal }))
 );
 import { AdminLoginScreen } from './components/AdminLoginScreen';
+const SystemDiagnosticsCard = lazy(() =>
+  import('./components/SystemDiagnosticsCard').then((m) => ({ default: m.SystemDiagnosticsCard }))
+);
+const StreamGatewayCard = lazy(() =>
+  import('./components/StreamGatewayCard').then((m) => ({ default: m.StreamGatewayCard }))
+);
 const AdminAccountModal = lazy(() =>
   import('./components/AdminAccountModal').then((m) => ({ default: m.AdminAccountModal }))
 );
@@ -176,6 +189,8 @@ function AppShell() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [cameras, setCameras] = useState<Camera[]>([]);
   const [shareLinks, setShareLinks] = useState<ShareLink[]>(() => storage.getShareLinks());
+  // Gateway de video continuo (MediaMTX). Sin él, HLS apunta al PC del operador.
+  const [streamGateway, setStreamGateway] = useState<StreamGateway>(() => loadGateway());
   const [accessLogs, setAccessLogs] = useState<AccessLog[]>([]);
   const [cloudSyncStatus, setCloudSyncStatus] = useState<'connecting' | 'live' | 'error'>('connecting');
 
@@ -260,14 +275,11 @@ function AppShell() {
       latestLogIdRef.current = loadedLogs[0].id;
     }
 
-    // Ensure all cameras are linked to the local MediaMTX gateway if not already linked to an external tunnel
+    // Cada cámara deriva su HLS/WHEP del gateway configurado (video continuo real).
+    const gatewayAtBoot = loadGateway();
     loadedCameras = loadedCameras.map((cam) => {
-      const pathSlug = getCameraMediaMtxPath(cam);
-      return {
-        ...cam,
-        hlsStreamUrl: cam.hlsStreamUrl || `http://localhost:8888/${pathSlug}/index.m3u8`,
-        webrtcUrl: cam.webrtcUrl || `http://localhost:8889/${pathSlug}/whep`,
-      };
+      const { hlsUrl, webrtcUrl } = resolveStreamUrls(cam, gatewayAtBoot);
+      return { ...cam, hlsStreamUrl: hlsUrl, webrtcUrl };
     });
     storage.saveCameras(loadedCameras);
 
@@ -352,13 +364,14 @@ function AppShell() {
         storage.saveProjects(cloudProjects);
       },
       onCameras: (cloudCameras) => {
+        const gatewayNow = loadGateway();
         const enriched = cloudCameras.map((cam) => {
-          const pathSlug = getCameraMediaMtxPath(cam);
+          const { hlsUrl, webrtcUrl } = resolveStreamUrls(cam, gatewayNow);
           return {
             ...cam,
             verificationCode: cam.verificationCode || '',
-            hlsStreamUrl: cam.hlsStreamUrl || `http://localhost:8888/${pathSlug}/index.m3u8`,
-            webrtcUrl: cam.webrtcUrl || `http://localhost:8889/${pathSlug}/whep`,
+            hlsStreamUrl: hlsUrl,
+            webrtcUrl,
           };
         });
         setCameras(enriched);
@@ -563,6 +576,27 @@ function AppShell() {
         console.warn('Cloud share link expire error:', err)
       );
     }
+  };
+
+  const handleSaveStreamGateway = (gateway: StreamGateway) => {
+    const saved = saveGateway(gateway);
+    setStreamGateway(saved);
+    if (!saved.baseUrl) {
+      setCameras((prev) => {
+        const next = prev.map((cam) => ({ ...cam, hlsStreamUrl: '', webrtcUrl: '' }));
+        storage.saveCameras(next);
+        return next;
+      });
+      return;
+    }
+    setCameras((prev) => {
+      const next = prev.map((cam) => {
+        const { hlsUrl, webrtcUrl } = resolveStreamUrls(cam, saved);
+        return { ...cam, hlsStreamUrl: hlsUrl, webrtcUrl };
+      });
+      storage.saveCameras(next);
+      return next;
+    });
   };
 
   const handleExpireAllLinksNow = () => {
@@ -1402,6 +1436,19 @@ function AppShell() {
           {/* VIEW 11: Configurador mediamtx.yml */}
           {activeTab === 'mediamtx_config' && (
             <div className="space-y-4">
+              <Suspense fallback={<div className="h-40 bg-neutral-900 animate-pulse rounded-xl" />}>
+                <SystemDiagnosticsCard />
+              </Suspense>
+
+              <Suspense fallback={<div className="h-40 bg-neutral-900 animate-pulse rounded-xl" />}>
+                <StreamGatewayCard
+                  gateway={streamGateway}
+                  cameras={cameras}
+                  onShowToast={showToast}
+                  onSave={handleSaveStreamGateway}
+                />
+              </Suspense>
+
               <div className="bg-neutral-900/60 border border-neutral-850 p-4 rounded-xl flex items-center justify-between gap-4">
                 <div>
                   <h3 className="text-sm font-bold text-white flex items-center gap-2">

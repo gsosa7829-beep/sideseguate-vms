@@ -788,3 +788,267 @@ test('shareLinkListsDiffer detecta cambios reales y evita renders inútiles', ()
   assert.equal(shareLinkListsDiffer(a, [mkLink({ isActive: false })]), true);
   assert.equal(shareLinkListsDiffer(a, []), true);
 });
+
+// ---------------------------------------------------------------------------
+// P2 · Video continuo (gateway MediaMTX/HLS)
+// ---------------------------------------------------------------------------
+
+import {
+  normalizeGatewayUrl,
+  isLocalGateway,
+  isPublicGateway,
+  deriveStreamPath,
+  buildHlsUrl,
+  resolveStreamUrls,
+  applyGatewayToCameras,
+  isPlaceholderStreamUrl,
+  emptyGateway,
+} from './streamGateway.ts';
+import {
+  parseRunnerReport,
+  mergeRunnerReport,
+  resolveDeviceForCamera,
+  buildFramePath,
+  parseFramePath,
+  connectedChannels,
+  normalizeSerial,
+} from './deviceRegistry.ts';
+import {
+  resolveTenantId,
+  scopeDocId,
+  parseScopedDocId,
+  belongsToTenant,
+  ownerIdForTenant,
+  isValidTenantId,
+  filterByTenant,
+} from './tenant.ts';
+
+const camBase = {
+  id: 'cam-1',
+  projectId: 'proj-1',
+  name: 'Entrada Principal',
+  deviceType: 'hikvision_dvr' as const,
+  host: '192.168.1.81',
+  port: 554,
+  username: 'admin',
+  channel: 1,
+  streamType: 'main' as const,
+  rtspUrl: 'rtsp://x/y',
+  status: 'online' as const,
+  fps: 25,
+  resolution: '1080p',
+  bitrateKbps: 2000,
+  codec: 'H.264' as const,
+  locationDesc: 'Bodega',
+  ptzSupported: false,
+  nightVision: false,
+};
+
+test('normalizeGatewayUrl acepta host, dominio con path y rechaza basura', () => {
+  assert.equal(normalizeGatewayUrl('stream.sideseguate.gt'), 'https://stream.sideseguate.gt');
+  assert.equal(normalizeGatewayUrl('https://stream.sideseguate.gt/'), 'https://stream.sideseguate.gt');
+  assert.equal(normalizeGatewayUrl('  https://x.com:8888/hls/  '), 'https://x.com:8888/hls');
+  assert.equal(normalizeGatewayUrl('localhost:8888'), 'http://localhost:8888');
+  assert.equal(normalizeGatewayUrl(''), '');
+  assert.equal(normalizeGatewayUrl('   '), '');
+});
+
+test('isLocalGateway / isPublicGateway distinguen el PC del operador del dominio público', () => {
+  assert.equal(isLocalGateway('http://localhost:8888'), true);
+  assert.equal(isLocalGateway('http://127.0.0.1:8888'), true);
+  assert.equal(isPublicGateway('https://stream.sideseguate.gt'), true);
+  // Un dominio que solo va por HTTP no sirve para clientes en 4G: es local.
+  assert.equal(isPublicGateway('http://stream.sideseguate.gt'), false);
+  assert.equal(isPublicGateway('http://localhost:8888'), false);
+});
+
+test('deriveStreamPath es idéntica a la ruta publicada en mediamtx.yml', () => {
+  const path = deriveStreamPath({ id: 'cam-12345678', name: 'Entrada Principal' });
+  assert.equal(path, 'cam_cam-1234_entrada_principal');
+  // Nombres con acentos y símbolos no rompen la ruta. Se conserva el formato
+  // histórico del YAML (sin colapsar guiones bajos) para no romper las
+  // instalaciones de MediaMTX que ya están en producción.
+  assert.equal(deriveStreamPath({ id: 'cam-9', name: 'Cámara #2 · Patio' }), 'cam_cam-9_c_mara__2___patio');
+
+  // La clave: el YAML y el reproductor deben coincidir, o el vídeo da 404.
+  const camera = { ...camBase, id: 'cam-abcdef12', name: 'CH1: Camera 01 · Entrada' };
+  const yaml = generateMediaMtxYaml([camera]);
+  const expected = deriveStreamPath(camera);
+  assert.ok(yaml.includes(`\n  ${expected}:`), `el YAML debe declarar la ruta ${expected}`);
+  const resolved = resolveStreamUrls(camera, { baseUrl: 'https://stream.sideseguate.gt', updatedAt: 'x' });
+  assert.equal(resolved.hlsUrl, `https://stream.sideseguate.gt/${expected}/index.m3u8`);
+});
+
+test('resolveStreamUrls: con gateway público devuelve video continuo real', () => {
+  const gateway = { baseUrl: 'https://stream.sideseguate.gt', updatedAt: 'x' };
+  const res = resolveStreamUrls(
+    { id: 'cam-1', name: 'Entrada', hlsStreamUrl: 'http://localhost:8888/old/index.m3u8' },
+    gateway
+  );
+  assert.equal(res.mode, 'hls-public');
+  assert.match(res.hlsUrl, /^https:\/\/stream\.sideseguate\.gt\/cam_/);
+  assert.match(res.hlsUrl, /\/index\.m3u8$/);
+  // Detrás de un proxy (sin puerto explícito) no se inventa el 8889.
+  assert.equal(res.webrtcUrl, '');
+
+  // Con puerto explícito sí se deriva el WHEP al 8889.
+  const withPort = resolveStreamUrls(
+    { id: 'cam-1', name: 'Entrada' },
+    { baseUrl: 'https://stream.sideseguate.gt:8888', updatedAt: 'x' }
+  );
+  assert.match(withPort.webrtcUrl, /^https:\/\/stream\.sideseguate\.gt:8889\/cam_.*\/whep$/);
+
+  // O se define explícitamente el host WebRTC.
+  const explicitWhep = resolveStreamUrls(
+    { id: 'cam-1', name: 'Entrada' },
+    { baseUrl: 'https://stream.sideseguate.gt', webrtcBaseUrl: 'https://webrtc.sideseguate.gt', updatedAt: 'x' }
+  );
+  assert.match(explicitWhep.webrtcUrl, /^https:\/\/webrtc\.sideseguate\.gt\/cam_.*\/whep$/);
+});
+
+test('resolveStreamUrls: sin gateway mantiene el MediaMTX local y lo marca como local', () => {
+  const res = resolveStreamUrls({ id: 'cam-1', name: 'Entrada' }, emptyGateway());
+  assert.equal(res.mode, 'hls-local');
+  assert.match(res.hlsUrl, /^http:\/\/localhost:8888\/cam_cam-1_entrada\/index\.m3u8$/);
+  assert.match(res.reason, /solo en este equipo/);
+});
+
+test('resolveStreamUrls: la URL local heredada se marca como local, no como pública', () => {
+  const res = resolveStreamUrls(
+    { id: 'cam-1', name: 'Entrada', hlsStreamUrl: 'http://localhost:8888/a/index.m3u8' },
+    emptyGateway()
+  );
+  assert.equal(res.mode, 'hls-local');
+  assert.equal(res.hlsUrl, 'http://localhost:8888/a/index.m3u8');
+});
+
+test('resolveStreamUrls respeta una URL explícita de un stream propio', () => {
+  const res = resolveStreamUrls(
+    { id: 'c', name: 'n', hlsStreamUrl: 'https://cdn.ejemplo.com/live/playlist.m3u8' },
+    { baseUrl: 'https://stream.sideseguate.gt', updatedAt: 'x' }
+  );
+  assert.equal(res.mode, 'hls-public');
+  assert.equal(res.hlsUrl, 'https://cdn.ejemplo.com/live/playlist.m3u8');
+});
+
+test('applyGatewayToCameras migra las URLs localhost guardadas y no toca las que ya son correctas', () => {
+  const cameras = [
+    { ...camBase, hlsStreamUrl: 'http://localhost:8888/cam_cam-1_entrada/index.m3u8' },
+    { ...camBase, id: 'cam-2', name: 'Patio', hlsStreamUrl: 'https://cdn.x.com/a.m3u8' },
+  ];
+  const gateway = { baseUrl: 'https://stream.sideseguate.gt', updatedAt: 'x' };
+  const migrated = applyGatewayToCameras(cameras, gateway);
+
+  assert.match(migrated[0].hlsStreamUrl!, /^https:\/\/stream\.sideseguate\.gt\//);
+  assert.equal(migrated[1].hlsStreamUrl, 'https://cdn.x.com/a.m3u8');
+
+  // Sin gateway no se toca nada (no se inventan URLs).
+  assert.equal(applyGatewayToCameras(cameras, emptyGateway())[0].hlsStreamUrl, cameras[0].hlsStreamUrl);
+  assert.equal(isPlaceholderStreamUrl(''), true);
+  assert.equal(isPlaceholderStreamUrl('https://cdn.x.com/a.m3u8'), false);
+});
+
+test('parseRunnerReport entiende el formato multi-dispositivo y el legado de un equipo', () => {
+  const multi = parseRunnerReport({
+    devices: [
+      { serial: 'fb-2200254', model: 'iDS-7204HUHI-M1/S', channels: { 1: { connected: true } } },
+      { serial: 'AB12345678', model: 'iDS-7208', channels: { 2: { connected: true } } },
+    ],
+    mode: 'runner',
+    tunnelUrl: 'https://x',
+    updatedAt: 'now',
+  });
+  assert.equal(multi.devices.length, 2);
+  assert.equal(multi.multiDevice, true);
+  assert.equal(multi.devices[0].serial, 'FB2200254', 'la serie se normaliza a mayúsculas');
+
+  const legacy = parseRunnerReport({
+    serial: 'FB2200254',
+    model: 'iDS-7204',
+    channels: { '1': { connected: true }, '2': { connected: false } },
+  });
+  assert.equal(legacy.devices.length, 1, 'el formato antiguo sigue funcionando');
+  assert.equal(legacy.multiDevice, false);
+
+  assert.equal(parseRunnerReport(null).devices.length, 0);
+});
+
+test('resolveDeviceForCamera empareja por serie y nunca adivina con varios equipos', () => {
+  const devices = parseRunnerReport({
+    devices: [
+      { serial: 'AAA111', model: 'm1', channels: {} },
+      { serial: 'BBB222', model: 'm2', channels: {} },
+    ],
+  }).devices;
+
+  assert.equal(resolveDeviceForCamera({ deviceSerial: 'bbb222' }, devices)?.serial, 'BBB222');
+  assert.equal(resolveDeviceForCamera({ notes: 'DVR SN: AAA111 · 4CH' }, devices)?.serial, 'AAA111');
+  // Ambiguo: mejor null que mostrar el canal de otro cliente.
+  assert.equal(resolveDeviceForCamera({}, devices), null);
+  // Un único equipo: no hay ambigüedad posible.
+  assert.equal(resolveDeviceForCamera({}, [devices[0]])?.serial, 'AAA111');
+});
+
+test('buildFramePath usa la ruta corta con un equipo y la namespaced con varios', () => {
+  assert.equal(buildFramePath('FB2200254', 1, false), '1');
+  assert.equal(buildFramePath('FB2200254', 3, true), 'FB2200254/3');
+  assert.equal(buildFramePath('', 2, true), '2');
+  assert.equal(buildFramePath('FB2200254', 0, true), 'FB2200254/1', 'el canal se acota a >= 1');
+
+  assert.deepEqual(parseFramePath('FB2200254/3'), { serial: 'FB2200254', channel: 3 });
+  assert.deepEqual(parseFramePath('2'), { serial: '', channel: 2 });
+  assert.equal(parseFramePath('a/b/c'), null);
+  assert.equal(parseFramePath('0'), null);
+});
+
+test('mergeRunnerReport conserva equipos que dejaron de reportar (marcados offline)', () => {
+  const first = parseRunnerReport({ devices: [{ serial: 'AAA111', channels: { 1: { connected: true } } }] }).devices;
+  const second = parseRunnerReport({ devices: [{ serial: 'BBB222', channels: { 1: { connected: true } } }] }).devices;
+  const merged = mergeRunnerReport(first, second);
+
+  assert.equal(merged.length, 2);
+  const a = merged.find((d) => d.serial === 'AAA111');
+  assert.equal(a?.online, false, 'el equipo que ya no reporta queda offline');
+  assert.equal(connectedChannels(a).length, 1, 'conserva la última info de canales');
+  assert.equal(normalizeSerial(' fb 22-00254 '), 'FB2200254');
+});
+
+test('multi-tenant: el tenant se resuelve por URL, subdominio o valor guardado', () => {
+  assert.equal(resolveTenantId({ search: '?tenant=los-pinos' }), 'los-pinos');
+  assert.equal(resolveTenantId({ hostname: 'lospinos.sideseguate.com' }), 'lospinos');
+  assert.equal(resolveTenantId({ hostname: 'sideseguate.com' }), 'sideseguate');
+  assert.equal(resolveTenantId({ stored: 'bodega-zona-12' }), 'bodega-zona-12');
+  assert.equal(resolveTenantId({}), 'sideseguate');
+  // Un subdominio reservado jamás se toma como tenant.
+  assert.equal(resolveTenantId({ hostname: 'www.sideseguate.com' }), 'sideseguate');
+});
+
+test('multi-tenant: los ids de documento quedan aislados por cliente', () => {
+  assert.equal(scopeDocId('los-pinos', 'cam-1'), 'los-pinos__cam-1');
+  assert.equal(scopeDocId('los-pinos', 'los-pinos__cam-1'), 'los-pinos__cam-1', 'idempotente');
+  // El tenant original conserva los ids ya publicados (sin migración).
+  assert.equal(scopeDocId('sideseguate', 'cam-1'), 'cam-1');
+  assert.deepEqual(parseScopedDocId('los-pinos__cam-1'), { tenantId: 'los-pinos', docId: 'cam-1' });
+  assert.deepEqual(parseScopedDocId('cam-1'), { tenantId: 'sideseguate', docId: 'cam-1' });
+
+  // Dos clientes pueden tener "cam-1" sin colisionar.
+  assert.notEqual(scopeDocId('los-pinos', 'cam-1'), scopeDocId('bodega', 'cam-1'));
+});
+
+test('multi-tenant: el filtrado no mezcla datos entre clientes', () => {
+  const docs = [
+    { id: 'a', tenantId: 'los-pinos' },
+    { id: 'b', tenantId: 'bodega-zona-12' },
+    { id: 'c', ownerId: 'sideseguate_cloud_v1' }, // documento heredado
+  ];
+  assert.equal(filterByTenant('los-pinos', docs).length, 1);
+  assert.equal(filterByTenant('sideseguate', docs)[0].id, 'c', 'los datos antiguos son del tenant original');
+  assert.equal(belongsToTenant('bodega-zona-12', docs[1]), true);
+  assert.equal(belongsToTenant('los-pinos', docs[1]), false);
+
+  assert.equal(ownerIdForTenant('sideseguate'), 'sideseguate_cloud_v1');
+  assert.equal(ownerIdForTenant('los-pinos'), 'tenant_los_pinos');
+  assert.equal(isValidTenantId('los-pinos'), true);
+  assert.equal(isValidTenantId('Los Pinos!'), false);
+  assert.equal(isValidTenantId('stream'), false, 'reservado para el servidor de video');
+});

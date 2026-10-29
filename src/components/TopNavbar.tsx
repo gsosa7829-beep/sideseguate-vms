@@ -34,6 +34,7 @@ import {
   signOutFromGoogle,
   syncVmsWorkspaceToCloud
 } from '../lib/firebase';
+import { currentTenantId } from '../lib/tenant';
 import { formatBuyerAccessNotification } from '../lib/pcLauncherGenerator';
 import { usePWAInstall } from '../lib/usePWAInstall';
 import type { User } from 'firebase/auth';
@@ -97,6 +98,8 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
 }) => {
   const { isInstalled } = usePWAInstall();
   const [cloudUser, setCloudUser] = useState<User | null>(null);
+  // Espacio (tenant) activo: cada cliente ve únicamente sus cámaras y enlaces.
+  const [activeTenantId] = useState(() => currentTenantId());
   const [showCloudModal, setShowCloudModal] = useState(false);
   const [showAlertsPopover, setShowAlertsPopover] = useState(false);
   const [syncStatus, setSyncStatus] = useState<'idle' | 'syncing' | 'synced' | 'error'>('idle');
@@ -449,7 +452,7 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
           <button
             onClick={() => setShowCloudModal(true)}
             className="hidden sm:flex h-9 px-3 bg-neutral-950 hover:bg-neutral-850 text-neutral-200 border border-neutral-800 rounded-xl text-xs font-medium items-center gap-1.5 transition whitespace-nowrap shrink-0"
-            title="Sincronización en Tiempo Real en Google Cloud Firestore"
+            title={`Sincronización en Firestore · Espacio: ${activeTenantId}`}
           >
             <span
               className={`w-1.5 h-1.5 rounded-full shrink-0 ${

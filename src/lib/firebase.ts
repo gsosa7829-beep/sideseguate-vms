@@ -144,6 +144,26 @@ import {
   toCloudAccessLogPayload,
   fromCloudAccessLogDoc,
 } from './cloudSyncHelpers';
+import { currentTenantId, ownerIdForTenant, scopeDocId, parseScopedDocId } from './tenant';
+
+/**
+ * Espacio de datos activo. Cada cliente (tenant) tiene su propio `ownerId`, así
+ * que las consultas ya no se mezclan entre instalaciones.
+ */
+function activeTenant(): { tenantId: string; ownerId: string } {
+  const tenantId = currentTenantId();
+  return { tenantId, ownerId: ownerIdForTenant(tenantId) };
+}
+
+/** id real del documento en Firestore (namespaced por tenant). */
+function scopedId(id: string): string {
+  return scopeDocId(activeTenant().tenantId, id);
+}
+
+/** Devuelve el id "lógico" quitando el prefijo del tenant. */
+function unscopedId(id: string): string {
+  return parseScopedDocId(id).docId;
+}
 
 // Strict sanitization constants matching firebase-blueprint.json & firestore.rules
 const ID_REGEX = /^[a-zA-Z0-9_\-]+$/;
@@ -152,9 +172,11 @@ const MAX_HOST_LEN = 200;
 
 // CRUD & Real-Time Cloud Sync Operations
 export async function upsertCloudProject(project: Project): Promise<void> {
-  const payload = toCloudProjectPayload(project);
-  const docPath = `cloud_projects/${payload.id}`;
-  const docRef = doc(db, 'cloud_projects', payload.id);
+  const { tenantId, ownerId } = activeTenant();
+  const payload = { ...toCloudProjectPayload(project, ownerId, tenantId), id: project.id };
+  const docKey = scopedId(payload.id);
+  const docPath = `cloud_projects/${docKey}`;
+  const docRef = doc(db, 'cloud_projects', docKey);
 
   try {
     const snap = await getDoc(docRef);
@@ -191,9 +213,11 @@ export async function deleteCloudProject(projectId: string): Promise<void> {
 }
 
 export async function upsertCloudCamera(camera: Camera): Promise<void> {
-  const payload = toCloudCameraPayload(camera);
-  const docPath = `cloud_cameras/${payload.id}`;
-  const docRef = doc(db, 'cloud_cameras', payload.id);
+  const { tenantId, ownerId } = activeTenant();
+  const payload = { ...toCloudCameraPayload(camera, ownerId, tenantId), id: camera.id };
+  const docKey = scopedId(payload.id);
+  const docPath = `cloud_cameras/${docKey}`;
+  const docRef = doc(db, 'cloud_cameras', docKey);
 
   try {
     const snap = await getDoc(docRef);
@@ -248,7 +272,9 @@ export async function deleteCloudCamera(cameraId: string): Promise<void> {
 }
 
 export async function upsertCloudShareLink(link: ShareLink): Promise<void> {
-  const payload = toCloudShareLinkPayload(link);
+  const { tenantId, ownerId } = activeTenant();
+  // El documento va por token (global), pero declara su tenant.
+  const payload = toCloudShareLinkPayload(link, ownerId, tenantId);
   const docPath = `cloud_share_links/${payload.token}`;
   const docRef = doc(db, 'cloud_share_links', payload.token);
 
@@ -298,7 +324,7 @@ export async function purgeAllCloudShareLinks(): Promise<void> {
   try {
     const q = query(
       collection(db, 'cloud_share_links'),
-      where('ownerId', '==', CLOUD_WORKSPACE_ID)
+      where('ownerId', '==', activeTenant().ownerId)
     );
     const snap = await getDocs(q);
     await Promise.all(snap.docs.map((d) => deleteDoc(d.ref)));
@@ -338,8 +364,9 @@ export async function recordCloudShareLinkAccess(
       action,
     };
 
-    const logPayload = toCloudAccessLogPayload(logEntry);
-    const logRef = doc(db, 'cloud_access_logs', logPayload.id);
+    const { tenantId, ownerId } = activeTenant();
+    const logPayload = toCloudAccessLogPayload(logEntry, ownerId, tenantId);
+    const logRef = doc(db, 'cloud_access_logs', scopedId(logPayload.id));
     await setDoc(logRef, {
       ...logPayload,
       createdAt: serverTimestamp(),
@@ -358,7 +385,7 @@ export async function seedInitialCloudDataIfEmpty(params: {
   try {
     const camerasQuery = query(
       collection(db, 'cloud_cameras'),
-      where('ownerId', '==', CLOUD_WORKSPACE_ID)
+      where('ownerId', '==', activeTenant().ownerId)
     );
     const camerasSnap = await getDocs(camerasQuery);
 
@@ -408,21 +435,22 @@ export function subscribeToCloudState(callbacks: {
 }): () => void {
   callbacks.onSyncStatusChange?.('connecting');
 
+  const tenantOwnerId = activeTenant().ownerId;
   const projectsQ = query(
     collection(db, 'cloud_projects'),
-    where('ownerId', '==', CLOUD_WORKSPACE_ID)
+    where('ownerId', '==', tenantOwnerId)
   );
   const camerasQ = query(
     collection(db, 'cloud_cameras'),
-    where('ownerId', '==', CLOUD_WORKSPACE_ID)
+    where('ownerId', '==', tenantOwnerId)
   );
   const linksQ = query(
     collection(db, 'cloud_share_links'),
-    where('ownerId', '==', CLOUD_WORKSPACE_ID)
+    where('ownerId', '==', tenantOwnerId)
   );
   const logsQ = query(
     collection(db, 'cloud_access_logs'),
-    where('ownerId', '==', CLOUD_WORKSPACE_ID)
+    where('ownerId', '==', tenantOwnerId)
   );
 
   const unsubProjects = onSnapshot(
@@ -430,7 +458,10 @@ export function subscribeToCloudState(callbacks: {
     (snap) => {
       if (!snap.empty) {
         const list = snap.docs
-          .map((d) => fromCloudProjectDoc(d.data() as Record<string, unknown>))
+          .map((d) => {
+            const data = d.data() as Record<string, unknown>;
+            return { ...fromCloudProjectDoc(data), id: unscopedId(String(data.id || d.id)) };
+          })
           .sort((a, b) => a.id.localeCompare(b.id));
         callbacks.onProjects(list);
       }
@@ -447,7 +478,10 @@ export function subscribeToCloudState(callbacks: {
     (snap) => {
       if (!snap.empty) {
         const list = snap.docs
-          .map((d) => fromCloudCameraDoc(d.data() as Record<string, unknown>))
+          .map((d) => {
+            const data = d.data() as Record<string, unknown>;
+            return { ...fromCloudCameraDoc(data), id: unscopedId(String(data.id || d.id)) };
+          })
           .sort((a, b) => a.id.localeCompare(b.id));
         callbacks.onCameras(list);
       }
@@ -479,7 +513,10 @@ export function subscribeToCloudState(callbacks: {
     (snap) => {
       if (!snap.empty) {
         const list = snap.docs
-          .map((d) => fromCloudAccessLogDoc(d.data() as Record<string, unknown>))
+          .map((d) => {
+            const data = d.data() as Record<string, unknown>;
+            return { ...fromCloudAccessLogDoc(data), id: unscopedId(String(data.id || d.id)) };
+          })
           .sort((a, b) => b.timestamp.localeCompare(a.timestamp));
         callbacks.onAccessLogs(list);
       }
