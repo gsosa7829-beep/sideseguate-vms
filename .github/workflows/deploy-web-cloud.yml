@@ -1,15 +1,16 @@
-name: Deploy SIDESEGUATE Web Platform 24/7 (GitHub Pages)
+name: Deploy SIDESEGUATE Web Platform 24/7 (Cloud Branch)
 
 on:
   push:
     branches:
       - main
+    paths-ignore:
+      - '.github/workflows/hik-p2p-cloud-server.yml'
+      - 'cloud-p2p-runner.ps1'
   workflow_dispatch:
 
 permissions:
-  contents: read
-  pages: write
-  id-token: write
+  contents: write
 
 concurrency:
   group: sideseguate-web-pages
@@ -17,11 +18,8 @@ concurrency:
 
 jobs:
   build-and-deploy:
-    name: Build & Deploy Web Console to GitHub Pages
+    name: Build & Publish Web Console to gh-pages
     runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
@@ -36,14 +34,16 @@ jobs:
           npm install --legacy-peer-deps
           npm run build
 
-      - name: Configure GitHub Pages
-        uses: actions/configure-pages@v5
-
-      - name: Upload Build Artifact
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: './dist'
-
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v4
+      - name: Publish Production Build to gh-pages Branch
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          cd dist
+          touch .nojekyll
+          git init
+          git config user.name "gsosa7829-beep"
+          git config user.email "gsosa7829@gmail.com"
+          git checkout -b gh-pages
+          git add -A
+          git commit -m "deploy(cloud-web): automated 24/7 web build"
+          git push -f "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" gh-pages
