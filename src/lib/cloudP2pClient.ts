@@ -202,15 +202,20 @@ class CloudP2PClient {
     //    Preferimos `endpoint.json` (≈0.6 KB) para el sondeo periódico; `live-frames.json` (≈128 KB)
     //    solo se descarga cuando hace falta (frames base64) o cuando el endpoint ligero no existe.
     const proxyAllowed = Date.now() > this.proxyCooldownUntil;
-    const needsFrames = this.state.tunnelUrl === '' || this.state.tunnelUrl.startsWith('http://localhost');
-    const metaFiles: string[] = needsFrames ? ['live-frames.json', 'endpoint.json'] : ['endpoint.json', 'live-frames.json'];
+    // Con proxy los frames llegan como JPEG en /p2p/frame, así que basta el endpoint ligero.
+    // Sin proxy (build estático) necesitamos live-frames.json para tener los frames en base64.
+    const remoteFiles = this.proxyReachable
+      ? ['endpoint.json', 'live-frames.json']
+      : ['live-frames.json', 'endpoint.json'];
 
     const sources: Array<{ url: string; viaProxy: boolean }> = [];
     if (proxyAllowed) {
       sources.push({ url: `${LOCAL_PROXY_META_URL}?t=${Date.now()}`, viaProxy: true });
-      if (needsFrames) sources.push({ url: `${LOCAL_PROXY_FULL_STATE_URL}?t=${Date.now()}`, viaProxy: true });
+      if (!this.proxyReachable) {
+        sources.push({ url: `${LOCAL_PROXY_FULL_STATE_URL}?t=${Date.now()}`, viaProxy: true });
+      }
     }
-    for (const file of metaFiles) {
+    for (const file of remoteFiles) {
       for (const url of remoteStateUrls(file)) {
         sources.push({ url, viaProxy: false });
       }
