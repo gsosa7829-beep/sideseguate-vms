@@ -30,11 +30,31 @@ service cloud.firestore {
       );
     }
 
-    function isAuthorizedOperator(ownerId) {
+    // Multi-tenant: el tenant original conserva 'sideseguate_cloud_v1' y los
+    // demás usan 'tenant_<slug>'. El panel no usa Firebase Auth (es una app
+    // interna protegida por la cuenta de administrador), por eso el espacio de
+    // cada cliente se identifica con este prefijo.
+    function isTenantOwnerId(ownerId) {
       return isValidId(ownerId) && (
         ownerId == 'sideseguate_cloud_v1' ||
+        ownerId.matches('^tenant_[a-z0-9_]{1,60}$')
+      );
+    }
+
+    function isAuthorizedOperator(ownerId) {
+      return isValidId(ownerId) && (
+        isTenantOwnerId(ownerId) ||
         (isSignedIn() && ownerId == request.auth.uid) ||
         isAdmin()
+      );
+    }
+
+    function hasValidTenant(data) {
+      return !data.keys().hasAny(['tenantId']) || (
+        data.tenantId is string &&
+        data.tenantId.size() >= 1 &&
+        data.tenantId.size() <= 40 &&
+        data.tenantId.matches('^[a-z0-9-]+$')
       );
     }
 
@@ -107,11 +127,13 @@ service cloud.firestore {
           'status',
           'equipmentNotes',
           'createdAtIso',
+          'tenantId',
           'createdAt',
           'updatedAt'
         ]) &&
         isValidId(data.id) &&
         isAuthorizedOperator(data.ownerId) &&
+        hasValidTenant(data) &&
         data.name is string && data.name.size() >= 1 && data.name.size() <= 200 &&
         data.clientName is string && data.clientName.size() >= 1 && data.clientName.size() <= 150 &&
         data.clientPhone is string && data.clientPhone.size() >= 0 && data.clientPhone.size() <= 60 &&
@@ -180,12 +202,15 @@ service cloud.firestore {
           'nightVision',
           'verificationCode',
           'cloudId',
+          'deviceSerial',
+          'tenantId',
           'notes',
           'createdAt',
           'updatedAt'
         ]) &&
         isValidId(data.id) &&
         isAuthorizedOperator(data.ownerId) &&
+        hasValidTenant(data) &&
         isValidId(data.projectId) &&
         data.name is string && data.name.size() >= 1 && data.name.size() <= 200 &&
         data.deviceType is string && data.deviceType in ['hikvision_dvr', 'hikvision_ip', 'v380_4g', 'generic_rtsp'] &&
@@ -209,6 +234,7 @@ service cloud.firestore {
         data.nightVision is bool &&
         data.verificationCode is string && data.verificationCode.size() >= 0 && data.verificationCode.size() <= 64 &&
         data.cloudId is string && data.cloudId.size() >= 0 && data.cloudId.size() <= 128 &&
+        data.deviceSerial is string && data.deviceSerial.size() >= 0 && data.deviceSerial.size() <= 64 &&
         data.notes is string && data.notes.size() >= 0 && data.notes.size() <= 1000 &&
         data.createdAt is timestamp &&
         data.updatedAt is timestamp;
@@ -234,6 +260,7 @@ service cloud.firestore {
           'accessCount',
           'lastAccessedAtIso',
           'createdAtIso',
+          'tenantId',
           'createdAt',
           'updatedAt'
         ]) &&
@@ -256,11 +283,13 @@ service cloud.firestore {
           'accessCount',
           'lastAccessedAtIso',
           'createdAtIso',
+          'tenantId',
           'createdAt',
           'updatedAt'
         ]) &&
         isValidId(data.id) &&
         isAuthorizedOperator(data.ownerId) &&
+        hasValidTenant(data) &&
         isValidId(data.projectId) &&
         isValidId(data.token) &&
         data.title is string && data.title.size() >= 1 && data.title.size() <= 200 &&
@@ -303,10 +332,12 @@ service cloud.firestore {
           'timestampIso',
           'durationSeconds',
           'action',
+          'tenantId',
           'createdAt'
         ]) &&
         isValidId(data.id) &&
         isAuthorizedOperator(data.ownerId) &&
+        hasValidTenant(data) &&
         isValidId(data.shareLinkId) &&
         data.clientIp is string && data.clientIp.size() >= 1 && data.clientIp.size() <= 100 &&
         data.deviceInfo is string && data.deviceInfo.size() >= 1 && data.deviceInfo.size() <= 250 &&

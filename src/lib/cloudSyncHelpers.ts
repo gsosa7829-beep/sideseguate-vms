@@ -1,8 +1,15 @@
 import { Camera, Project, ShareLink, AccessLog } from './types';
+import { DEFAULT_TENANT_ID, isValidTenantId } from './tenant';
 
 export const CLOUD_WORKSPACE_ID = 'sideseguate_cloud_v1';
 const ID_REGEX = /^[a-zA-Z0-9_\-]+$/;
 const MAX_UID_LEN = 128;
+
+/** Tenant saneado para payloads (nunca vacío, nunca inválido). */
+export function sanitizeTenantId(raw: string | null | undefined): string {
+  const slug = (raw || '').trim().toLowerCase();
+  return isValidTenantId(slug) ? slug : DEFAULT_TENANT_ID;
+}
 
 export function sanitizeCloudId(rawId: string, fallbackPrefix: string = 'id'): string {
   const cleaned = (rawId || '')
@@ -15,7 +22,11 @@ export function sanitizeCloudId(rawId: string, fallbackPrefix: string = 'id'): s
   return `${fallbackPrefix}_${Date.now()}`;
 }
 
-export function toCloudProjectPayload(project: Project, ownerId: string = CLOUD_WORKSPACE_ID) {
+export function toCloudProjectPayload(
+  project: Project,
+  ownerId: string = CLOUD_WORKSPACE_ID,
+  tenantId: string = DEFAULT_TENANT_ID
+) {
   const validStatuses: Project['status'][] = [
     'demo_venta',
     'instalado_activo',
@@ -28,6 +39,7 @@ export function toCloudProjectPayload(project: Project, ownerId: string = CLOUD_
   return {
     id: sanitizeCloudId(project.id, 'proj'),
     ownerId: sanitizeCloudId(ownerId, 'sideseguate_cloud_v1'),
+    tenantId: sanitizeTenantId(tenantId),
     name: (project.name || 'Cliente SIDESEGUATE').trim().slice(0, 200) || 'Cliente SIDESEGUATE',
     clientName: (project.clientName || 'Cliente').trim().slice(0, 150) || 'Cliente',
     clientPhone: (project.clientPhone || '').trim().slice(0, 60),
@@ -51,7 +63,11 @@ export function fromCloudProjectDoc(data: Record<string, unknown>): Project {
   };
 }
 
-export function toCloudCameraPayload(camera: Camera, ownerId: string = CLOUD_WORKSPACE_ID) {
+export function toCloudCameraPayload(
+  camera: Camera,
+  ownerId: string = CLOUD_WORKSPACE_ID,
+  tenantId: string = DEFAULT_TENANT_ID
+) {
   const validDeviceTypes: Camera['deviceType'][] = [
     'hikvision_dvr',
     'hikvision_ip',
@@ -63,6 +79,8 @@ export function toCloudCameraPayload(camera: Camera, ownerId: string = CLOUD_WOR
   return {
     id: sanitizeCloudId(camera.id, 'cam'),
     ownerId: sanitizeCloudId(ownerId, 'sideseguate_cloud_v1'),
+    tenantId: sanitizeTenantId(tenantId),
+    deviceSerial: (camera.deviceSerial || '').trim().toUpperCase().slice(0, 64),
     projectId: sanitizeCloudId(camera.projectId || 'proj-sideseguate-01', 'proj'),
     name: (camera.name || 'Cámara IP').trim().slice(0, 200) || 'Cámara IP',
     deviceType: validDeviceTypes.includes(camera.deviceType) ? camera.deviceType : 'hikvision_dvr',
@@ -119,11 +137,16 @@ export function fromCloudCameraDoc(data: Record<string, unknown>): Camera {
     nightVision: Boolean(data.nightVision),
     verificationCode: data.verificationCode ? String(data.verificationCode) : undefined,
     cloudId: data.cloudId ? String(data.cloudId) : undefined,
+    deviceSerial: data.deviceSerial ? String(data.deviceSerial) : undefined,
     notes: data.notes ? String(data.notes) : undefined,
   };
 }
 
-export function toCloudShareLinkPayload(link: ShareLink, ownerId: string = CLOUD_WORKSPACE_ID) {
+export function toCloudShareLinkPayload(
+  link: ShareLink,
+  ownerId: string = CLOUD_WORKSPACE_ID,
+  tenantId: string = DEFAULT_TENANT_ID
+) {
   const safeCameraIds = Array.isArray(link.cameraIds)
     ? link.cameraIds
         .map((id) => sanitizeCloudId(String(id), 'cam'))
@@ -134,6 +157,9 @@ export function toCloudShareLinkPayload(link: ShareLink, ownerId: string = CLOUD
   return {
     id: sanitizeCloudId(link.id, 'link'),
     ownerId: sanitizeCloudId(ownerId, 'sideseguate_cloud_v1'),
+    // El token es global (el comprador abre el enlace sin conocer el tenant),
+    // pero el documento declara a qué espacio pertenece.
+    tenantId: sanitizeTenantId(tenantId),
     projectId: sanitizeCloudId(link.projectId || 'proj-sideseguate-01', 'proj'),
     token: sanitizeCloudId(link.token, 'sdg_live'),
     title: (link.title || 'Enlace de Videovigilancia').trim().slice(0, 200) || 'Enlace de Videovigilancia',
@@ -180,7 +206,11 @@ export function fromCloudShareLinkDoc(data: Record<string, unknown>): ShareLink 
   };
 }
 
-export function toCloudAccessLogPayload(log: AccessLog, ownerId: string = CLOUD_WORKSPACE_ID) {
+export function toCloudAccessLogPayload(
+  log: AccessLog,
+  ownerId: string = CLOUD_WORKSPACE_ID,
+  tenantId: string = DEFAULT_TENANT_ID
+) {
   const validActions: AccessLog['action'][] = [
     'stream_started',
     'ptz_used',
@@ -191,6 +221,7 @@ export function toCloudAccessLogPayload(log: AccessLog, ownerId: string = CLOUD_
   return {
     id: sanitizeCloudId(log.id, 'log'),
     ownerId: sanitizeCloudId(ownerId, 'sideseguate_cloud_v1'),
+    tenantId: sanitizeTenantId(tenantId),
     shareLinkId: sanitizeCloudId(log.shareLinkId || 'link_default', 'link'),
     clientIp: (log.clientIp || 'Conexión Móvil 4G/Wi-Fi').trim().slice(0, 100) || 'Conexión Móvil 4G/Wi-Fi',
     deviceInfo: (log.deviceInfo || 'Navegador Web').trim().slice(0, 250) || 'Navegador Web',

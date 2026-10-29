@@ -1,4 +1,5 @@
 import { Camera } from './types';
+import { deriveStreamPath } from './streamGateway';
 
 /**
  * Generates the official mediamtx.yml configuration file
@@ -6,9 +7,10 @@ import { Camera } from './types';
  */
 export function generateMediaMtxYaml(cameras: Camera[]): string {
   const cameraPaths = cameras.map((cam) => {
-    const slug = cam.name.toLowerCase().replace(/[^a-z0-9]/g, '_');
+    // Misma función que usa el reproductor: la ruta del YAML y la del vídeo coinciden.
+    const slug = deriveStreamPath(cam);
     return `  # ${cam.name} (${cam.deviceType.toUpperCase()})
-  cam_${cam.id.substring(0, 8)}_${slug}:
+  ${slug}:
     source: ${cam.rtspUrl}
     sourceOnDemand: yes
     sourceOnDemandStartTimeout: 10s

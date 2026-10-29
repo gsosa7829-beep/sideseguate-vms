@@ -1,9 +1,14 @@
-export interface CloudP2PChannelInfo {
-  connected: boolean;
-  frameBytes: number;
-  totalFrames: number;
-  lastFrameAgeMs: number;
-}
+import {
+  RunnerDevice,
+  RunnerChannel,
+  parseRunnerReport,
+  mergeRunnerReport,
+  resolveDeviceForCamera,
+  buildFramePath,
+  normalizeSerial,
+} from './deviceRegistry';
+
+export type CloudP2PChannelInfo = RunnerChannel;
 
 export interface CloudP2PState {
   online: boolean;
@@ -16,6 +21,10 @@ export interface CloudP2PState {
   updatedAt: string;
   channels: Record<string, CloudP2PChannelInfo>;
   frames: Record<string, string>;
+  /** Equipos que reporta el runner. El primero es el "principal" (compatibilidad). */
+  devices: RunnerDevice[];
+  /** `true` cuando hay más de un equipo y los frames van por `serial/canal`. */
+  multiDevice: boolean;
 }
 
 // Proxy del dev/preview server (vite-plugin-cloud-frames): evita CORS, cuotas y bloqueos de red.
@@ -41,18 +50,16 @@ class CloudP2PClient {
     online: true,
     source: 'cloud-tunnel-24-7',
     mode: 'github-cloud-runner-24-7',
-    serial: 'FB2200254',
-    model: 'iDS-7204HUHI-M1/S',
+    serial: '',
+    model: '',
     encryption: '',
     tunnelUrl: 'https://plugins-control-joined-vista.trycloudflare.com',
     updatedAt: new Date().toISOString(),
-    channels: {
-      '1': { connected: true, frameBytes: 49200, totalFrames: 1000, lastFrameAgeMs: 50 },
-      '2': { connected: true, frameBytes: 15600, totalFrames: 1000, lastFrameAgeMs: 50 },
-      '3': { connected: true, frameBytes: 15600, totalFrames: 1000, lastFrameAgeMs: 50 },
-      '4': { connected: true, frameBytes: 15600, totalFrames: 1000, lastFrameAgeMs: 50 },
-    },
+    // Sin equipos inventados: hasta que el runner reporte, no hay canales.
+    channels: {},
     frames: {},
+    devices: [],
+    multiDevice: false,
   };
 
   private listeners = new Set<(state: CloudP2PState) => void>();
@@ -70,6 +77,35 @@ class CloudP2PClient {
     }
   }
 
+  /**
+   * Aplica lo que reportó el runner (`/status`) al estado global.
+   * Acepta el formato multi-dispositivo y el antiguo de un solo equipo.
+   */
+  private applyRunnerReport(raw: unknown, fallback: Partial<CloudP2PState> = {}): void {
+    const report = parseRunnerReport(raw);
+    const devices = mergeRunnerReport(this.state.devices, report.devices);
+    const primary = devices[0] || null;
+
+    this.state = {
+      ...this.state,
+      online: true,
+      ...fallback,
+      mode: report.mode || fallback.mode || this.state.mode,
+      tunnelUrl: report.tunnelUrl || fallback.tunnelUrl || this.state.tunnelUrl,
+      updatedAt: report.updatedAt || fallback.updatedAt || new Date().toISOString(),
+      devices,
+      multiDevice: report.multiDevice || devices.length > 1,
+      // Compatibilidad: el primer equipo sigue expuesto como "serial/model".
+      serial: primary?.serial || this.state.serial,
+      model: primary?.model || this.state.model,
+      encryption: primary?.encryption || this.state.encryption,
+      channels:
+        Object.keys(primary?.channels || {}).length > 0
+          ? primary!.channels
+          : this.state.channels,
+    };
+  }
+
   public getState(): CloudP2PState {
     return this.state;
   }
@@ -78,39 +114,55 @@ class CloudP2PClient {
     return this.localReachable;
   }
 
-  public getBestFrameUrl(channel: number): string | null {
-    const ch = Math.min(4, Math.max(1, channel || 1));
+  /** Equipos reportados por el runner. */
+  public getDevices(): RunnerDevice[] {
+    return this.state.devices;
+  }
+
+  /** Dispositivo que corresponde a una cámara (por serie, notas o equipo único). */
+  public resolveDevice(camera: { deviceSerial?: string; cloudId?: string; notes?: string }): RunnerDevice | null {
+    return resolveDeviceForCamera(camera, this.state.devices);
+  }
+
+  /**
+   * URL del frame para un canal. Con varios equipos la ruta incluye la serie
+   * (`/frame/FB2200254/3`) para no mezclar canales de DVRs distintos.
+   */
+  public getBestFrameUrl(channel: number, serial?: string): string | null {
+    const ch = Math.max(1, Math.min(64, Math.floor(channel) || 1));
     const now = Date.now();
+    const path = buildFramePath(serial || '', ch, this.state.multiDevice);
 
     // 0. Proxy del dev/preview server: JPEG del propio origen, sin CORS ni cuotas.
     if (this.proxyReachable) {
-      return `${LOCAL_PROXY_FRAME_BASE}/${ch}?t=${now}`;
+      return `${LOCAL_PROXY_FRAME_BASE}/${path}?t=${now}`;
     }
 
     // 1. Same origin (if running directly on server port or tunnel)
     if (this.sameOriginReachable && typeof window !== 'undefined') {
-      return `${window.location.origin}/frame/${ch}?t=${now}`;
+      return `${window.location.origin}/frame/${path}?t=${now}`;
     }
 
     // 2. Direct local P2P port (:8890) if reachable
     if (this.localReachable) {
-      return `http://localhost:8890/frame/${ch}?t=${now}`;
+      return `http://localhost:8890/frame/${path}?t=${now}`;
     }
 
     // 3. Current active public HTTPS Cloudflare Tunnel
     if (this.state.tunnelUrl && this.state.tunnelUrl.startsWith('https://')) {
-      return `${this.state.tunnelUrl}/frame/${ch}?t=${now}`;
+      return `${this.state.tunnelUrl}/frame/${path}?t=${now}`;
     }
 
     // 4. Fallback known tunnels
     for (const fallback of KNOWN_TUNNELS) {
       if (fallback && fallback.startsWith('https://')) {
-        return `${fallback}/frame/${ch}?t=${now}`;
+        return `${fallback}/frame/${path}?t=${now}`;
       }
     }
 
     // 5. Embedded data URL fallback
-    const fallbackDataUrl = this.state.frames?.[String(ch)];
+    const fallbackDataUrl =
+      this.state.frames?.[String(ch)] || this.state.frames?.[`${serial || ''}/${ch}`];
     if (fallbackDataUrl && fallbackDataUrl.startsWith('data:image/jpeg;base64,')) {
       return fallbackDataUrl;
     }
@@ -118,9 +170,10 @@ class CloudP2PClient {
     return null;
   }
 
-  public getFallbackDataUrl(channel: number): string | null {
-    const ch = Math.min(4, Math.max(1, channel || 1));
-    const dataUrl = this.state.frames?.[String(ch)];
+  public getFallbackDataUrl(channel: number, serial?: string): string | null {
+    const ch = Math.max(1, Math.min(64, Math.floor(channel) || 1));
+    const dataUrl =
+      this.state.frames?.[`${serial || ''}/${ch}`] || this.state.frames?.[String(ch)];
     return dataUrl && dataUrl.startsWith('data:image/jpeg;base64,') ? dataUrl : null;
   }
 
@@ -178,18 +231,11 @@ class CloudP2PClient {
             this.proxyReachable = true;
             this.proxyFails = 0;
             this.consecutiveFailures = 0;
-            this.state = {
-              ...this.state,
-              online: true,
+            this.applyRunnerReport(data, {
               source: 'cloud-github-24-7',
               mode: data.mode || 'github-cloud-runner-24-7',
-              serial: data.serial || this.state.serial,
-              model: data.model || this.state.model,
-              encryption: data.encryption || this.state.encryption,
-              tunnelUrl: data.tunnelUrl || this.state.tunnelUrl,
               updatedAt: data.updatedAt || nowIso,
-              channels: data.channels || this.state.channels,
-            };
+            });
             this.notify();
             return;
           }
@@ -214,18 +260,12 @@ class CloudP2PClient {
             this.sameOriginReachable = true;
             this.localReachable = window.location.port === '8890';
             this.consecutiveFailures = 0;
-            this.state = {
-              ...this.state,
-              online: true,
+            this.applyRunnerReport(data, {
               source: this.localReachable ? 'local-p2p' : 'cloud-tunnel-24-7',
               mode: this.localReachable ? 'local-plus-cloud-24-7' : 'github-cloud-runner-24-7',
-              serial: data.serial || 'FB2200254',
-              model: data.model || 'iDS-7204HUHI-M1/S',
-              encryption: data.encryption || this.state.encryption || '',
               tunnelUrl: this.localReachable ? this.state.tunnelUrl : window.location.origin,
               updatedAt: nowIso,
-              channels: data.channels || this.state.channels,
-            };
+            });
             this.notify();
             return;
           }
@@ -244,16 +284,10 @@ class CloudP2PClient {
           const data = await res.json();
           if (data?.online) {
             this.consecutiveFailures = 0;
-            this.state = {
-              ...this.state,
-              online: true,
+            this.applyRunnerReport(data, {
               source: 'cloud-tunnel-24-7',
-              serial: data.serial || 'FB2200254',
-              model: data.model || 'iDS-7204HUHI-M1/S',
-              encryption: data.encryption || this.state.encryption || '',
               updatedAt: nowIso,
-              channels: data.channels || this.state.channels,
-            };
+            });
             this.notify();
             return;
           }
@@ -278,17 +312,11 @@ class CloudP2PClient {
           if (data?.online) {
             this.localReachable = true;
             this.consecutiveFailures = 0;
-            this.state = {
-              ...this.state,
-              online: true,
+            this.applyRunnerReport(data, {
               source: 'local-p2p',
               mode: 'local-plus-cloud-24-7',
-              serial: data.serial || 'FB2200254',
-              model: data.model || 'iDS-7204HUHI-M1/S',
-              encryption: data.encryption || this.state.encryption || '',
               updatedAt: nowIso,
-              channels: data.channels || this.state.channels,
-            };
+            });
             this.notify();
             return;
           }
@@ -309,18 +337,13 @@ class CloudP2PClient {
           const cloudData = await res.json();
           if (cloudData?.online && cloudData.tunnelUrl) {
             this.consecutiveFailures = 0;
-            this.state = {
-              online: true,
+            this.applyRunnerReport(cloudData, {
               source: 'cloud-tunnel-24-7',
               mode: cloudData.mode || 'github-cloud-runner-24-7',
-              serial: cloudData.serial || 'FB2200254',
-              model: cloudData.model || 'iDS-7204HUHI-M1/S',
-              encryption: cloudData.encryption || this.state.encryption || '',
               tunnelUrl: cloudData.tunnelUrl,
               updatedAt: cloudData.updatedAt || nowIso,
-              channels: cloudData.channels || this.state.channels,
-              frames: cloudData.frames || this.state.frames,
-            };
+            });
+            this.state = { ...this.state, frames: cloudData.frames || this.state.frames };
             this.notify();
             return;
           }

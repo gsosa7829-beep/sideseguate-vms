@@ -77,9 +77,12 @@ export const LiveCameraPlayer: React.FC<LiveCameraPlayerProps> = ({
     let active = true;
     let timer: ReturnType<typeof setTimeout> | null = null;
     const ch = Math.min(4, Math.max(1, camera.channel || 1));
+    // Multi-dispositivo: el frame se pide con la serie del equipo de esta cámara.
+    const deviceSerial =
+      cloudP2pClient.resolveDevice(camera)?.serial || camera.deviceSerial || '';
 
     const loadFallbackDataUrl = () => {
-      const dataUrl = cloudP2pClient.getFallbackDataUrl(ch);
+      const dataUrl = cloudP2pClient.getFallbackDataUrl(ch, deviceSerial);
       if (!dataUrl || !active) {
         timer = setTimeout(fetchNextFrame, 1000);
         return;
@@ -100,7 +103,7 @@ export const LiveCameraPlayer: React.FC<LiveCameraPlayerProps> = ({
 
     const fetchNextFrame = () => {
       if (!active) return;
-      const frameUrl = cloudP2pClient.getBestFrameUrl(ch);
+      const frameUrl = cloudP2pClient.getBestFrameUrl(ch, deviceSerial);
       if (!frameUrl) {
         timer = setTimeout(fetchNextFrame, 1000);
         return;
@@ -136,7 +139,7 @@ export const LiveCameraPlayer: React.FC<LiveCameraPlayerProps> = ({
       active = false;
       if (timer) clearTimeout(timer);
     };
-  }, [camera.channel]);
+  }, [camera.channel, camera.deviceSerial, camera.cloudId, camera.notes]);
 
   // Nitidez en pantallas retina/4K: el lienzo del canvas se ajusta al tamaño real en píxeles
   // del dispositivo (DPR), con un tope para no castigar la batería de móviles gama baja.
