@@ -66,6 +66,7 @@ interface TopNavbarProps {
   onSelectTab?: (tab: NavigationTab) => void;
   currentAdminAccount?: AdminAccount | null;
   onOpenSecurityModal?: () => void;
+  onLockPanelNow?: () => void;
 }
 
 export const TopNavbar: React.FC<TopNavbarProps> = ({
@@ -92,6 +93,7 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
   onSelectTab,
   currentAdminAccount,
   onOpenSecurityModal,
+  onLockPanelNow,
 }) => {
   const { isInstalled } = usePWAInstall();
   const [cloudUser, setCloudUser] = useState<User | null>(null);
@@ -429,8 +431,20 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
             >
               <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />
               <span className="hidden sm:inline">
-                {currentAdminAccount ? `Cuenta: ${currentAdminAccount.username}` : 'Cuentas de Acceso'}
+                {currentAdminAccount ? `Admin: ${currentAdminAccount.username}` : 'Cuentas'}
               </span>
+            </button>
+          )}
+
+          {onLockPanelNow && (
+            <button
+              type="button"
+              onClick={onLockPanelNow}
+              className="h-9 px-2.5 bg-neutral-950 hover:bg-red-950/60 text-neutral-400 hover:text-red-300 border border-neutral-800 hover:border-red-800/60 rounded-xl text-xs font-medium flex items-center justify-center gap-1.5 transition whitespace-nowrap shrink-0"
+              title="Cerrar Sesión / Bloquear Panel Administrativo"
+            >
+              <LogOut className="w-3.5 h-3.5 text-red-400" />
+              <span className="hidden lg:inline">Salir</span>
             </button>
           )}
 

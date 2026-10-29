@@ -264,13 +264,12 @@ export const adminAuthStorage = {
   },
   getCurrentSession: (): AdminAccount | null => {
     if (typeof window === 'undefined') return null;
-    if (!adminAuthStorage.isAuthorizedOwnerDevice()) return null;
     try {
       const raw = localStorage.getItem(STORAGE_KEY_SESSION);
-      if (!raw) return DEFAULT_ADMIN_ACCOUNTS[0];
+      if (!raw) return null;
       return JSON.parse(raw) as AdminAccount;
     } catch {
-      return DEFAULT_ADMIN_ACCOUNTS[0];
+      return null;
     }
   },
   saveCurrentSession: (account: AdminAccount | null) => {

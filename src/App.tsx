@@ -100,9 +100,11 @@ export default function App() {
     adminAuthStorage.getRequireLoginOnBoot()
   );
   const [currentAdminAccount, setCurrentAdminAccount] = useState<AdminAccount | null>(() => {
-    return adminAuthStorage.getCurrentSession() || DEFAULT_ADMIN_ACCOUNTS[0];
+    return adminAuthStorage.getCurrentSession();
   });
-  const [isPanelLocked, setIsPanelLocked] = useState<boolean>(false);
+  const [isPanelLocked, setIsPanelLocked] = useState<boolean>(() => {
+    return !adminAuthStorage.getCurrentSession();
+  });
 
   const [uiTheme, setUiTheme] = useState<UiThemePreset>(() => {
     try {
@@ -601,22 +603,7 @@ export default function App() {
     return `https://api.whatsapp.com/send?text=${text}`;
   };
 
-  // Strict Device Lockdown: Only show login screen if explicitly locked by user
-  if (isPanelLocked) {
-    return (
-      <AdminLoginScreen
-        accounts={adminAccounts}
-        onLoginSuccess={(account) => {
-          adminAuthStorage.authorizeCurrentOwnerDevice();
-          adminAuthStorage.saveCurrentSession(account);
-          setCurrentAdminAccount(account);
-          setIsPanelLocked(false);
-        }}
-      />
-    );
-  }
-
-  // If in Client Portal View directly (even on owner device, any old link is shown as deleted)
+  // If in Client Portal View directly (client opening private token link)
   if (clientTokenView || clientOnboardingProjectId) {
     return (
       <ClientLivePortal
@@ -634,6 +621,21 @@ export default function App() {
               }
             : undefined
         }
+      />
+    );
+  }
+
+  // Strict Security Gate: Require authentication to access VMS console
+  if (isPanelLocked || !currentAdminAccount) {
+    return (
+      <AdminLoginScreen
+        accounts={adminAccounts}
+        onLoginSuccess={(account) => {
+          adminAuthStorage.authorizeCurrentOwnerDevice();
+          adminAuthStorage.saveCurrentSession(account);
+          setCurrentAdminAccount(account);
+          setIsPanelLocked(false);
+        }}
       />
     );
   }
@@ -736,6 +738,12 @@ export default function App() {
           onSelectTab={(tab) => setActiveTab(tab)}
           currentAdminAccount={currentAdminAccount}
           onOpenSecurityModal={() => setIsSecurityModalOpen(true)}
+          onLockPanelNow={() => {
+            adminAuthStorage.saveCurrentSession(null);
+            setCurrentAdminAccount(null);
+            setIsPanelLocked(true);
+            showToast('Sesión cerrada. Panel administrativo bloqueado.');
+          }}
         />
 
         {/* Real-Time Buyer Access / Auto-Tunnel Live Alert Banner */}
