@@ -12,18 +12,66 @@ export function generateShareToken(prefix: string = 'sdg'): string {
   return token;
 }
 
+export type ExpiryOption = '24h' | '7d' | '30d' | 'never' | 'custom';
+
+/** Duración en milisegundos de cada opción de caducidad predefinida. */
+export const EXPIRY_PRESETS: Record<Exclude<ExpiryOption, 'never' | 'custom'>, number> = {
+  '24h': 24 * 60 * 60 * 1000,
+  '7d': 7 * 24 * 60 * 60 * 1000,
+  '30d': 30 * 24 * 60 * 60 * 1000,
+};
+
+/**
+ * Deduce qué opción de caducidad tenía el enlace al abrirlo para editar.
+ *
+ * Antes el formulario forzaba siempre `'7d'`, así que editar un enlace
+ * permanente (o de 30 días) lo convertía en un enlace de 7 días sin avisar, y
+ * el cliente terminaba viendo "el enlace ha expirado".
+ */
+export function detectExpiryOption(link?: ShareLink | null): ExpiryOption {
+  if (!link) return '7d';
+  if (!link.expiresAt) return 'never';
+
+  const expiresAtMs = new Date(link.expiresAt).getTime();
+  if (!Number.isFinite(expiresAtMs)) return 'custom';
+
+  const createdAtMs = new Date(link.createdAt).getTime();
+  if (!Number.isFinite(createdAtMs)) return 'custom';
+
+  const lifetimeMs = expiresAtMs - createdAtMs;
+  const toleranceMs = 60 * 60 * 1000; // 1 hora
+
+  for (const [option, durationMs] of Object.entries(EXPIRY_PRESETS) as [
+    Exclude<ExpiryOption, 'never' | 'custom'>,
+    number,
+  ][]) {
+    if (Math.abs(lifetimeMs - durationMs) <= toleranceMs) {
+      return option;
+    }
+  }
+  return 'custom';
+}
+
 export interface VerificationResult {
   valid: boolean;
   reason?: 'expired' | 'inactive' | 'invalid_pin' | 'pin_required' | 'not_found';
   message: string;
 }
 
-export const REVOKED_SHARE_TOKENS = new Set<string>([
-  'sdg_live_demo7849',
-  'sdg_live_guardia91',
-  'sdg_live_ds7108_oficinas',
-  'flash_revoked',
-]);
+/**
+ * La revocación de un enlace NO se decide por el texto de su token.
+ *
+ * Antes existía aquí una lista negra (`REVOKED_SHARE_TOKENS`) y una regla que
+ * invalidaba cualquier token que empezara con `sdg_flash_`. Ambos criterios
+ * producían falsos positivos: todos los enlaces relámpago (que se generan con
+ * ese prefijo) se mostraban como "expirados y revocados por el administrador"
+ * aunque estuvieran vigentes.
+ *
+ * La vigencia real de un enlace se controla con datos, no con el prefijo:
+ *   - `isActive === false`  → el administrador lo pausó.
+ *   - `expiresAt` vencido   → caducó de verdad.
+ *   - documento ausente en la nube → enlace borrado (o aún sin sincronizar).
+ */
 
 /**
  * Checks if a share link is valid, active, not expired, and satisfies PIN.
@@ -33,18 +81,7 @@ export function verifyShareLink(link: ShareLink | null | undefined, providedPin?
     return {
       valid: false,
       reason: 'not_found',
-      message: 'El enlace de videovigilancia ha expirado o fue desactivado.'
-    };
-  }
-
-  if (
-    REVOKED_SHARE_TOKENS.has(link.token) ||
-    link.token.startsWith('sdg_flash_')
-  ) {
-    return {
-      valid: false,
-      reason: 'expired',
-      message: 'Este enlace temporal ha sido expirado y revocado por el administrador de SIDESEGUATE. No se permiten más accesos por el momento.'
+      message: 'No encontramos este enlace de acceso. Verifica que el enlace esté completo o solicita uno nuevo.'
     };
   }
 
@@ -52,14 +89,14 @@ export function verifyShareLink(link: ShareLink | null | undefined, providedPin?
     return {
       valid: false,
       reason: 'inactive',
-      message: 'Este enlace de transmisión fue pausado por el administrador de SIDESEGUATE.'
+      message: 'Este enlace de transmisión fue pausado por el administrador de SIDESEGUATE. Solicita que lo reactive.'
     };
   }
 
   if (link.expiresAt) {
     const expiryTime = new Date(link.expiresAt).getTime();
     const now = Date.now();
-    if (now >= expiryTime) {
+    if (Number.isFinite(expiryTime) && now >= expiryTime) {
       return {
         valid: false,
         reason: 'expired',
@@ -131,6 +168,10 @@ export function formatExpirationText(expiresAt: string | null, nowMs: number = D
 
 /**
  * Creates a self-destructing flash share link valid for a specific number of seconds (e.g., 30s, 60s, 180s).
+ *
+ * El prefijo `sdg_flash_` es sólo informativo: la caducidad se cumple por
+ * `expiresAt`, igual que en cualquier otro enlace. Un enlace relámpago vigente
+ * es un enlace válido y debe abrir el portal del cliente sin errores.
  */
 export function createFlashTemporaryLink(params: {
   durationSeconds: number;

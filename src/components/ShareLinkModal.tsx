@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Camera, Project, ShareLink } from '../lib/types';
-import { generateShareToken } from '../lib/tokenSecurity';
+import { generateShareToken, detectExpiryOption, EXPIRY_PRESETS, type ExpiryOption } from '../lib/tokenSecurity';
+
 import { 
   X, 
   Link2, 
@@ -48,9 +49,7 @@ export const ShareLinkModal: React.FC<ShareLinkModalProps> = ({
   );
   const [usePin, setUsePin] = useState(!!initialLink?.pinCode);
   const [pinCode, setPinCode] = useState(initialLink?.pinCode || '');
-  const [expiryOption, setExpiryOption] = useState<'24h' | '7d' | '30d' | 'never' | 'custom'>(
-    !initialLink?.expiresAt ? 'never' : '7d'
-  );
+  const [expiryOption, setExpiryOption] = useState<ExpiryOption>(detectExpiryOption(initialLink));
   const [customExpiryDate, setCustomExpiryDate] = useState(
     initialLink?.expiresAt ? initialLink.expiresAt.slice(0, 16) : ''
   );
@@ -72,7 +71,8 @@ export const ShareLinkModal: React.FC<ShareLinkModalProps> = ({
       setSelectedCameraIds(initialLink?.cameraIds || projCams);
       setUsePin(!!initialLink?.pinCode);
       setPinCode(initialLink?.pinCode || '');
-      setExpiryOption(!initialLink?.expiresAt ? '7d' : '7d');
+      setExpiryOption(detectExpiryOption(initialLink));
+      setCustomExpiryDate(initialLink?.expiresAt ? initialLink.expiresAt.slice(0, 16) : '');
       setAllowPtz(initialLink?.allowPtz ?? false);
       setAllowAudio(initialLink?.allowAudio ?? true);
       setAllowSnapshot(initialLink?.allowSnapshot ?? true);
@@ -98,24 +98,27 @@ export const ShareLinkModal: React.FC<ShareLinkModalProps> = ({
   };
 
   const calculateExpiryDate = (): string | null => {
-    const now = Date.now();
-    switch (expiryOption) {
-      case '24h':
-        return new Date(now + 24 * 60 * 60 * 1000).toISOString();
-      case '7d':
-        return new Date(now + 7 * 24 * 60 * 60 * 1000).toISOString();
-      case '30d':
-        return new Date(now + 30 * 24 * 60 * 60 * 1000).toISOString();
-      case 'custom':
-        return customExpiryDate ? new Date(customExpiryDate).toISOString() : null;
-      case 'never':
-      default:
-        return null;
+    if (expiryOption === 'never') return null;
+    if (expiryOption === 'custom') {
+      return customExpiryDate ? new Date(customExpiryDate).toISOString() : null;
     }
+    const durationMs = EXPIRY_PRESETS[expiryOption];
+    return new Date(Date.now() + durationMs).toISOString();
   };
+
+  /** Error de validación del campo de caducidad, si lo hay. */
+  const expiryError: string | null = (() => {
+    if (expiryOption !== 'custom') return null;
+    if (!customExpiryDate) return 'Elige la fecha y hora exactas en que debe caducar el enlace.';
+    const target = new Date(customExpiryDate).getTime();
+    if (!Number.isFinite(target)) return 'La fecha indicada no es válida.';
+    if (target <= Date.now()) return 'La fecha debe ser posterior a este momento.';
+    return null;
+  })();
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (expiryError) return;
 
     const link: ShareLink = {
       id: initialLink?.id || `link-${Date.now()}`,
@@ -292,6 +295,33 @@ export const ShareLinkModal: React.FC<ShareLinkModalProps> = ({
                 </button>
               ))}
             </div>
+
+            {/* Fecha exacta: se conserva la que ya tenía el enlace al editarlo. */}
+            <div className="pt-1">
+              <label htmlFor="custom-expiry-date" className="text-neutral-400">
+                O fecha exacta (opcional, zona horaria de tu equipo)
+              </label>
+              <input
+                id="custom-expiry-date"
+                type="datetime-local"
+                value={customExpiryDate}
+                onChange={(e) => {
+                  setCustomExpiryDate(e.target.value);
+                  setExpiryOption('custom');
+                }}
+                className="mt-1 w-full bg-neutral-950 border border-neutral-800 rounded-xl px-3 py-2 text-white focus:border-blue-500 focus:outline-none"
+              />
+              {expiryError && (
+                <p className="mt-1 text-[11px] text-red-400">{expiryError}</p>
+              )}
+              {!expiryError && (
+                <p className="mt-1 text-[11px] text-neutral-500">
+                  {expiryOption === 'never'
+                    ? 'El enlace no caducará automáticamente.'
+                    : `Caducará el ${new Date(calculateExpiryDate() as string).toLocaleString('es-GT')}.`}
+                </p>
+              )}
+            </div>
           </div>
 
           {/* Security PIN code */}
@@ -402,7 +432,8 @@ export const ShareLinkModal: React.FC<ShareLinkModalProps> = ({
             </button>
             <button
               type="submit"
-              className="px-5 py-2 bg-blue-600 hover:bg-blue-500 text-white font-semibold rounded-xl transition shadow-lg shadow-blue-600/25 flex items-center gap-1.5"
+              disabled={Boolean(expiryError)}
+              className="px-5 py-2 bg-blue-600 hover:bg-blue-500 disabled:bg-neutral-700 disabled:text-neutral-400 disabled:cursor-not-allowed disabled:shadow-none text-white font-semibold rounded-xl transition shadow-lg shadow-blue-600/25 flex items-center gap-1.5"
             >
               <Check className="w-4 h-4" />
               {initialLink ? 'Guardar Cambios' : 'Crear Enlace Seguro'}

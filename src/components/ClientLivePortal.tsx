@@ -23,8 +23,62 @@ import {
   KeyRound,
   Cloud,
   RefreshCw,
-  Plus
+  Plus,
+  Clock,
+  PauseCircle,
+  Link2Off
 } from 'lucide-react';
+
+type FailureReason = 'expired' | 'inactive' | 'invalid_pin' | 'pin_required' | 'not_found';
+
+/**
+ * Texto de la pantalla de error según el motivo real.
+ *
+ * Antes todas las causas (enlace inexistente, pausado, caducado o PIN
+ * incorrecto) mostraban el mismo título "Enlace Eliminado y Expirado" con la
+ * etiqueta "Acceso No Permitido", así que un enlace perfectamente válido que
+ * aún no había sincronizado parecía revocado por el administrador.
+ */
+const FAILURE_COPY: Record<
+  FailureReason,
+  { eyebrow: string; title: string; hint?: string; tone: 'red' | 'amber' | 'blue' }
+> = {
+  not_found: {
+    eyebrow: 'Enlace no disponible',
+    title: 'No encontramos este acceso',
+    hint: 'Puede que el enlace esté incompleto o que aún no se haya sincronizado. Si acabas de recibirlo, espera unos segundos y vuelve a intentarlo.',
+    tone: 'blue',
+  },
+  expired: {
+    eyebrow: 'Enlace caducado',
+    title: 'Este acceso ya expiró',
+    hint: 'Pide al administrador que genere un enlace nuevo para seguir viendo las cámaras.',
+    tone: 'amber',
+  },
+  inactive: {
+    eyebrow: 'Acceso pausado',
+    title: 'El administrador pausó este enlace',
+    hint: 'Tu enlace sigue existiendo, pero la transmisión está detenida temporalmente. Solicita que lo reactive.',
+    tone: 'amber',
+  },
+  invalid_pin: {
+    eyebrow: 'PIN incorrecto',
+    title: 'Código de seguridad inválido',
+    hint: 'Verifica el PIN que te compartieron e inténtalo de nuevo.',
+    tone: 'red',
+  },
+  pin_required: {
+    eyebrow: 'Acceso protegido',
+    title: 'Este canal requiere PIN',
+    tone: 'blue',
+  },
+};
+
+const TONE_CLASSES: Record<'red' | 'amber' | 'blue', { box: string; text: string; eyebrow: string }> = {
+  red: { box: 'bg-red-950/80 border-red-800/80', text: 'text-red-400', eyebrow: 'text-red-400' },
+  amber: { box: 'bg-amber-950/80 border-amber-800/80', text: 'text-amber-400', eyebrow: 'text-amber-400' },
+  blue: { box: 'bg-blue-950/80 border-blue-800/80', text: 'text-blue-400', eyebrow: 'text-blue-400' },
+};
 
 interface ClientLivePortalProps {
   token?: string;
@@ -54,6 +108,8 @@ export const ClientLivePortal: React.FC<ClientLivePortalProps> = ({
   const [pinError, setPinError] = useState<string | null>(null);
   const [showAddCameraForm, setShowAddCameraForm] = useState(false);
   const recordedAccessTokenRef = useRef<string | null>(null);
+  /** Margen de gracia antes de declarar "no encontrado" (sincronización en curso). */
+  const [gracePeriodOver, setGracePeriodOver] = useState(false);
 
   // Subscribe directly to Firestore document for this token so mobile buyers on 4G/Wi-Fi get real-time updates
   useEffect(() => {
@@ -74,6 +130,18 @@ export const ClientLivePortal: React.FC<ClientLivePortalProps> = ({
   }, [token, shareLink?.token]);
 
   const activeShareLink = cloudShareLink || shareLink;
+
+  // Si el enlace no aparece de inmediato no significa que esté revocado: la
+  // lectura puede llegar unos segundos tarde en 4G. Damos un margen antes de
+  // mostrar el error definitivo.
+  useEffect(() => {
+    if (activeShareLink) {
+      setGracePeriodOver(false);
+      return;
+    }
+    const timer = setTimeout(() => setGracePeriodOver(true), 6000);
+    return () => clearTimeout(timer);
+  }, [activeShareLink]);
 
   // Filter cameras assigned to this share link (if empty, show all for project)
   const allowedCameras = cameras.filter((cam) => {
@@ -140,7 +208,7 @@ export const ClientLivePortal: React.FC<ClientLivePortalProps> = ({
   };
 
   // State: Cloud is still resolving token for buyer on 4G/Wi-Fi
-  if (!activeShareLink && (directTokenLoading || isCloudLoading)) {
+  if (!activeShareLink && (directTokenLoading || isCloudLoading || !gracePeriodOver)) {
     return (
       <div className="min-h-dvh bg-neutral-950 text-neutral-100 flex flex-col items-center justify-center p-6">
         <div className="max-w-md w-full bg-neutral-900 border border-neutral-800 rounded-2xl p-8 text-center shadow-2xl">
@@ -158,49 +226,66 @@ export const ClientLivePortal: React.FC<ClientLivePortalProps> = ({
     );
   }
 
-  // State: Link not found or invalid
+  // State: Link not found
   if (!activeShareLink) {
+    const copy = FAILURE_COPY.not_found;
+    const tone = TONE_CLASSES[copy.tone];
     return (
       <div className="min-h-dvh bg-neutral-950 text-neutral-100 flex flex-col items-center justify-center p-6">
-        <div className="max-w-md w-full bg-neutral-900 border border-red-900/60 rounded-2xl p-8 text-center shadow-2xl">
-          <div className="w-16 h-16 bg-red-950/80 border border-red-800/80 text-red-400 rounded-2xl flex items-center justify-center mx-auto mb-4">
-            <Lock className="w-8 h-8" />
+        <div className="max-w-md w-full bg-neutral-900 border border-neutral-800 rounded-2xl p-8 text-center shadow-2xl">
+          <div className={`w-16 h-16 ${tone.box} ${tone.text} border rounded-2xl flex items-center justify-center mx-auto mb-4`}>
+            <Link2Off className="w-8 h-8" />
           </div>
-          <div className="text-xs font-mono font-semibold text-red-400 mb-2 uppercase">
-            Acceso Eliminado
+          <div className={`text-xs font-mono font-semibold ${tone.eyebrow} mb-2 uppercase`}>
+            {copy.eyebrow}
           </div>
-          <h2 className="text-xl font-bold text-white mb-2">Enlace Deshabilitado</h2>
-          <p className="text-sm text-neutral-400 mb-6">
-            Todos los enlaces temporales y accesos remotos han sido eliminados por el propietario. No se permiten accesos externos por el momento.
-          </p>
-          {isAdminPreview && onBackToAdmin && (
+          <h2 className="text-xl font-bold text-white mb-2">{copy.title}</h2>
+          <p className="text-sm text-neutral-400 mb-6 leading-relaxed">{copy.hint}</p>
+
+          <div className="flex flex-col gap-2">
             <button
-              onClick={onBackToAdmin}
-              className="w-full py-2.5 bg-neutral-800 hover:bg-neutral-700 text-white font-medium rounded-xl text-sm transition"
+              onClick={() => window.location.reload()}
+              className="w-full py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-medium rounded-xl text-sm transition flex items-center justify-center gap-2"
             >
-              Volver al Panel del Propietario
+              <RefreshCw className="w-4 h-4" />
+              Reintentar
             </button>
-          )}
+            {isAdminPreview && onBackToAdmin && (
+              <button
+                onClick={onBackToAdmin}
+                className="w-full py-2.5 bg-neutral-800 hover:bg-neutral-700 text-white font-medium rounded-xl text-sm transition"
+              >
+                Volver al Panel del Propietario
+              </button>
+            )}
+          </div>
         </div>
       </div>
     );
   }
 
-  // State: Link Expired or Deactivated
+  // State: expired / paused / bad PIN — cada causa con su propio mensaje.
   if (!verification.valid && !needsPin) {
+    const reason = (verification.reason || 'not_found') as FailureReason;
+    const copy = FAILURE_COPY[reason] || FAILURE_COPY.not_found;
+    const tone = TONE_CLASSES[copy.tone];
+    const FailureIcon =
+      reason === 'inactive' ? PauseCircle : reason === 'expired' ? Clock : Lock;
+
     return (
       <div className="min-h-dvh bg-neutral-950 text-neutral-100 flex flex-col items-center justify-center p-6">
-        <div className="max-w-md w-full bg-neutral-900 border border-red-900/60 rounded-2xl p-8 text-center shadow-2xl">
-          <div className="w-16 h-16 bg-red-950/80 border border-red-800/80 text-red-400 rounded-2xl flex items-center justify-center mx-auto mb-4">
-            <Lock className="w-8 h-8" />
+        <div className="max-w-md w-full bg-neutral-900 border border-neutral-800 rounded-2xl p-8 text-center shadow-2xl">
+          <div className={`w-16 h-16 ${tone.box} ${tone.text} border rounded-2xl flex items-center justify-center mx-auto mb-4`}>
+            <FailureIcon className="w-8 h-8" />
           </div>
-          <div className="text-xs font-mono font-semibold text-red-400 mb-2 uppercase">
-            Enlace Eliminado y Expirado
+          <div className={`text-xs font-mono font-semibold ${tone.eyebrow} mb-2 uppercase`}>
+            {copy.eyebrow}
           </div>
-          <h2 className="text-xl font-bold text-white mb-2">Acceso No Permitido</h2>
-          <p className="text-sm text-neutral-400 mb-6 leading-relaxed">
-            {verification.message}
-          </p>
+          <h2 className="text-xl font-bold text-white mb-2">{copy.title}</h2>
+          <p className="text-sm text-neutral-400 mb-2 leading-relaxed">{verification.message}</p>
+          {copy.hint && (
+            <p className="text-xs text-neutral-500 mb-6 leading-relaxed">{copy.hint}</p>
+          )}
 
           {isAdminPreview && onBackToAdmin && (
             <button
