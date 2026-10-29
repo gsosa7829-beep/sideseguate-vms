@@ -1,0 +1,58 @@
+name: Deploy to Surge (sideseguate-cloud.surge.sh)
+
+# Despliegue automático del panel al dominio de Surge.
+#
+# Antes este sitio se publicaba a mano (o desde otra herramienta), así que
+# GitHub no tenía ni idea de su existencia y se quedaba desactualizado en
+# silencio: la versión publicada llegó a estar un PR por detrás del código.
+#
+# Requisito único: añadir el secreto SURGE_TOKEN
+#   Settings → Secrets and variables → Actions → New repository secret
+# Se obtiene una vez con:  npx surge token   (tras `npx surge login`)
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: surge-deploy
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    name: Build & Publish to Surge
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Type check
+        run: npx tsc --noEmit
+
+      - name: Build Production Bundle
+        run: npm run build
+
+      - name: Publish to Surge
+        env:
+          SURGE_TOKEN: ${{ secrets.SURGE_TOKEN }}
+        run: |
+          if [ -z "$SURGE_TOKEN" ]; then
+            echo "::warning::SURGE_TOKEN no está configurado. Se omite el despliegue a Surge."
+            echo "Añádelo en Settings → Secrets and variables → Actions para publicar automáticamente."
+            exit 0
+          fi
+          npx --yes surge ./dist sideseguate-cloud.surge.sh --token "$SURGE_TOKEN"
