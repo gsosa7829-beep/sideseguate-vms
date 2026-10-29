@@ -320,6 +320,71 @@ class CloudP2PClient {
       };
       this.notify();
     }
+    for (const file of remoteFiles) {
+      for (const url of remoteStateUrls(file)) {
+        sources.push({ url, viaProxy: false });
+      }
+    }
+
+    // Deduplicamos conservando el orden.
+    const seen = new Set<string>();
+    const orderedSources = sources.filter((s) => {
+      const key = `${s.viaProxy ? 'p' : 'r'}:${s.url.split('?')[0].split('&')[0]}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+
+    for (const source of orderedSources) {
+      try {
+        const res = await fetch(source.url, {
+          headers: { Accept: 'application/vnd.github.v3.raw' },
+          cache: 'no-store',
+        });
+        if (!res.ok) {
+          if (source.viaProxy) this.disableProxy();
+          continue;
+        }
+        const cloudData = (await res.json()) as CloudStatePayload;
+        if (!cloudData?.online) {
+          if (source.viaProxy) this.disableProxy();
+          continue;
+        }
+        this.proxyReachable = source.viaProxy;
+        this.state = {
+          online: true,
+          source: cloudData.tunnelUrl ? 'cloud-tunnel-24-7' : 'cloud-github-24-7',
+          mode: cloudData.mode || 'github-cloud-runner-24-7',
+          serial: cloudData.serial || 'FB2200254',
+          model: cloudData.model || 'iDS-7204HUHI-M1/S',
+          encryption: cloudData.encryption || 'HELGDM',
+          tunnelUrl: cloudData.tunnelUrl || '',
+          updatedAt: cloudData.updatedAt || new Date().toISOString(),
+          channels: cloudData.channels || {},
+          // Conservamos los últimos frames conocidos si la fuente es el endpoint ligero.
+          frames: cloudData.frames || this.state.frames || {},
+        };
+        this.notify();
+        return;
+      } catch {
+        if (source.viaProxy) this.disableProxy();
+        // Probamos la siguiente fuente.
+      }
+    }
+  }
+
+  /** El proxy solo existe en dev/preview: tras 3 fallos lo ignoramos por 5 minutos. */
+  private disableProxy() {
+    this.proxyReachable = false;
+    this.proxyFails += 1;
+    if (this.proxyFails >= 3) {
+      this.proxyCooldownUntil = Date.now() + 5 * 60 * 1000;
+      this.proxyFails = 0;
+    }
+  }
+
+  public isProxyReachable(): boolean {
+    return this.proxyReachable;
   }
 }
 
