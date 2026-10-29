@@ -55,18 +55,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
           icon: LayoutGrid,
           meta: `${onlineCount}/${camerasCount}`,
         },
-        {
-          id: 'tactical_map' as NavigationTab,
-          label: 'Mapa Táctico 2D',
-          icon: Compass,
-          meta: 'RADAR',
-        },
-        {
-          id: 'single_camera' as NavigationTab,
-          label: 'Cámara en Detalle',
-          icon: Eye,
-          meta: 'PTZ',
-        },
       ],
     },
     {

@@ -102,13 +102,18 @@ export const LiveCameraPlayer: React.FC<LiveCameraPlayerProps> = ({
       if (!active) return;
       const frameUrl = cloudP2pClient.getBestFrameUrl(ch);
       if (!frameUrl) {
-        timer = setTimeout(fetchNextFrame, 800);
+        timer = setTimeout(fetchNextFrame, 1000);
         return;
       }
+      const isMobile =
+        typeof window !== 'undefined' &&
+        (window.innerWidth < 768 || 'ontouchstart' in window);
       // El proxy del dev server (/p2p/frame) y el runner local (:8890) entregan frames casi en tiempo real.
       const isLocal =
         frameUrl.startsWith('/p2p/frame') || frameUrl.startsWith('http://localhost:8890');
       const isDataUrl = frameUrl.startsWith('data:image/');
+      const frameDelay = isLocal ? 95 : isDataUrl ? 1800 : isMobile ? 380 : 260;
+
       const img = new Image();
       if (!isDataUrl) {
         img.crossOrigin = 'anonymous';
@@ -117,7 +122,7 @@ export const LiveCameraPlayer: React.FC<LiveCameraPlayerProps> = ({
         if (!active) return;
         nativeP2pImgRef.current = img;
         setNativeP2pReady(true);
-        timer = setTimeout(fetchNextFrame, isLocal ? 95 : isDataUrl ? 1500 : 280);
+        timer = setTimeout(fetchNextFrame, frameDelay);
       };
       img.onerror = () => {
         if (!active) return;

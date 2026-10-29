@@ -13,6 +13,7 @@ import { get as httpsGet } from 'node:https';
  * Este middleware resuelve el estado en el servidor (sin límite de CORS ni de cuota del navegador)
  * y sirve los snapshots como imágenes JPEG normales:
  *
+ *   GET /p2p/endpoint.json      -> metadatos ligeros (≈0.6 KB, sin frames)
  *   GET /p2p/live-frames.json   -> estado completo (serial, canales, frames)
  *   GET /p2p/frame/:canal       -> JPEG del canal 1..4 (o 404)
  *
@@ -142,7 +143,9 @@ export function cloudFramesProxy(): Plugin {
   const handler = async (req: IncomingMessage, res: ServerResponse) => {
     const url = new URL(req.url || '/', 'http://localhost');
     const frameMatch = url.pathname.match(/^\/p2p\/frame\/(\d+)\/?$/);
-    const isState = url.pathname === '/p2p/live-frames.json';
+    const isFullState = url.pathname === '/p2p/live-frames.json';
+    const isEndpoint = url.pathname === '/p2p/endpoint.json';
+    const isState = isFullState || isEndpoint;
 
     if (!frameMatch && !isState) return false;
 
@@ -159,16 +162,20 @@ export function cloudFramesProxy(): Plugin {
 
     if (isState) {
       const ageMs = Date.now() - new Date(String(state.updatedAt || 0)).getTime();
+      const meta = {
+        servedBy: 'vite-cloud-frames-proxy',
+        stateAgeMs: Number.isFinite(ageMs) ? ageMs : null,
+        stale: !Number.isFinite(ageMs) || ageMs > STALE_MS,
+      };
       res.statusCode = 200;
       res.setHeader('Content-Type', 'application/json; charset=utf-8');
-      res.end(
-        JSON.stringify({
-          ...state,
-          servedBy: 'vite-cloud-frames-proxy',
-          stateAgeMs: Number.isFinite(ageMs) ? ageMs : null,
-          stale: !Number.isFinite(ageMs) || ageMs > STALE_MS,
-        })
-      );
+      if (isEndpoint) {
+        // Igual que el `endpoint.json` del runner: sin frames, para sondeo periódico barato.
+        const { frames: _frames, ...slim } = state;
+        res.end(JSON.stringify({ ...slim, ...meta }));
+      } else {
+        res.end(JSON.stringify({ ...state, ...meta }));
+      }
       return true;
     }
 

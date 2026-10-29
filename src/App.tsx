@@ -26,7 +26,6 @@ import { ProjectModal } from './components/ProjectModal';
 import { Sidebar } from './components/Sidebar';
 import { TopNavbar, UiThemePreset } from './components/TopNavbar';
 import { VideoWall } from './components/VideoWall';
-import { TacticalMapView } from './components/TacticalMapView';
 import { AccessAuditView } from './components/AccessAuditView';
 import { SadpScannerView } from './components/SadpScannerView';
 import { ZeroStorageView } from './components/ZeroStorageView';
@@ -784,7 +783,6 @@ export default function App() {
               cameras={cameras}
               onSelectCamera={(id) => {
                 setSelectedCameraId(id);
-                setActiveTab('single_camera');
               }}
               onOpenNewCamera={() => {
                 setEditingCamera(null);
@@ -796,129 +794,6 @@ export default function App() {
                 setIsShareModalOpen(true);
               }}
             />
-          )}
-
-          {/* VIEW 1B: Mapa Táctico & Radar Perimetral 2D (Improvement #4) */}
-          {activeTab === 'tactical_map' && (
-            <TacticalMapView
-              cameras={cameras}
-              projects={projects}
-              onUpdateCameraPosition={handleSaveCamera}
-              onSelectCameraDetail={(id: string) => {
-                setSelectedCameraId(id);
-                setActiveTab('single_camera');
-              }}
-              onGenerateLinkForCamera={(cam: Camera) => {
-                setEditingShareLink(null);
-                setShareDefaultProjectId(cam.projectId);
-                setIsShareModalOpen(true);
-              }}
-              onShowToast={showToast}
-            />
-          )}
-
-          {/* VIEW 2: Cámara en Detalle con PTZ */}
-          {activeTab === 'single_camera' && (
-            <div className="space-y-4">
-              <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
-                <div className="lg:col-span-3 flex flex-col gap-3">
-                  {selectedCamera ? (
-                    <LiveCameraPlayer
-                      camera={selectedCamera}
-                      allowPtz={true}
-                      allowAudio={true}
-                      allowSnapshot={true}
-                      showWatermark={false}
-                    />
-                  ) : (
-                    <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-12 text-center text-xs text-neutral-400">
-                      No hay cámaras seleccionadas.
-                    </div>
-                  )}
-
-                  {selectedCamera && (
-                    <div className="bg-neutral-900/70 border border-neutral-800/80 rounded-xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
-                      <div>
-                        <div className="flex items-center gap-2 mb-1">
-                          <h3 className="font-semibold text-white text-sm">{selectedCamera.name}</h3>
-                          <span className="font-mono text-[11px] text-neutral-400">
-                            {selectedCamera.deviceType === 'hikvision_dvr' ? 'Hikvision DVR' : selectedCamera.deviceType === 'hikvision_ip' ? 'Hikvision IP' : 'ONVIF / RTSP'}
-                          </span>
-                        </div>
-                        <p className="text-neutral-400 text-xs mb-1">{selectedCamera.locationDesc}</p>
-                        <p className="text-[11px] font-mono text-neutral-500">
-                          RTSP: {maskRtspUrl(selectedCamera.rtspUrl)}
-                        </p>
-                      </div>
-
-                      <div className="flex items-center gap-2 shrink-0">
-                        <button
-                          onClick={() => {
-                            setEditingCamera(selectedCamera);
-                            setIsCameraModalOpen(true);
-                          }}
-                          className="px-3 py-1.5 bg-neutral-800 hover:bg-neutral-750 text-neutral-300 hover:text-white border border-neutral-700/80 rounded-lg transition flex items-center gap-1.5 text-xs font-medium"
-                        >
-                          <Edit3 className="w-3.5 h-3.5 text-neutral-400" />
-                          <span>Configurar</span>
-                        </button>
-                        <button
-                          onClick={() => {
-                            setEditingShareLink(null);
-                            setIsShareModalOpen(true);
-                          }}
-                          className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg transition flex items-center gap-1.5 text-xs font-semibold shadow-sm"
-                        >
-                          <Link2 className="w-3.5 h-3.5" />
-                          <span>Generar Enlace</span>
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {/* Sidebar Camera Switcher */}
-                <div className="lg:col-span-1 space-y-2">
-                  <div className="text-xs font-semibold text-neutral-400 px-1">
-                    Seleccionar Cámara ({cameras.length})
-                  </div>
-                  <div className="space-y-1.5">
-                    {cameras.map((cam) => {
-                      const isSelected = cam.id === selectedCameraId;
-                      return (
-                        <button
-                          key={cam.id}
-                          type="button"
-                          onClick={() => setSelectedCameraId(cam.id)}
-                          className={`w-full text-left p-3 rounded-xl border transition flex flex-col gap-1.5 ${
-                            isSelected
-                              ? 'bg-neutral-900 border-blue-500/50 text-white shadow-sm'
-                              : 'bg-neutral-900/40 border-neutral-800 text-neutral-400 hover:bg-neutral-900 hover:border-neutral-700 hover:text-neutral-200'
-                          }`}
-                        >
-                          <div className="flex items-center justify-between w-full">
-                            <span className="font-medium text-xs truncate max-w-[170px] text-white">
-                              {cam.name}
-                            </span>
-                            <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${
-                              cam.status === 'online' ? 'bg-emerald-500' : 'bg-amber-500'
-                            }`} />
-                          </div>
-                          <div className="flex items-center justify-between w-full text-[11px] text-neutral-400">
-                            <span className="truncate">{cam.locationDesc}</span>
-                            <span className="font-mono text-[10px] text-neutral-500">CH{cam.channel}</span>
-                          </div>
-                          <div className="flex items-center justify-between w-full text-[10px] font-mono tabular-nums text-neutral-500 pt-1.5 border-t border-neutral-800/70">
-                            <span>{cam.resolution.split(' ')[0]}</span>
-                            <span className="text-neutral-400">{cam.fps} FPS</span>
-                          </div>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              </div>
-            </div>
           )}
 
           {/* VIEW 4: Enlaces Privados para Clientes */}
@@ -1142,7 +1017,7 @@ export default function App() {
               onNavigateToYaml={() => setActiveTab('mediamtx_config')}
               onSelectCameraInMonitor={(camId) => {
                 setSelectedCameraId(camId);
-                setActiveTab('single_camera');
+                setActiveTab('videowall');
               }}
             />
           )}
@@ -1399,7 +1274,7 @@ export default function App() {
                                   aria-label="Ver cámara en monitor"
                                   onClick={() => {
                                     setSelectedCameraId(cam.id);
-                                    setActiveTab('single_camera');
+                                    setActiveTab('videowall');
                                   }}
                                   className="p-1.5 bg-neutral-800/80 hover:bg-neutral-700 text-neutral-400 hover:text-white rounded-lg transition"
                                   title="Ver en Monitor"
@@ -1597,15 +1472,15 @@ export default function App() {
 
         <button
           type="button"
-          onClick={() => setActiveTab('single_camera')}
+          onClick={() => setActiveTab('devices_catalog')}
           className={`flex flex-col items-center justify-center py-1.5 rounded-xl text-[10px] font-medium transition ${
-            activeTab === 'single_camera'
+            activeTab === 'devices_catalog'
               ? 'text-sky-400 bg-sky-950/50 font-semibold'
               : 'text-neutral-400 hover:text-white'
           }`}
         >
-          <Eye className="w-4 h-4 mb-0.5" />
-          <span>Detalle</span>
+          <Cctv className="w-4 h-4 mb-0.5" />
+          <span>Cámaras</span>
         </button>
 
         <button

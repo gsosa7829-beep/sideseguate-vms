@@ -18,16 +18,26 @@ export interface CloudP2PState {
   frames: Record<string, string>;
 }
 
-// Orígenes del estado 24/7, en orden de preferencia (Cloud State branch / runner Windows).
-const GITHUB_RAW_STATE_URL =
-  'https://raw.githubusercontent.com/gsosa7829-beep/sideseguate-vms/cloud-state/live-frames.json';
-const GITHUB_API_STATE_URL =
-  'https://api.github.com/repos/gsosa7829-beep/sideseguate-vms/contents/live-frames.json?ref=cloud-state';
+// Estado 24/7 publicado por el runner Windows en la rama `cloud-state`.
+// `endpoint.json` es ligero (metadatos) y `live-frames.json` incluye los frames en base64.
+const CLOUD_STATE_META_PATHS = ['endpoint.json', 'live-frames.json'] as const;
+const CLOUD_STATE_FRAMES_PATH = 'live-frames.json';
+
 // Proxy del dev/preview server (vite-plugin-cloud-frames): evita CORS y la cuota de 60 req/h.
-const LOCAL_PROXY_STATE_URL = '/p2p/live-frames.json';
+const LOCAL_PROXY_META_URL = '/p2p/endpoint.json';
+const LOCAL_PROXY_FULL_STATE_URL = '/p2p/live-frames.json';
 const LOCAL_PROXY_FRAME_BASE = '/p2p/frame';
 
 type CloudStatePayload = Partial<CloudP2PState> & { online?: boolean; stale?: boolean };
+
+/** Orígenes remotos (sin proxy) del estado: CDN crudo primero, API después. */
+function remoteStateUrls(fileName: string): string[] {
+  const bust = Date.now();
+  return [
+    `https://raw.githubusercontent.com/gsosa7829-beep/sideseguate-vms/cloud-state/${fileName}?t=${bust}`,
+    `https://api.github.com/repos/gsosa7829-beep/sideseguate-vms/contents/${fileName}?ref=cloud-state&_t=${bust}`,
+  ];
+}
 
 class CloudP2PClient {
   private state: CloudP2PState = {
@@ -109,7 +119,7 @@ class CloudP2PClient {
   private startPolling() {
     if (this.pollTimer) return;
     this.pollOnce();
-    this.pollTimer = setInterval(() => this.pollOnce(), 3500);
+    this.pollTimer = setInterval(() => this.pollOnce(), 7500);
   }
 
   private async pollOnce() {
@@ -188,18 +198,34 @@ class CloudP2PClient {
       this.localReachable = false;
     }
 
-    // 2. Estado 24/7: proxy local del servidor > CDN crudo de GitHub > API de GitHub.
-    //    (La API sin token solo permite 60 peticiones/hora, por eso ya no es la primera opción.)
+    // 2. Estado 24/7 publicado por el runner: proxy local > CDN crudo de GitHub > API de GitHub.
+    //    Preferimos `endpoint.json` (≈0.6 KB) para el sondeo periódico; `live-frames.json` (≈128 KB)
+    //    solo se descarga cuando hace falta (frames base64) o cuando el endpoint ligero no existe.
     const proxyAllowed = Date.now() > this.proxyCooldownUntil;
-    const sources = [
-      ...(proxyAllowed
-        ? [{ url: `${LOCAL_PROXY_STATE_URL}?t=${Date.now()}`, viaProxy: true }]
-        : []),
-      { url: `${GITHUB_RAW_STATE_URL}?t=${Date.now()}`, viaProxy: false },
-      { url: `${GITHUB_API_STATE_URL}&_t=${Date.now()}`, viaProxy: false },
-    ];
+    const needsFrames = this.state.tunnelUrl === '' || this.state.tunnelUrl.startsWith('http://localhost');
+    const metaFiles: string[] = needsFrames ? ['live-frames.json', 'endpoint.json'] : ['endpoint.json', 'live-frames.json'];
 
-    for (const source of sources) {
+    const sources: Array<{ url: string; viaProxy: boolean }> = [];
+    if (proxyAllowed) {
+      sources.push({ url: `${LOCAL_PROXY_META_URL}?t=${Date.now()}`, viaProxy: true });
+      if (needsFrames) sources.push({ url: `${LOCAL_PROXY_FULL_STATE_URL}?t=${Date.now()}`, viaProxy: true });
+    }
+    for (const file of metaFiles) {
+      for (const url of remoteStateUrls(file)) {
+        sources.push({ url, viaProxy: false });
+      }
+    }
+
+    // Deduplicamos conservando el orden.
+    const seen = new Set<string>();
+    const orderedSources = sources.filter((s) => {
+      const key = `${s.viaProxy ? 'p' : 'r'}:${s.url.split('?')[0].split('&')[0]}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+
+    for (const source of orderedSources) {
       try {
         const res = await fetch(source.url, {
           headers: { Accept: 'application/vnd.github.v3.raw' },
@@ -225,7 +251,8 @@ class CloudP2PClient {
           tunnelUrl: cloudData.tunnelUrl || '',
           updatedAt: cloudData.updatedAt || new Date().toISOString(),
           channels: cloudData.channels || {},
-          frames: cloudData.frames || {},
+          // Conservamos los últimos frames conocidos si la fuente es el endpoint ligero.
+          frames: cloudData.frames || this.state.frames || {},
         };
         this.notify();
         return;
