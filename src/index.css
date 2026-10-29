@@ -80,3 +80,48 @@
 ::-webkit-scrollbar-thumb:hover {
   background: rgba(56, 189, 248, 0.65);
 }
+
+/* ==========================================================================
+   Legibilidad y ergonomía en móvil
+   --------------------------------------------------------------------------
+   La interfaz usa mucho texto de 10-11px para densidad en escritorio. En un
+   teléfono eso queda por debajo del mínimo legible (12px) y obliga a hacer
+   zoom. Aquí se eleva el piso SOLO en pantallas pequeñas: en PC se mantiene
+   intacta la densidad original.
+   ========================================================================== */
+@media (max-width: 767px) {
+  /* Texto de 9-10.5px sube a 11.5px */
+  [class*="text-[9px]"],
+  [class*="text-[9.5px]"],
+  [class*="text-[10px]"],
+  [class*="text-[10.5px]"] {
+    font-size: 11.5px !important;
+    line-height: 1.45 !important;
+  }
+
+  /* Texto de 11px sube a 12.5px (mínimo cómodo de lectura) */
+  [class*="text-[11px]"] {
+    font-size: 12.5px !important;
+    line-height: 1.45 !important;
+  }
+
+  /* Área táctil mínima para botones que solo llevan icono.
+     Se limita a los que ya declaran aria-label (iconos accesibles), para no
+     deformar botones de texto ni filas de tabla. */
+  button[aria-label] {
+    min-height: 40px;
+    min-width: 40px;
+  }
+
+  /* Evita el temido "zoom automático" de iOS al enfocar un campo. */
+  input,
+  select,
+  textarea {
+    font-size: max(16px, 1em);
+  }
+
+  /* Sin rebote horizontal por contenido ancho (tablas, código, URLs). */
+  body {
+    overflow-x: hidden;
+  }
+}

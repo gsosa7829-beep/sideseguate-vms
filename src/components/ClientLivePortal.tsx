@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { LOGO_URL } from '../lib/assets';
 import { Camera, ShareLink, Project } from '../lib/types';
 import { verifyShareLink, formatExpirationText } from '../lib/tokenSecurity';
 import {
@@ -221,7 +222,7 @@ export const ClientLivePortal: React.FC<ClientLivePortalProps> = ({
         <div className="max-w-md w-full bg-neutral-900 border border-neutral-800 rounded-2xl p-8 shadow-2xl">
           <div className="relative w-16 h-16 rounded-2xl bg-white mx-auto mb-4 flex items-center justify-center shadow-xl">
             <img 
-              src="/logo-sideseguate.jpg" 
+              src={LOGO_URL} 
               alt="SIDESEGUATE" 
               className="w-full h-full rounded-2xl object-cover"
             />
@@ -317,7 +318,7 @@ export const ClientLivePortal: React.FC<ClientLivePortalProps> = ({
               <div className="flex items-center gap-2.5 min-w-0">
                 <div className="w-8 h-8 rounded-lg overflow-hidden bg-white flex items-center justify-center shrink-0 shadow-sm">
                   <img 
-                    src="/logo-sideseguate.jpg" 
+                    src={LOGO_URL} 
                     alt="SIDESEGUATE Logo" 
                     className="w-full h-full object-cover"
                   />

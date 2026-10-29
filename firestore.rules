@@ -155,11 +155,8 @@ service cloud.firestore {
           'host',
           'port',
           'onvifPort',
-          'username',
-          'password',
           'channel',
           'streamType',
-          'rtspUrl',
           'hlsStreamUrl',
           'webrtcUrl',
           'status',
@@ -170,7 +167,6 @@ service cloud.firestore {
           'locationDesc',
           'ptzSupported',
           'nightVision',
-          'verificationCode',
           'cloudId',
           'notes',
           'createdAt',
@@ -185,11 +181,8 @@ service cloud.firestore {
           'host',
           'port',
           'onvifPort',
-          'username',
-          'password',
           'channel',
           'streamType',
-          'rtspUrl',
           'hlsStreamUrl',
           'webrtcUrl',
           'status',
@@ -200,7 +193,6 @@ service cloud.firestore {
           'locationDesc',
           'ptzSupported',
           'nightVision',
-          'verificationCode',
           'cloudId',
           'deviceSerial',
           'tenantId',
@@ -217,11 +209,8 @@ service cloud.firestore {
         data.host is string && data.host.size() >= 1 && data.host.size() <= 200 &&
         data.port is int && data.port >= 1 && data.port <= 65535 &&
         data.onvifPort is int && data.onvifPort >= 1 && data.onvifPort <= 65535 &&
-        data.username is string && data.username.size() >= 0 && data.username.size() <= 100 &&
-        data.password is string && data.password.size() >= 0 && data.password.size() <= 100 &&
         data.channel is int && data.channel >= 1 && data.channel <= 128 &&
         data.streamType is string && data.streamType in ['main', 'sub'] &&
-        data.rtspUrl is string && data.rtspUrl.size() >= 1 && data.rtspUrl.size() <= 500 &&
         data.hlsStreamUrl is string && data.hlsStreamUrl.size() >= 0 && data.hlsStreamUrl.size() <= 500 &&
         data.webrtcUrl is string && data.webrtcUrl.size() >= 0 && data.webrtcUrl.size() <= 500 &&
         data.status is string && data.status in ['online', 'offline', 'warning'] &&
@@ -232,7 +221,6 @@ service cloud.firestore {
         data.locationDesc is string && data.locationDesc.size() >= 0 && data.locationDesc.size() <= 300 &&
         data.ptzSupported is bool &&
         data.nightVision is bool &&
-        data.verificationCode is string && data.verificationCode.size() >= 0 && data.verificationCode.size() <= 64 &&
         data.cloudId is string && data.cloudId.size() >= 0 && data.cloudId.size() <= 128 &&
         data.deviceSerial is string && data.deviceSerial.size() >= 0 && data.deviceSerial.size() <= 64 &&
         data.notes is string && data.notes.size() >= 0 && data.notes.size() <= 1000 &&
@@ -457,11 +445,8 @@ service cloud.firestore {
             'host',
             'port',
             'onvifPort',
-            'username',
-            'password',
             'channel',
             'streamType',
-            'rtspUrl',
             'hlsStreamUrl',
             'webrtcUrl',
             'status',
@@ -472,8 +457,9 @@ service cloud.firestore {
             'locationDesc',
             'ptzSupported',
             'nightVision',
-            'verificationCode',
             'cloudId',
+            'deviceSerial',
+            'tenantId',
             'notes',
             'updatedAt'
           ])

@@ -1,4 +1,6 @@
 import React, { useState } from 'react';
+import { LOGO_URL } from '../lib/assets';
+import { getPublicBaseUrl } from '../lib/publicUrl';
 import { Camera, Project } from '../lib/types';
 import {
   ClientCameraSubmissionInput,
@@ -96,7 +98,7 @@ export const ClientCameraOnboardingView: React.FC<ClientCameraOnboardingViewProp
   };
 
   const getOnboardingUrl = (projId: string) => {
-    const baseUrl = window.location.origin + window.location.pathname;
+    const baseUrl = getPublicBaseUrl();
     return `${baseUrl}?onboarding=${encodeURIComponent(projId)}`;
   };
 
@@ -178,7 +180,7 @@ export const ClientCameraOnboardingView: React.FC<ClientCameraOnboardingViewProp
             <div className="flex items-center gap-3.5">
               <div className="w-11 h-11 rounded-xl overflow-hidden bg-white flex items-center justify-center shrink-0 border border-sky-500/40 shadow-sm">
                 <img
-                  src="/logo-sideseguate.jpg"
+                  src={LOGO_URL}
                   alt="SIDESEGUATE"
                   className="w-full h-full object-cover"
                 />

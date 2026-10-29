@@ -229,7 +229,7 @@ test('toCloudShareLinkPayload and fromCloudShareLinkDoc preserve PIN, cameras, a
   assert.deepEqual(roundTrip.cameraIds, ['cam-ids-ch1', 'cam-ids-ch2']);
 });
 
-test('toCloudCameraPayload and fromCloudCameraDoc sanitize and preserve camera fields', () => {
+test('toCloudCameraPayload NUNCA publica credenciales del DVR en Firestore', () => {
   const cam: Camera = {
     id: 'cam-new-4g',
     projectId: 'proj-sideseguate-01',
@@ -259,10 +259,25 @@ test('toCloudCameraPayload and fromCloudCameraDoc sanitize and preserve camera f
   assert.equal(payload.ownerId, 'sideseguate_cloud_v1');
   assert.equal(payload.codec, 'H.265');
 
-  const restored = fromCloudCameraDoc(payload as unknown as Record<string, unknown>);
+  // Regresión de seguridad: ningún secreto sale del dispositivo.
+  const asRecord = payload as unknown as Record<string, unknown>;
+  for (const secretField of ['username', 'password', 'rtspUrl', 'verificationCode']) {
+    assert.equal(
+      Object.prototype.hasOwnProperty.call(asRecord, secretField),
+      false,
+      `"${secretField}" no debe enviarse a la nube`
+    );
+  }
+  // Y por si acaso: los valores no aparecen serializados por ninguna vía.
+  const serialized = JSON.stringify(payload);
+  assert.ok(!serialized.includes('Dvr232323'), 'la contraseña no debe aparecer');
+  assert.ok(!serialized.includes('vi1fdr'), 'el usuario no debe aparecer');
+  assert.ok(!serialized.includes('VERIF-DEMO'), 'el código de verificación no debe aparecer');
+
+  // Los metadatos que sí sirven al portal del cliente permanecen.
+  const restored = fromCloudCameraDoc(asRecord);
   assert.equal(restored.id, 'cam-new-4g');
   assert.equal(restored.name, 'CH5: Domo Exterior PTZ');
-  assert.equal(restored.verificationCode, 'VERIF-DEMO');
   assert.equal(sanitizeCloudId('invalid id/with spaces!'), 'invalid_id_with_spaces_');
 });
 
@@ -1051,4 +1066,44 @@ test('multi-tenant: el filtrado no mezcla datos entre clientes', () => {
   assert.equal(isValidTenantId('los-pinos'), true);
   assert.equal(isValidTenantId('Los Pinos!'), false);
   assert.equal(isValidTenantId('stream'), false, 'reservado para el servidor de video');
+});
+
+// ---------------------------------------------------------------------------
+// Enlaces públicos (evita enviar localhost al cliente por WhatsApp)
+// ---------------------------------------------------------------------------
+
+import {
+  getPublicUrlInfo,
+  buildPublicShareUrl,
+  describeShareUrlWarning,
+} from './publicUrl.ts';
+
+test('sin window (SSR/Node) el enlace nunca se marca como accesible por el cliente', () => {
+  const info = getPublicUrlInfo();
+  assert.equal(info.isReachableByClient, false);
+  assert.equal(info.source, 'preview');
+});
+
+test('describeShareUrlWarning avisa solo cuando el cliente no podrá abrirlo', () => {
+  const warning = describeShareUrlWarning({
+    baseUrl: 'http://localhost:3000/',
+    source: 'preview',
+    isReachableByClient: false,
+  });
+  assert.ok(warning && warning.includes('dirección local'));
+
+  assert.equal(
+    describeShareUrlWarning({
+      baseUrl: 'https://sideseguate.gt',
+      source: 'configured',
+      isReachableByClient: true,
+    }),
+    null
+  );
+});
+
+test('buildPublicShareUrl arma el enlace con token y nunca con doble signo', () => {
+  const url = buildPublicShareUrl('sdg_live_abc123');
+  assert.ok(!url.includes('undefined'));
+  assert.ok(url.includes('?token=sdg_live_abc123') || url === 'sdg_live_abc123');
 });

@@ -15,6 +15,7 @@ import {
 } from './lib/firebase';
 import { maskRtspUrl, cloneNextDvrChannel } from './lib/rtspHelper';
 import { mergeCloudShareLinks, shareLinkListsDiffer } from './lib/shareLinkMerge';
+import { buildPublicShareUrl, getPublicUrlInfo, describeShareUrlWarning } from './lib/publicUrl';
 import {
   StreamGateway,
   loadGateway,
@@ -365,11 +366,20 @@ function AppShell() {
       },
       onCameras: (cloudCameras) => {
         const gatewayNow = loadGateway();
+        // Los secretos (usuario, contraseña, RTSP, código de verificación) NO
+        // viajan a la nube. Al recibir cámaras desde Firestore hay que
+        // re-aplicar los locales para no dejarlas sin credenciales.
+        const localById = new Map(storage.getCameras().map((c) => [c.id, c]));
         const enriched = cloudCameras.map((cam) => {
           const { hlsUrl, webrtcUrl } = resolveStreamUrls(cam, gatewayNow);
+          const local = localById.get(cam.id);
           return {
             ...cam,
-            verificationCode: cam.verificationCode || '',
+            username: local?.username || cam.username || '',
+            password: local?.password ?? cam.password ?? '',
+            rtspUrl: local?.rtspUrl || cam.rtspUrl || '',
+            verificationCode: local?.verificationCode || '',
+            deviceSerial: cam.deviceSerial || local?.deviceSerial,
             hlsStreamUrl: hlsUrl,
             webrtcUrl,
           };
@@ -658,17 +668,16 @@ function AppShell() {
   };
 
   const handleCopyLinkUrl = (token: string) => {
-    const baseUrl = window.location.origin + window.location.pathname;
-    const fullUrl = `${baseUrl}?token=${token}`;
+    const fullUrl = buildPublicShareUrl(token);
     navigator.clipboard.writeText(fullUrl);
     setCopiedToken(token);
-    showToast('Enlace privado (sincronizado en nube) copiado al portapapeles');
+    const warning = describeShareUrlWarning(getPublicUrlInfo());
+    showToast(warning || 'Enlace privado copiado al portapapeles');
     setTimeout(() => setCopiedToken(null), 2500);
   };
 
   const getWhatsAppShareUrl = (link: ShareLink) => {
-    const baseUrl = window.location.origin + window.location.pathname;
-    const fullUrl = `${baseUrl}?token=${link.token}`;
+    const fullUrl = buildPublicShareUrl(link.token);
     const pinNote = link.pinCode ? `\n🔒 Código PIN: ${link.pinCode}` : '';
     const text = `Hola ${link.clientName}, aquí tienes tu enlace privado de SIDESEGUATE para ver las cámaras en vivo desde tu celular o PC (4G/Wi-Fi):\n\n${fullUrl}${pinNote}\n\nÁbrelo directo en tu navegador sin descargar ninguna aplicación.`;
     const project = projects.find((p) => p.id === link.projectId);
@@ -934,6 +943,26 @@ function AppShell() {
                   </button>
                 </div>
               </div>
+
+              {/* Aviso: el enlace solo funcionaría en este equipo */}
+              {(() => {
+                const info = getPublicUrlInfo();
+                const warning = describeShareUrlWarning(info);
+                if (!warning) return null;
+                return (
+                  <div className="bg-amber-950/50 border border-amber-700/60 rounded-xl p-3 flex items-start gap-2 text-[11px] sm:text-xs text-amber-200">
+                    <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5 text-amber-400" />
+                    <div className="min-w-0">
+                      <p className="font-semibold">Los enlaces todavía no saldrán de este equipo</p>
+                      <p className="text-amber-200/80 leading-relaxed mt-0.5">
+                        Ahora mismo apuntan a <span className="font-mono break-all">{info.baseUrl || 'una dirección local'}</span>.
+                        Configura el <strong>dominio público de la plataforma</strong> en la pestaña
+                        "Archivo mediamtx.yml" para que tus clientes puedan abrirlos desde el celular.
+                      </p>
+                    </div>
+                  </div>
+                );
+              })()}
 
               {/* Links Grid (Single-Elevation Cards with Hairline Dividers) */}
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
