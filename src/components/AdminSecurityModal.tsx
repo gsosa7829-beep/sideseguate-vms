@@ -290,7 +290,7 @@ export const AdminSecurityModal: React.FC<AdminSecurityModalProps> = ({
                     <div className="font-mono text-[11px] text-neutral-300">
                       Usuario: <strong className="text-sky-400">{acc.username}</strong> · Correo:{' '}
                       <span className="text-neutral-400">{acc.email}</span> · Contraseña:{' '}
-                      <strong className="text-emerald-400">{acc.password}</strong>
+                      <span className="font-mono text-neutral-400 tracking-widest">••••••••</span>
                     </div>
                   </div>
 

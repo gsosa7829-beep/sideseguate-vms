@@ -19,7 +19,7 @@ export interface CloudP2PState {
 }
 
 const GITHUB_CLOUD_STATE_URL =
-  'https://api.github.com/repos/gsosa7829-beep/sideseguate-vms/contents/live-frames.json?ref=cloud-state';
+  'https://api.github.com/repos/gsosa7829-beep/sideseguate-vms/contents/endpoint.json?ref=cloud-state';
 
 class CloudP2PClient {
   private state: CloudP2PState = {
@@ -95,7 +95,7 @@ class CloudP2PClient {
   private startPolling() {
     if (this.pollTimer) return;
     this.pollOnce();
-    this.pollTimer = setInterval(() => this.pollOnce(), 3500);
+    this.pollTimer = setInterval(() => this.pollOnce(), 7500);
   }
 
   private async pollOnce() {
