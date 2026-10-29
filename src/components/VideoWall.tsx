@@ -6,6 +6,7 @@ import {
   DETECTED_IVMS_DEVICE,
   IvmsLayoutMode,
 } from '../lib/ivmsLiveBridge';
+import { cloudP2pClient } from '../lib/cloudP2pClient';
 import { 
   LayoutGrid, 
   Square, 
@@ -43,36 +44,28 @@ export const VideoWall: React.FC<VideoWallProps> = ({
   const [bridgeFeedback, setBridgeFeedback] = useState<string | null>(null);
   const [nativeP2pStatus, setNativeP2pStatus] = useState<{
     online: boolean;
+    source: string;
+    tunnelUrl: string;
     totalFramesCh1: number;
     latencyMs: number;
-  }>({ online: true, totalFramesCh1: 0, latencyMs: 82 });
+  }>({
+    online: true,
+    source: 'local-p2p',
+    tunnelUrl: '',
+    totalFramesCh1: 0,
+    latencyMs: 82,
+  });
 
   useEffect(() => {
-    let active = true;
-    const poll = async () => {
-      try {
-        const res = await fetch('http://localhost:8890/status', { cache: 'no-store' });
-        if (!res.ok) throw new Error('offline');
-        const data = await res.json();
-        if (active && data?.online) {
-          setNativeP2pStatus({
-            online: true,
-            totalFramesCh1: data.channels?.['1']?.totalFrames || 0,
-            latencyMs: data.channels?.['1']?.lastFrameAgeMs || 80,
-          });
-        }
-      } catch {
-        if (active) {
-          setNativeP2pStatus((prev) => ({ ...prev, online: false }));
-        }
-      }
-    };
-    poll();
-    const id = setInterval(poll, 2500);
-    return () => {
-      active = false;
-      clearInterval(id);
-    };
+    return cloudP2pClient.subscribe((state) => {
+      setNativeP2pStatus({
+        online: state.online,
+        source: state.source,
+        tunnelUrl: state.tunnelUrl,
+        totalFramesCh1: state.channels?.['1']?.totalFrames || 0,
+        latencyMs: state.channels?.['1']?.lastFrameAgeMs || 80,
+      });
+    });
   }, []);
 
   useEffect(() => {
@@ -232,10 +225,12 @@ export const VideoWall: React.FC<VideoWallProps> = ({
               <div className="flex flex-wrap items-center gap-2">
                 <span className="text-xs font-bold uppercase tracking-wider text-white">
                   {nativeP2pStatus.online
-                    ? '🟢 Transmisión Nativa Directa P2P V3 Activa (NetStream.dll · Sin Compartir Pantalla)'
+                    ? nativeP2pStatus.source === 'local-p2p'
+                      ? '🟢 Servidor P2P V3 Activo (Local + Nube 24/7 · Sin Compartir Pantalla)'
+                      : '🟢 Servidor P2P V3 en la Nube 24/7 Activo (Modo Cero-PC · GitHub Cloud Runner)'
                     : ivmsBridgeActive
                     ? '🟢 Puente iVMS-4200 Transmitiendo en Vivo'
-                    : 'Motor Directo Hikvision P2P V3 + MediaMTX'}
+                    : 'Motor Directo Hikvision P2P V3 + Cloud 24/7'}
                 </span>
                 <span className="px-2 py-0.5 rounded-md bg-neutral-950 border border-neutral-800 text-[11px] font-mono text-sky-300">
                   SN: {DETECTED_IVMS_DEVICE.deviceSerial} ({DETECTED_IVMS_DEVICE.model})
@@ -250,8 +245,12 @@ export const VideoWall: React.FC<VideoWallProps> = ({
               </div>
               <p className="text-xs text-neutral-300 mt-1">
                 {nativeP2pStatus.online
-                  ? `Conectado directamente a los 4 canales independientes del DVR FB2200254 mediante el motor nativo de Hikvision (NetStream.dll x64 -> localhost:8890) con clave HELGDM. Cuadros recibidos: ${nativeP2pStatus.totalFramesCh1} · Latencia P2P: ${nativeP2pStatus.latencyMs} ms.`
-                  : 'Conectando al servidor local P2P nativo Hikvision en localhost:8890...'}
+                  ? `Conectado directamente a los 4 canales del DVR FB2200254 mediante el motor nativo de Hikvision (NetStream.dll x64 · Clave HELGDM) en modo ${
+                      nativeP2pStatus.source === 'local-p2p'
+                        ? 'Híbrido (Local :8890 + Nube 24/7)'
+                        : '100% Nube 24/7 (Sin necesidad de tener la PC encendida)'
+                    }. Cuadros recibidos: ${nativeP2pStatus.totalFramesCh1} · Latencia P2P: ${nativeP2pStatus.latencyMs} ms.`
+                  : 'Conectando al servidor P2P 24/7 en la nube...'}
               </p>
               {bridgeFeedback && (
                 <p className="text-xs font-medium text-emerald-300 mt-1">{bridgeFeedback}</p>

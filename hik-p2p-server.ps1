@@ -1,7 +1,23 @@
 $ErrorActionPreference = "Continue"
-$clientDir = "C:\Program Files (x86)\iVMS-4200 Site\iVMS-4200 Client\Client"
+$scriptRoot = if ($PSScriptRoot) { $PSScriptRoot } else { (Get-Location).Path }
+$ivmsDir = "C:\Program Files (x86)\iVMS-4200 Site\iVMS-4200 Client\Client"
+$cloudBinDir = Join-Path $scriptRoot "cloud-p2p-runtime\bin"
+$cloudZipPath = Join-Path $scriptRoot "cloud-p2p-runtime\hik-sdk-x64.zip"
+
+if (($env:FORCE_CLOUD_SDK -ne "1") -and (Test-Path (Join-Path $ivmsDir "NetStream.dll"))) {
+    $clientDir = $ivmsDir
+} else {
+    if (-not (Test-Path (Join-Path $cloudBinDir "NetStream.dll"))) {
+        Write-Output "[HikP2PServer] Extracting cloud P2P SDK runtime from $cloudZipPath ..."
+        New-Item -ItemType Directory -Force -Path $cloudBinDir | Out-Null
+        Expand-Archive -Path $cloudZipPath -DestinationPath $cloudBinDir -Force
+    }
+    $clientDir = $cloudBinDir
+}
+
 $env:PATH = "$clientDir;$env:PATH"
 Set-Location $clientDir
+Write-Output "[HikP2PServer] Using SDK directory: $clientDir"
 
 # Extract latest P2P secret from opensdk.log if available, otherwise use verified fallback
 $p2pDataStr = "{94,51,-11,81,-8,-120,2,-3,-89,-109,-65,48,118,-69,55,95,-6,32,44,62,87,6,-90,-123,-95,63,-17,84,4,50,-19,50}"
@@ -302,6 +318,28 @@ public class HikNativeP2PServer {
                     return;
                 }
 
+                if (path == "/bundle") {
+                    StringBuilder bsb = new StringBuilder();
+                    bsb.Append("{\"online\":true,\"serial\":\"FB2200254\",\"updatedAt\":\"" + DateTime.UtcNow.ToString("o") + "\",\"frames\":{");
+                    for (int ch = 1; ch <= 4; ch++) {
+                        byte[] jpg = null;
+                        lock (_lock) { jpg = _frames[ch]; }
+                        if (ch > 1) bsb.Append(",");
+                        if (jpg != null && jpg.Length > 0) {
+                            bsb.Append("\"" + ch + "\":\"data:image/jpeg;base64," + Convert.ToBase64String(jpg) + "\"");
+                        } else {
+                            bsb.Append("\"" + ch + "\":\"\"");
+                        }
+                    }
+                    bsb.Append("}}");
+                    byte[] bBody = Encoding.UTF8.GetBytes(bsb.ToString());
+                    string bHdr = "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: " + bBody.Length + "\r\nAccess-Control-Allow-Origin: *\r\nCache-Control: no-store\r\nConnection: close\r\n\r\n";
+                    byte[] bHdrBytes = Encoding.ASCII.GetBytes(bHdr);
+                    stream.Write(bHdrBytes, 0, bHdrBytes.Length);
+                    stream.Write(bBody, 0, bBody.Length);
+                    return;
+                }
+
                 // Default: /status JSON
                 StringBuilder sb = new StringBuilder();
                 sb.Append("{\"online\":true,\"serial\":\"FB2200254\",\"model\":\"iDS-7204HUHI-M1/S\",\"encryption\":\"HELGDM\",\"transport\":\"Hikvision P2P V3 Native (NetStream.dll)\",\"channels\":{");
@@ -334,5 +372,6 @@ public class HikNativeP2PServer {
 }
 "@
 
+$listenPort = if ($env:HIK_PORT) { [int]$env:HIK_PORT } else { 8890 }
 Add-Type -TypeDefinition $code -ReferencedAssemblies System.Windows.Forms
-[HikNativeP2PServer]::StartServer($clientDir, $p2pUserId, $p2pDataStr, $p2pSaltIndex, $p2pLinkKey, $devPublicIp, 8890)
+[HikNativeP2PServer]::StartServer($clientDir, $p2pUserId, $p2pDataStr, $p2pSaltIndex, $p2pLinkKey, $devPublicIp, $listenPort)

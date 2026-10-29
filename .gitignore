@@ -11,5 +11,7 @@ coverage/
 .aistudio/
 mediamtx.exe
 mediamtx.zip
+cloudflared.exe
+cloud-p2p-runtime/bin/
 test_ch*.jpg
 live-ch*.jpg

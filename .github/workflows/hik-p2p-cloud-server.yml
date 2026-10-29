@@ -1,0 +1,39 @@
+name: SIDESEGUATE 24/7 Cloud P2P Server (Zero-PC)
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 */5 * * *'
+  push:
+    branches:
+      - main
+    paths:
+      - 'hik-p2p-server.ps1'
+      - 'cloud-p2p-runner.ps1'
+      - 'cloud-p2p-runtime/**'
+      - '.github/workflows/hik-p2p-cloud-server.yml'
+
+permissions:
+  contents: write
+  actions: write
+
+concurrency:
+  group: sideseguate-hik-p2p-cloud-24-7
+  cancel-in-progress: true
+
+jobs:
+  hik-p2p-cloud-server:
+    name: Hikvision P2P V3 Cloud Server (DVR FB2200254 · HELGDM)
+    runs-on: windows-latest
+    timeout-minutes: 350
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Start 24/7 Native Hikvision P2P Cloud Server & HTTPS Tunnel
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          FORCE_CLOUD_SDK: "1"
+        shell: powershell
+        run: |
+          powershell -NoProfile -ExecutionPolicy Bypass -File .\cloud-p2p-runner.ps1 -MaxRunMinutes 320 -SyncIntervalSeconds 6

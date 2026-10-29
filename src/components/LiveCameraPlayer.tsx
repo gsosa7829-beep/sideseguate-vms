@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import Hls from 'hls.js';
 import { Camera } from '../lib/types';
 import { ivmsLiveBridge, computeIvmsChannelSourceRect } from '../lib/ivmsLiveBridge';
+import { cloudP2pClient } from '../lib/cloudP2pClient';
 import { 
   Maximize2, 
   Minimize2, 
@@ -71,27 +72,56 @@ export const LiveCameraPlayer: React.FC<LiveCameraPlayerProps> = ({
     });
   }, []);
 
-  // Native Hikvision P2P V3 Direct Streamer (NetStream.dll on http://localhost:8890)
+  // Native Hikvision P2P V3 Direct & 24/7 Cloud Streamer (Local :8890 -> Cloud Tunnel -> Cloud GitHub State)
   useEffect(() => {
     let active = true;
     let timer: ReturnType<typeof setTimeout> | null = null;
     const ch = Math.min(4, Math.max(1, camera.channel || 1));
 
+    const loadFallbackDataUrl = () => {
+      const dataUrl = cloudP2pClient.getFallbackDataUrl(ch);
+      if (!dataUrl || !active) {
+        timer = setTimeout(fetchNextFrame, 1000);
+        return;
+      }
+      const fallbackImg = new Image();
+      fallbackImg.onload = () => {
+        if (!active) return;
+        nativeP2pImgRef.current = fallbackImg;
+        setNativeP2pReady(true);
+        timer = setTimeout(fetchNextFrame, 1200);
+      };
+      fallbackImg.onerror = () => {
+        if (!active) return;
+        timer = setTimeout(fetchNextFrame, 1500);
+      };
+      fallbackImg.src = dataUrl;
+    };
+
     const fetchNextFrame = () => {
       if (!active) return;
+      const frameUrl = cloudP2pClient.getBestFrameUrl(ch);
+      if (!frameUrl) {
+        timer = setTimeout(fetchNextFrame, 800);
+        return;
+      }
+      const isLocal = frameUrl.startsWith('http://localhost:8890');
+      const isDataUrl = frameUrl.startsWith('data:image/');
       const img = new Image();
-      img.crossOrigin = 'anonymous';
+      if (!isDataUrl) {
+        img.crossOrigin = 'anonymous';
+      }
       img.onload = () => {
         if (!active) return;
         nativeP2pImgRef.current = img;
         setNativeP2pReady(true);
-        timer = setTimeout(fetchNextFrame, 95);
+        timer = setTimeout(fetchNextFrame, isLocal ? 95 : isDataUrl ? 1500 : 280);
       };
       img.onerror = () => {
         if (!active) return;
-        timer = setTimeout(fetchNextFrame, 1200);
+        loadFallbackDataUrl();
       };
-      img.src = `http://localhost:8890/frame/${ch}?t=${Date.now()}`;
+      img.src = frameUrl;
     };
 
     fetchNextFrame();
