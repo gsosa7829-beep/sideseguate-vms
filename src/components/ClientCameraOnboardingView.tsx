@@ -74,12 +74,12 @@ export const ClientCameraOnboardingView: React.FC<ClientCameraOnboardingViewProp
   const [host, setHost] = useState<string>('192.168.1.41');
   const [port, setPort] = useState<number>(554);
   const [onvifPort, setOnvifPort] = useState<number>(8000);
-  const [username, setUsername] = useState<string>('vi1fdr');
-  const [password, setPassword] = useState<string>('Dvr232323');
+  const [username, setUsername] = useState<string>('');
+  const [password, setPassword] = useState<string>('');
   const [channelsCount, setChannelsCount] = useState<number>(4);
   const [startChannel, setStartChannel] = useState<number>(1);
   const [streamType, setStreamType] = useState<'main' | 'sub'>('main');
-  const [verificationCode, setVerificationCode] = useState<string>('HELGDM');
+  const [verificationCode, setVerificationCode] = useState<string>('');
   const [ptzSupported, setPtzSupported] = useState<boolean>(false);
 
   const [formError, setFormError] = useState<string | null>(null);
@@ -337,15 +337,15 @@ export const ClientCameraOnboardingView: React.FC<ClientCameraOnboardingViewProp
                 <span className="text-[11px] font-mono uppercase tracking-wider text-emerald-400 font-semibold">
                   Equipos Detectados en SADP Tool / iVMS-4200 (Autocompletar en 1 Clic)
                 </span>
-                <span className="text-[10px] font-mono text-neutral-400">
-                  User: vi1fdr · Key: HELGDM
+                <span className="text-[10px] font-mono text-neutral-500">
+                  Sin credenciales guardadas
                 </span>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
                 {[
                   {
                     label: 'EQUIPO DE PRUEBA (FB2200254 · 4CH)',
-                    sub: 'iDS-7204HUHI-M1/S · Cuenta vi1fdr',
+                    sub: 'iDS-7204HUHI-M1/S · 4 canales',
                     prefix: 'EQUIPO DE PRUEBA (FB2200254)',
                     ip: '192.168.1.41',
                     ch: 4,
@@ -389,9 +389,9 @@ export const ClientCameraOnboardingView: React.FC<ClientCameraOnboardingViewProp
                       setHost(preset.ip);
                       setPort(554);
                       setOnvifPort(8000);
-                      setUsername('vi1fdr');
-                      setPassword('Dvr232323');
-                      setVerificationCode('HELGDM');
+                      setUsername('');
+                      setPassword('');
+                      setVerificationCode('');
                       setChannelsCount(preset.ch);
                       setLocationDesc(preset.loc);
                     }}
@@ -555,7 +555,7 @@ export const ClientCameraOnboardingView: React.FC<ClientCameraOnboardingViewProp
                     type="text"
                     value={verificationCode}
                     onChange={(e) => setVerificationCode(e.target.value)}
-                    placeholder="Ej. HELGDM (Etiqueta DVR)"
+                    placeholder="Código de la etiqueta del DVR"
                     className="w-full bg-neutral-950 border border-neutral-800 rounded-lg px-3 py-2 text-xs font-mono uppercase text-white focus:outline-none focus:border-sky-500"
                   />
                 </div>

@@ -1,0 +1,54 @@
+name: CI — Calidad y Seguridad
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verificar:
+    name: Tipos, tests y build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Instalar dependencias
+        run: npm install --legacy-peer-deps --no-audit --no-fund
+
+      - name: Verificar tipos (tsc --noEmit)
+        run: npx tsc --noEmit
+
+      - name: Ejecutar tests
+        run: npm test
+
+      - name: Build de producción
+        run: npm run build
+
+      - name: Auditar que no haya credenciales en el bundle
+        run: |
+          echo "Buscando credenciales en texto plano en el código fuente..."
+          if grep -rn -E "Sideseguate2026|Ing2026|Dvr232323|Monitor2026" src/ --include=*.ts --include=*.tsx | grep -v "\.test\."; then
+            echo "❌ Se encontraron credenciales en texto plano."
+            exit 1
+          fi
+          echo "✅ Sin credenciales en texto plano."
+
+      - name: Guardar reporte del build
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist
+          retention-days: 5

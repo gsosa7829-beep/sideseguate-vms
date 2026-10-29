@@ -4,6 +4,7 @@ export type NavigationTab =
   | 'videowall'
   | 'share_links'
   | 'client_onboarding'
+  | 'dvr_registry'
   | 'clients_projects'
   | 'access_audit'
   | 'devices_catalog'

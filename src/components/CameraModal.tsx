@@ -40,9 +40,9 @@ export const CameraModal: React.FC<CameraModalProps> = ({
   const [host, setHost] = useState(initialCamera?.host || '190.86.12.34');
   const [port, setPort] = useState(initialCamera?.port || 554);
   const [onvifPort, setOnvifPort] = useState(initialCamera?.onvifPort || 8000);
-  const [username, setUsername] = useState(initialCamera?.username || 'vi1fdr');
-  const [password, setPassword] = useState(initialCamera?.password || 'Dvr232323');
-  const [verificationCode, setVerificationCode] = useState(initialCamera?.verificationCode || 'HELGDM');
+  const [username, setUsername] = useState(initialCamera?.username || '');
+  const [password, setPassword] = useState(initialCamera?.password || '');
+  const [verificationCode, setVerificationCode] = useState(initialCamera?.verificationCode || '');
   const [channel, setChannel] = useState(initialCamera?.channel || 1);
   const [streamType, setStreamType] = useState<'main' | 'sub'>(
     initialCamera?.streamType || 'main'
@@ -77,8 +77,8 @@ export const CameraModal: React.FC<CameraModalProps> = ({
       const initType = initialCamera?.deviceType || 'hikvision_dvr';
       const initHost = initialCamera?.host || '190.86.12.34';
       const initPort = initialCamera?.port || 554;
-      const initUser = initialCamera?.username || 'vi1fdr';
-      const initPass = initialCamera?.password || 'Dvr232323';
+      const initUser = initialCamera?.username || '';
+      const initPass = initialCamera?.password || '';
       const initChan = initialCamera?.channel || 1;
       const initStream = initialCamera?.streamType || 'main';
       const initBrand =
@@ -94,7 +94,7 @@ export const CameraModal: React.FC<CameraModalProps> = ({
       setOnvifPort(initialCamera?.onvifPort || 8000);
       setUsername(initUser);
       setPassword(initPass);
-      setVerificationCode(initialCamera?.verificationCode || 'HELGDM');
+      setVerificationCode(initialCamera?.verificationCode || '');
       setChannel(initChan);
       setStreamType(initStream);
       setCustomRtsp(
@@ -207,83 +207,43 @@ export const CameraModal: React.FC<CameraModalProps> = ({
 
         {/* Modal Form */}
         <form onSubmit={handleSubmit} className="p-6 overflow-y-auto space-y-5 text-xs">
-          {/* Quick Client Equipment Presets */}
-          <div className="bg-gradient-to-r from-blue-950/60 via-neutral-950 to-neutral-950 border border-blue-800/40 rounded-xl p-3 space-y-2">
+          {/* Plantillas de modelo (sin credenciales): solo precargan especificaciones */}
+          <div className="bg-neutral-950 border border-neutral-800 rounded-xl p-3 space-y-2">
             <div className="flex items-center justify-between">
-              <span className="text-[11px] font-bold text-blue-400 flex items-center gap-1.5">
-                <Cctv className="w-3.5 h-3.5" />
-                Cargar Datos del Cliente (vi1fdr / Dvr232323 / HELGDM):
+              <span className="text-[11px] font-bold text-neutral-300 flex items-center gap-1.5">
+                <Cctv className="w-3.5 h-3.5 text-sky-400" />
+                Plantilla de equipo (opcional)
               </span>
-              <span className="text-[10px] text-emerald-400 font-bold bg-emerald-950/80 px-2 py-0.5 rounded border border-emerald-700/60">
-                Credenciales listas
+              <span className="text-[10px] text-neutral-500">
+                Solo especificaciones · sin contraseñas
               </span>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-              <button
-                type="button"
-                onClick={() => {
-                  setDeviceType('hikvision_dvr');
-                  setName(`CH${channel}: iDS-7108HQHI-M1/S (SADP)`);
-                  setHost('192.168.1.41');
-                  setUsername('vi1fdr');
-                  setPassword('Dvr232323');
-                  setVerificationCode('HELGDM');
-                  setResolution('1920x1080 (1080p Lite)');
-                  setFps(25);
-                  setPort(554);
-                  setOnvifPort(8000);
-                  setLocationDesc('DVR detectado en SADP: IP 192.168.1.41 (MAC e0:ba:ad:cd:bc:05)');
-                  setNotes('Modelo: iDS-7108HQHI-M1/S | IP: 192.168.1.41 | Router: 192.168.1.1 | MAC: e0:ba:ad:cd:bc:05 | Short SN: L18365299 | User: vi1fdr | Pass: Dvr232323 | Cód: HELGDM');
-                }}
-                className="p-2 text-left bg-blue-950/40 hover:bg-blue-900/50 border border-blue-600/70 rounded-lg transition"
-              >
-                <div className="font-bold text-blue-300 text-[11px]">iDS-7108HQHI (SADP)</div>
-                <div className="text-[10px] text-neutral-300">IP: 192.168.1.41 • 8CH</div>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setDeviceType('hikvision_dvr');
-                  setName(`CH${channel}: iDS-7204HUHI-M1/S AcuSense`);
-                  setHost('190.86.12.34');
-                  setUsername('vi1fdr');
-                  setPassword('Dvr232323');
-                  setVerificationCode('HELGDM');
-                  setResolution('1920x1080 (1080p FHD)');
-                  setFps(25);
-                  setPort(554);
-                  setOnvifPort(8000);
-                  setLocationDesc('Cámara conectada a DVR iDS-7204HUHI-M1/S');
-                  setNotes('Modelo: iDS-7204HUHI-M1/S | User: vi1fdr | Pass: Dvr232323 | Código: HELGDM | SN: 0420240307CCWRFB2200254WCVU');
-                }}
-                className="p-2 text-left bg-neutral-900 hover:bg-blue-950/50 hover:border-blue-600 border border-neutral-800 rounded-lg transition"
-              >
-                <div className="font-bold text-white text-[11px]">iDS-7204HUHI (4CH)</div>
-                <div className="text-[10px] text-neutral-400">User: vi1fdr • Código: HELGDM</div>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setDeviceType('hikvision_dvr');
-                  setName(`CH${channel}: DS-7108HGHI-F1/N TurboHD`);
-                  setHost('190.86.12.36');
-                  setUsername('vi1fdr');
-                  setPassword('Dvr232323');
-                  setVerificationCode('HELGDM');
-                  setResolution('1280x720 (720p HD)');
-                  setFps(20);
-                  setPort(554);
-                  setOnvifPort(8000);
-                  setLocationDesc('Cámara conectada a DVR DS-7108HGHI-F1/N (8CH)');
-                  setNotes('Modelo: DS-7108HGHI-F1/N | User: vi1fdr | Pass: Dvr232323 | Código: HELGDM | SN: F30392314');
-                }}
-                className="p-2 text-left bg-neutral-900 hover:bg-blue-950/50 hover:border-blue-600 border border-neutral-800 rounded-lg transition"
-              >
-                <div className="font-bold text-white text-[11px]">DS-7108HGHI (8CH)</div>
-                <div className="text-[10px] text-neutral-400">User: vi1fdr • Código: HELGDM</div>
-              </button>
+              {[
+                { model: 'iDS-7108HQHI-M1/S', channels: 8, resolution: '1920x1080 (1080p Lite)', fps: 25 },
+                { model: 'iDS-7204HUHI-M1/S', channels: 4, resolution: '1920x1080 (1080p FHD)', fps: 25 },
+                { model: 'DS-7108HGHI-F1/N', channels: 8, resolution: '1280x720 (720p HD)', fps: 20 },
+              ].map((tpl) => (
+                <button
+                  key={tpl.model}
+                  type="button"
+                  onClick={() => {
+                    setDeviceType('hikvision_dvr');
+                    setResolution(tpl.resolution);
+                    setFps(tpl.fps);
+                    setPort(554);
+                    setOnvifPort(8000);
+                    if (!name.trim()) setName(`CH${channel}: ${tpl.model}`);
+                    setNotes(`Equipo: ${tpl.model} · ${tpl.channels} canales. Completa IP, usuario y contraseña del cliente.`);
+                  }}
+                  className="p-2 text-left bg-neutral-900 hover:bg-neutral-800 hover:border-sky-600 border border-neutral-800 rounded-lg transition"
+                >
+                  <div className="font-bold text-white text-[11px]">{tpl.model}</div>
+                  <div className="text-[10px] text-neutral-400">
+                    {tpl.channels} canales · {tpl.resolution.split(' ')[0]}
+                  </div>
+                </button>
+              ))}
             </div>
           </div>
 
@@ -401,7 +361,7 @@ export const CameraModal: React.FC<CameraModalProps> = ({
                   required
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
-                  placeholder="vi1fdr"
+                  placeholder="Usuario del equipo"
                   className="w-full bg-neutral-900 border border-neutral-700 rounded-lg px-3 py-1.5 text-white font-mono focus:border-blue-500 focus:outline-none"
                 />
               </div>
@@ -412,7 +372,7 @@ export const CameraModal: React.FC<CameraModalProps> = ({
                   type="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Dvr232323"
+                  placeholder="Contraseña del equipo"
                   className="w-full bg-neutral-900 border border-neutral-700 rounded-lg px-3 py-1.5 text-white font-mono focus:border-blue-500 focus:outline-none"
                 />
               </div>
@@ -424,7 +384,7 @@ export const CameraModal: React.FC<CameraModalProps> = ({
                   maxLength={10}
                   value={verificationCode}
                   onChange={(e) => setVerificationCode(e.target.value.toUpperCase())}
-                  placeholder="HELGDM"
+                  placeholder="Código del equipo"
                   className="w-full bg-neutral-900 border border-amber-600/70 rounded-lg px-3 py-1.5 text-amber-300 font-mono tracking-widest uppercase focus:border-amber-400 focus:outline-none"
                   title="Código de verificación de 6 letras para desencriptar Stream Encryption"
                 />

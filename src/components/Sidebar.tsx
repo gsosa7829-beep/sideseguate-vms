@@ -89,6 +89,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
           meta: 'RÁPIDO',
         },
         {
+          id: 'dvr_registry' as NavigationTab,
+          label: 'Registro de DVRs',
+          icon: Cctv,
+          meta: 'CLIENTE',
+        },
+        {
           id: 'devices_catalog' as NavigationTab,
           label: 'Catálogo de Cámaras',
           icon: Cctv,

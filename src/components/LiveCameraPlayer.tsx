@@ -391,9 +391,9 @@ export const LiveCameraPlayer: React.FC<LiveCameraPlayerProps> = ({
             }`}
           >
             {nativeP2pReady
-              ? 'EN VIVO · P2P DIRECTO (HELGDM)'
+              ? 'EN VIVO · P2P DIRECTO'
               : ivmsBridgeActive
-              ? 'EN VIVO · iVMS-4200 (HELGDM)'
+              ? 'EN VIVO · iVMS-4200'
               : hasHls
               ? 'EN VIVO · MediaMTX'
               : 'EN VIVO'}

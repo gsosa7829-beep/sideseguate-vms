@@ -597,15 +597,15 @@ pause`}
               <div className="flex flex-wrap items-center gap-2 font-mono text-xs">
                 <div className="bg-neutral-950 border border-neutral-800 px-3 py-2 rounded-xl">
                   <span className="text-neutral-500 block text-[10px]">USUARIO</span>
-                  <span className="text-blue-400 font-bold">vi1fdr</span>
+                  <span className="text-blue-400 font-bold">tu-usuario</span>
                 </div>
                 <div className="bg-neutral-950 border border-neutral-800 px-3 py-2 rounded-xl">
                   <span className="text-neutral-500 block text-[10px]">CONTRASEÑA</span>
-                  <span className="text-white font-bold">Dvr232323</span>
+                  <span className="text-white font-bold">••••••••</span>
                 </div>
                 <div className="bg-neutral-950 border border-amber-600/60 px-3 py-2 rounded-xl">
                   <span className="text-amber-400 block text-[10px] font-bold">CÓDIGO VERIFICACIÓN</span>
-                  <span className="text-amber-300 font-bold tracking-widest">HELGDM</span>
+                  <span className="text-amber-300 font-bold tracking-widest">••••••</span>
                 </div>
               </div>
             </div>
@@ -614,7 +614,7 @@ pause`}
             <div className="mt-4 pt-3 border-t border-neutral-800/80 text-xs text-neutral-300 flex items-start gap-2.5">
               <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
               <div className="leading-relaxed">
-                <strong className="text-white">Importante para el Técnico en Sitio:</strong> En los DVRs Hikvision AcuSense (como el <code className="text-blue-400 font-mono">iDS-7204HUHI-M1/S</code>), la función <em>Cifrado de Flujo (Stream Encryption)</em> viene habilitada con el código <code className="text-amber-300 font-mono font-bold">HELGDM</code>. Para que MediaMTX pueda transcodificar a HLS sin recibir cuadros negros, en el menú del DVR ve a: <strong>Configuración &gt; Red &gt; Ajustes Avanzados &gt; Acceso a la Plataforma</strong> y desactiva <strong>Cifrado de Flujo</strong> (te pedirá ingresar el código <code className="text-amber-300 font-mono">HELGDM</code> para confirmar).
+                <strong className="text-white">Importante para el Técnico en Sitio:</strong> En los DVRs Hikvision AcuSense (como el <code className="text-blue-400 font-mono">iDS-7204HUHI-M1/S</code>), la función <em>Cifrado de Flujo (Stream Encryption)</em> viene habilitada con el código de verificación de tu equipo. Para que MediaMTX pueda transcodificar a HLS sin recibir cuadros negros, en el menú del DVR ve a: <strong>Configuración &gt; Red &gt; Ajustes Avanzados &gt; Acceso a la Plataforma</strong> y desactiva <strong>Cifrado de Flujo</strong> (te pedirá ingresar ese mismo código para confirmar).
               </div>
             </div>
           </div>

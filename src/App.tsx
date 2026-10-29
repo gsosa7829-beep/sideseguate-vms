@@ -31,6 +31,9 @@ import { ProjectModal } from './components/ProjectModal';
 import { Sidebar } from './components/Sidebar';
 import { TopNavbar, UiThemePreset } from './components/TopNavbar';
 import { VideoWall } from './components/VideoWall';
+const DvrRegistryView = lazy(() =>
+  import('./components/DvrRegistryView').then((m) => ({ default: m.DvrRegistryView }))
+);
 const AccessAuditView = lazy(() =>
   import('./components/AccessAuditView').then((m) => ({ default: m.AccessAuditView }))
 );
@@ -56,11 +59,9 @@ import { AdminLoginScreen } from './components/AdminLoginScreen';
 const AdminSecurityModal = lazy(() =>
   import('./components/AdminSecurityModal').then((m) => ({ default: m.AdminSecurityModal }))
 );
-import {
-  AdminAccount,
-  adminAuthStorage,
-  DEFAULT_ADMIN_ACCOUNTS,
-} from './lib/adminAuth';
+import { AdminAccount, adminAuthStorage } from './lib/adminAuth';
+import { FirstRunSetup } from './components/FirstRunSetup';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { useOnlineStatus } from './lib/usePWAInstall';
 import { buildWhatsAppUrl } from './lib/whatsapp';
 
@@ -125,6 +126,10 @@ function AppShell() {
   // Corporate Admin Accounts & Login Gate State
   const [adminAccounts, setAdminAccounts] = useState<AdminAccount[]>(() =>
     adminAuthStorage.getAccounts()
+  );
+  // Primer arranque: no existen cuentas todavía (no hay usuarios de fábrica).
+  const [needsSetup, setNeedsSetup] = useState<boolean>(() =>
+    adminAuthStorage.needsFirstRunSetup()
   );
   const [requireLoginOnBoot, setRequireLoginOnBoot] = useState<boolean>(() =>
     adminAuthStorage.getRequireLoginOnBoot()
@@ -336,7 +341,7 @@ function AppShell() {
       accessLogs: loadedLogs,
     });
 
-    // Sync updated iVMS-4200 (FB2200254 · HELGDM) camera metadata to Cloud Firestore
+    // Sincroniza los metadatos de las cámaras del DVR a Cloud Firestore
     loadedCameras.forEach((cam) => {
       upsertCloudCamera(cam).catch(() => {});
     });
@@ -352,7 +357,7 @@ function AppShell() {
           const pathSlug = getCameraMediaMtxPath(cam);
           return {
             ...cam,
-            verificationCode: cam.verificationCode || 'HELGDM',
+            verificationCode: cam.verificationCode || '',
             hlsStreamUrl: cam.hlsStreamUrl || `http://localhost:8888/${pathSlug}/index.m3u8`,
             webrtcUrl: cam.webrtcUrl || `http://localhost:8889/${pathSlug}/whep`,
           };
@@ -654,12 +659,34 @@ function AppShell() {
     );
   }
 
-  // Strict Security Gate: Require authentication to access VMS console
+  // Configuración inicial: no hay usuarios de fábrica, se crea el del propietario.
+  if (needsSetup) {
+    return (
+      <FirstRunSetup
+        onComplete={(account) => {
+          adminAuthStorage.saveAccounts([account]);
+          adminAuthStorage.saveCurrentSession(account);
+          adminAuthStorage.authorizeCurrentOwnerDevice();
+          setAdminAccounts([account]);
+          setCurrentAdminAccount(account);
+          setIsPanelLocked(false);
+          setNeedsSetup(false);
+        }}
+      />
+    );
+  }
+
+  // Gate de seguridad: sin sesión válida no se entra al panel.
   if (isPanelLocked || !currentAdminAccount) {
     return (
       <AdminLoginScreen
         accounts={adminAccounts}
         onLoginSuccess={(account) => {
+          const updated = adminAccounts.map((a) =>
+            a.id === account.id ? { ...a, lastLoginAt: account.lastLoginAt } : a
+          );
+          adminAuthStorage.saveAccounts(updated);
+          setAdminAccounts(updated);
           adminAuthStorage.authorizeCurrentOwnerDevice();
           adminAuthStorage.saveCurrentSession(account);
           setCurrentAdminAccount(account);
@@ -1174,6 +1201,15 @@ function AppShell() {
           )}
 
           {/* VIEW 6: Auditoría de Accesos */}
+          {/* Registro de DVRs: el cliente agrega su equipo en 3 campos */}
+          {activeTab === 'dvr_registry' && (
+            <DvrRegistryView
+              clientName={currentAdminAccount.displayName}
+              isAdmin
+              onShowToast={showToast}
+            />
+          )}
+
           {activeTab === 'access_audit' && (
             <AccessAuditView
               logs={accessLogs}
@@ -1465,8 +1501,8 @@ function AppShell() {
         onUpdateAccounts={(updated) => {
           setAdminAccounts(updated);
           adminAuthStorage.saveAccounts(updated);
-          showToast('Cuentas corporativas del panel actualizadas');
         }}
+        onShowToast={showToast}
         onToggleRequireLoginOnBoot={(req) => {
           setRequireLoginOnBoot(req);
           adminAuthStorage.setRequireLoginOnBoot(req);
@@ -1485,7 +1521,7 @@ function AppShell() {
       {/* Mobile Quick-Navigation Bottom Dock (Spacious Touch Targets for Smartphones) */}
       <nav
         aria-label="Navegación rápida móvil"
-        className="md:hidden fixed bottom-0 inset-x-0 z-30 bg-neutral-950/95 border-t border-neutral-800 backdrop-blur-md px-2 pt-1.5 pb-[max(0.375rem,env(safe-area-inset-bottom))] grid grid-cols-5 gap-1"
+        className="md:hidden fixed bottom-0 inset-x-0 z-30 bg-neutral-950/95 border-t border-neutral-800 backdrop-blur-md px-2 pt-1.5 pb-[max(0.375rem,env(safe-area-inset-bottom))] grid grid-cols-4 gap-1"
       >
         <button
           type="button"
@@ -1539,14 +1575,7 @@ function AppShell() {
           <span>Enlaces</span>
         </button>
 
-        <button
-          type="button"
-          onClick={() => setIsSidebarCollapsed(false)}
-          className="flex flex-col items-center justify-center py-1.5 rounded-xl text-[10px] font-medium text-neutral-400 hover:text-white transition"
-        >
-          <Server className="w-4 h-4 mb-0.5" />
-          <span>Menú</span>
-        </button>
+
       </nav>
     </div>
   );
@@ -1555,8 +1584,10 @@ function AppShell() {
 // Envoltorio: las vistas con `lazy()` se descargan solo al abrirlas.
 export default function App() {
   return (
-    <Suspense fallback={<AppLoadingFallback />}>
-      <AppShell />
-    </Suspense>
+    <ErrorBoundary>
+      <Suspense fallback={<AppLoadingFallback />}>
+        <AppShell />
+      </Suspense>
+    </ErrorBoundary>
   );
 }

@@ -182,6 +182,8 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
         return { section: 'Accesos de Clientes', title: 'Enlaces Privados para Clientes' };
       case 'client_onboarding':
         return { section: 'Equipos y Red Local', title: 'Asistente Rápido: Agregar Cámaras y DVRs al Servidor' };
+      case 'dvr_registry':
+        return { section: 'Equipos y Red Local', title: 'Registro de DVRs por el Cliente' };
       case 'clients_projects':
         return { section: 'Accesos de Clientes', title: 'Cartera de Clientes y Demos de Cámaras' };
       case 'access_audit':
