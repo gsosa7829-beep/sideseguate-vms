@@ -3,7 +3,12 @@ import assert from 'node:assert/strict';
 import { buildHikvisionRtspUrl, buildPresetRtspUrl, maskRtspUrl, validateRtspSyntax } from './rtspHelper.ts';
 import { generateShareToken, verifyShareLink, formatExpirationText } from './tokenSecurity.ts';
 import { generateMediaMtxYaml } from './mediaMtxGenerator.ts';
-import { generateQrMatrix, calculateBandwidthMetrics, buildClientHandoverSummary } from './qrGenerator.ts';
+import {
+  generateRealQrCode,
+  generateRealQrSvg,
+  calculateBandwidthMetrics,
+  buildClientHandoverSummary,
+} from './qrGenerator.ts';
 import {
   sanitizeCloudId,
   toCloudShareLinkPayload,
@@ -127,15 +132,32 @@ test('generateMediaMtxYaml includes camera paths and server blocks', () => {
   assert.ok(yaml.includes('hls: yes'));
 });
 
-test('generateQrMatrix produces deterministic 25x25 matrix with corner finders', () => {
-  const m1 = generateQrMatrix('https://sideseguate.com/?token=sdg_live_123');
-  const m2 = generateQrMatrix('https://sideseguate.com/?token=sdg_live_123');
-  assert.equal(m1.length, 25);
-  assert.equal(m1[0].length, 25);
-  assert.deepEqual(m1, m2);
-  // Top-left finder corner outer border and center (3,3) should be true
-  assert.equal(m1[0][0], true);
-  assert.equal(m1[3][3], true);
+test('generateRealQrCode produce un QR real (ISO/IEC 18004) con corrección H', () => {
+  const qr = generateRealQrCode('https://sideseguate.com/?token=sdg_live_123', {
+    errorCorrectionLevel: 'H',
+  });
+  // Un QR real siempre mide 21 + 4*(versión-1) módulos por lado.
+  assert.equal(qr.size, 21 + 4 * (qr.version - 1));
+  assert.equal(qr.matrix.length, qr.size);
+  assert.equal(qr.matrix[0].length, qr.size);
+
+  // Patrón localizador superior izquierdo: borde de 7x7 con anillo y núcleo 3x3.
+  assert.equal(qr.matrix[0][0], true);
+  assert.equal(qr.matrix[0][6], true);
+  assert.equal(qr.matrix[6][0], true);
+  assert.equal(qr.matrix[1][1], false);
+  assert.equal(qr.matrix[3][3], true);
+
+  // Determinista: el mismo payload genera exactamente la misma matriz.
+  const again = generateRealQrCode('https://sideseguate.com/?token=sdg_live_123', {
+    errorCorrectionLevel: 'H',
+  });
+  assert.deepEqual(qr.matrix, again.matrix);
+
+  // El SVG generado es un SVG válido y sin rectángulos vacíos.
+  const svg = generateRealQrSvg('https://sideseguate.com/?token=sdg_live_123');
+  assert.ok(svg.startsWith('<svg'));
+  assert.ok(svg.includes('shape-rendering="crispEdges"'));
 });
 
 test('calculateBandwidthMetrics computes gateway multiplexing savings accurately', () => {

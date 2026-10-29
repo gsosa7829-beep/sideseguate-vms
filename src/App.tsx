@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, lazy, Suspense } from 'react';
 import { Camera, Project, ShareLink, AccessLog, NavigationTab } from './lib/types';
 import { storage } from './lib/storage';
 import {
@@ -18,29 +18,51 @@ import { formatExpirationText, createFlashTemporaryLink, REVOKED_SHARE_TOKENS } 
 import { generateMediaMtxYaml } from './lib/mediaMtxGenerator';
 import { applyTunnelToCameras, formatBuyerAccessNotification, getCameraMediaMtxPath } from './lib/pcLauncherGenerator';
 import { LiveCameraPlayer } from './components/LiveCameraPlayer';
-import { ClientLivePortal } from './components/ClientLivePortal';
-import { ClientCameraOnboardingView } from './components/ClientCameraOnboardingView';
+const ClientLivePortal = lazy(() =>
+  import('./components/ClientLivePortal').then((m) => ({ default: m.ClientLivePortal }))
+);
+// Vistas pesadas cargadas bajo demanda (code-splitting): reducen el bundle inicial.
+const ClientCameraOnboardingView = lazy(() =>
+  import('./components/ClientCameraOnboardingView').then((m) => ({ default: m.ClientCameraOnboardingView }))
+);
 import { ShareLinkModal } from './components/ShareLinkModal';
 import { CameraModal } from './components/CameraModal';
 import { ProjectModal } from './components/ProjectModal';
 import { Sidebar } from './components/Sidebar';
 import { TopNavbar, UiThemePreset } from './components/TopNavbar';
 import { VideoWall } from './components/VideoWall';
-import { AccessAuditView } from './components/AccessAuditView';
-import { SadpScannerView } from './components/SadpScannerView';
-import { ZeroStorageView } from './components/ZeroStorageView';
-import { MobileSimulatorModal } from './components/MobileSimulatorModal';
-import { ArchitectureTab } from './components/ArchitectureTab';
-import { ClientHandoverCardModal } from './components/ClientHandoverCardModal';
-import { DesktopProgramModal } from './components/DesktopProgramModal';
+const AccessAuditView = lazy(() =>
+  import('./components/AccessAuditView').then((m) => ({ default: m.AccessAuditView }))
+);
+const SadpScannerView = lazy(() =>
+  import('./components/SadpScannerView').then((m) => ({ default: m.SadpScannerView }))
+);
+const ZeroStorageView = lazy(() =>
+  import('./components/ZeroStorageView').then((m) => ({ default: m.ZeroStorageView }))
+);
+const MobileSimulatorModal = lazy(() =>
+  import('./components/MobileSimulatorModal').then((m) => ({ default: m.MobileSimulatorModal }))
+);
+const ArchitectureTab = lazy(() =>
+  import('./components/ArchitectureTab').then((m) => ({ default: m.ArchitectureTab }))
+);
+const ClientHandoverCardModal = lazy(() =>
+  import('./components/ClientHandoverCardModal').then((m) => ({ default: m.ClientHandoverCardModal }))
+);
+const DesktopProgramModal = lazy(() =>
+  import('./components/DesktopProgramModal').then((m) => ({ default: m.DesktopProgramModal }))
+);
 import { AdminLoginScreen } from './components/AdminLoginScreen';
-import { AdminSecurityModal } from './components/AdminSecurityModal';
+const AdminSecurityModal = lazy(() =>
+  import('./components/AdminSecurityModal').then((m) => ({ default: m.AdminSecurityModal }))
+);
 import {
   AdminAccount,
   adminAuthStorage,
   DEFAULT_ADMIN_ACCOUNTS,
 } from './lib/adminAuth';
 import { useOnlineStatus } from './lib/usePWAInstall';
+import { buildWhatsAppUrl } from './lib/whatsapp';
 
 import { 
   QrCode,
@@ -81,7 +103,16 @@ import {
   Cloud
 } from 'lucide-react';
 
-export default function App() {
+function AppLoadingFallback() {
+  return (
+    <div className="min-h-dvh bg-neutral-950 flex flex-col items-center justify-center gap-3 text-neutral-400">
+      <div className="w-8 h-8 border-2 border-sky-500/30 border-t-sky-500 rounded-full animate-spin" />
+      <span className="text-xs font-mono tracking-wide">Cargando módulo…</span>
+    </div>
+  );
+}
+
+function AppShell() {
   // Navigation & State
   const [activeTab, setActiveTab] = useState<NavigationTab>('videowall');
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState<boolean>(() =>
@@ -596,10 +627,9 @@ export default function App() {
     const baseUrl = window.location.origin + window.location.pathname;
     const fullUrl = `${baseUrl}?token=${link.token}`;
     const pinNote = link.pinCode ? `\n🔒 Código PIN: ${link.pinCode}` : '';
-    const text = encodeURIComponent(
-      `Hola ${link.clientName}, aquí tienes tu enlace privado de SIDESEGUATE para ver las cámaras en vivo desde tu celular o PC (4G/Wi-Fi):\n\n${fullUrl}${pinNote}\n\nÁbrelo directo en tu navegador sin descargar ninguna aplicación.`
-    );
-    return `https://api.whatsapp.com/send?text=${text}`;
+    const text = `Hola ${link.clientName}, aquí tienes tu enlace privado de SIDESEGUATE para ver las cámaras en vivo desde tu celular o PC (4G/Wi-Fi):\n\n${fullUrl}${pinNote}\n\nÁbrelo directo en tu navegador sin descargar ninguna aplicación.`;
+    const project = projects.find((p) => p.id === link.projectId);
+    return buildWhatsAppUrl({ text, phone: project?.clientPhone });
   };
 
   // If in Client Portal View directly (client opening private token link)
@@ -655,7 +685,7 @@ export default function App() {
   const mediamtxYaml = generateMediaMtxYaml(cameras);
 
   return (
-    <div className="flex h-screen w-screen bg-neutral-950 text-neutral-100 overflow-hidden font-sans">
+    <div className="flex h-dvh w-full bg-neutral-950 text-neutral-100 overflow-hidden font-sans">
       {/* Toast Notification */}
       {toastMessage && (
         <div className="fixed bottom-5 right-5 z-50 bg-blue-600 text-white text-xs font-semibold px-4 py-2.5 rounded-xl shadow-2xl animate-fade-in flex items-center gap-2 border border-blue-400/40">
@@ -1455,7 +1485,7 @@ export default function App() {
       {/* Mobile Quick-Navigation Bottom Dock (Spacious Touch Targets for Smartphones) */}
       <nav
         aria-label="Navegación rápida móvil"
-        className="md:hidden fixed bottom-0 inset-x-0 z-30 bg-neutral-950/95 border-t border-neutral-800 backdrop-blur-md px-2 py-1.5 grid grid-cols-5 gap-1"
+        className="md:hidden fixed bottom-0 inset-x-0 z-30 bg-neutral-950/95 border-t border-neutral-800 backdrop-blur-md px-2 pt-1.5 pb-[max(0.375rem,env(safe-area-inset-bottom))] grid grid-cols-5 gap-1"
       >
         <button
           type="button"
@@ -1519,5 +1549,14 @@ export default function App() {
         </button>
       </nav>
     </div>
+  );
+}
+
+// Envoltorio: las vistas con `lazy()` se descargan solo al abrirlas.
+export default function App() {
+  return (
+    <Suspense fallback={<AppLoadingFallback />}>
+      <AppShell />
+    </Suspense>
   );
 }

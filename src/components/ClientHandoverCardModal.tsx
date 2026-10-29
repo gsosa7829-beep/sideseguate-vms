@@ -1,7 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { Camera, Project, ShareLink } from '../lib/types';
 import { formatExpirationText } from '../lib/tokenSecurity';
-import { generateQrMatrix, buildClientHandoverSummary } from '../lib/qrGenerator';
+import { buildWhatsAppUrl, hasDirectWhatsAppTarget } from '../lib/whatsapp';
+import {
+  generateRealQrCode,
+  generateRealQrPngDataUrl,
+  buildClientHandoverSummary,
+} from '../lib/qrGenerator';
 import {
   X,
   QrCode,
@@ -9,6 +14,7 @@ import {
   Check,
   MessageCircle,
   Printer,
+  Download,
   Lock,
   ExternalLink,
   ShieldCheck,
@@ -56,7 +62,9 @@ export const ClientHandoverCardModal: React.FC<ClientHandoverCardModalProps> = (
       : c.projectId === shareLink.projectId
   );
 
-  const qrMatrix = generateQrMatrix(fullUrl);
+  // QR real ISO/IEC 18004 con corrección de errores H (escaneable desde cualquier teléfono).
+  const qr = generateRealQrCode(fullUrl, { errorCorrectionLevel: 'H' });
+  const qrMatrix = qr.matrix;
   const handoverText = buildClientHandoverSummary(
     shareLink,
     baseUrl,
@@ -79,7 +87,24 @@ export const ClientHandoverCardModal: React.FC<ClientHandoverCardModalProps> = (
     window.print();
   };
 
-  const whatsappUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(handoverText)}`;
+  // WhatsApp en 1 toque: si el proyecto tiene teléfono, abre directo el chat del cliente.
+  const whatsappUrl = buildWhatsAppUrl({ text: handoverText, phone: project?.clientPhone });
+  const directWhatsApp = hasDirectWhatsAppTarget(project?.clientPhone);
+
+  /** Descarga el QR real como PNG de 512 px (para imprimir o enviar). */
+  const handleDownloadQr = async () => {
+    try {
+      const dataUrl = await generateRealQrPngDataUrl(fullUrl, { width: 512 });
+      const a = document.createElement('a');
+      a.href = dataUrl;
+      a.download = `QR-${shareLink.clientName.replace(/\s+/g, '-')}-${shareLink.token.slice(0, 8)}.png`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    } catch {
+      // Sin soporte de descarga: no bloqueamos la UI.
+    }
+  };
 
   return (
     <div
@@ -128,9 +153,10 @@ export const ClientHandoverCardModal: React.FC<ClientHandoverCardModalProps> = (
             {/* Crisp SVG QR Code with Center SIDESEGUATE Badge */}
             <div className="relative bg-white p-3 rounded-xl shadow-md shrink-0">
               <svg
-                viewBox="0 0 25 25"
+                viewBox={`0 0 ${qr.size} ${qr.size}`}
                 className="w-36 h-36 block"
                 shapeRendering="crispEdges"
+                role="img"
                 aria-label={`Código QR para ${shareLink.title}`}
               >
                 {qrMatrix.map((row, rIdx) =>
@@ -254,7 +280,7 @@ export const ClientHandoverCardModal: React.FC<ClientHandoverCardModalProps> = (
           </div>
 
           {/* Action Buttons */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-1">
+          <div className="grid grid-cols-2 sm:grid-cols-2 gap-2.5 pt-1">
             <a
               href={whatsappUrl}
               target="_blank"
@@ -262,8 +288,17 @@ export const ClientHandoverCardModal: React.FC<ClientHandoverCardModalProps> = (
               className="py-2.5 px-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition shadow-sm whitespace-nowrap"
             >
               <MessageCircle className="w-4 h-4" />
-              <span>Enviar WhatsApp</span>
+              <span>{directWhatsApp ? 'WhatsApp 1 toque' : 'Enviar WhatsApp'}</span>
             </a>
+
+            <button
+              type="button"
+              onClick={handleDownloadQr}
+              className="py-2.5 px-3 bg-neutral-800 hover:bg-neutral-700 text-white border border-neutral-700 rounded-xl text-xs font-medium flex items-center justify-center gap-1.5 transition whitespace-nowrap"
+            >
+              <Download className="w-4 h-4 text-neutral-300" />
+              <span>Descargar QR</span>
+            </button>
 
             <button
               type="button"

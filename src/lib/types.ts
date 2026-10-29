@@ -2,8 +2,6 @@ export type DeviceType = 'hikvision_dvr' | 'hikvision_ip' | 'generic_rtsp';
 
 export type NavigationTab = 
   | 'videowall'
-  | 'tactical_map'
-  | 'single_camera'
   | 'share_links'
   | 'client_onboarding'
   | 'clients_projects'

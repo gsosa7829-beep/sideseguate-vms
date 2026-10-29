@@ -141,7 +141,7 @@ export const ClientLivePortal: React.FC<ClientLivePortalProps> = ({
   // State: Cloud is still resolving token for buyer on 4G/Wi-Fi
   if (!activeShareLink && (directTokenLoading || isCloudLoading)) {
     return (
-      <div className="min-h-screen bg-neutral-950 text-neutral-100 flex flex-col items-center justify-center p-6">
+      <div className="min-h-dvh bg-neutral-950 text-neutral-100 flex flex-col items-center justify-center p-6">
         <div className="max-w-md w-full bg-neutral-900 border border-neutral-800 rounded-2xl p-8 text-center shadow-2xl">
           <div className="w-14 h-14 bg-blue-950/80 border border-blue-800/80 text-blue-400 rounded-2xl flex items-center justify-center mx-auto mb-4">
             <RefreshCw className="w-7 h-7 animate-spin" />
@@ -160,7 +160,7 @@ export const ClientLivePortal: React.FC<ClientLivePortalProps> = ({
   // State: Link not found or invalid
   if (!activeShareLink) {
     return (
-      <div className="min-h-screen bg-neutral-950 text-neutral-100 flex flex-col items-center justify-center p-6">
+      <div className="min-h-dvh bg-neutral-950 text-neutral-100 flex flex-col items-center justify-center p-6">
         <div className="max-w-md w-full bg-neutral-900 border border-red-900/60 rounded-2xl p-8 text-center shadow-2xl">
           <div className="w-16 h-16 bg-red-950/80 border border-red-800/80 text-red-400 rounded-2xl flex items-center justify-center mx-auto mb-4">
             <Lock className="w-8 h-8" />
@@ -188,7 +188,7 @@ export const ClientLivePortal: React.FC<ClientLivePortalProps> = ({
   // State: Link Expired or Deactivated
   if (!verification.valid && !needsPin) {
     return (
-      <div className="min-h-screen bg-neutral-950 text-neutral-100 flex flex-col items-center justify-center p-6">
+      <div className="min-h-dvh bg-neutral-950 text-neutral-100 flex flex-col items-center justify-center p-6">
         <div className="max-w-md w-full bg-neutral-900 border border-red-900/60 rounded-2xl p-8 text-center shadow-2xl">
           <div className="w-16 h-16 bg-red-950/80 border border-red-800/80 text-red-400 rounded-2xl flex items-center justify-center mx-auto mb-4">
             <Lock className="w-8 h-8" />
@@ -217,7 +217,7 @@ export const ClientLivePortal: React.FC<ClientLivePortalProps> = ({
   // State: Needs PIN
   if (needsPin) {
     return (
-      <div className="min-h-screen bg-neutral-950 text-neutral-100 flex flex-col items-center justify-center p-6">
+      <div className="min-h-dvh bg-neutral-950 text-neutral-100 flex flex-col items-center justify-center p-6">
         <div className="max-w-md w-full bg-neutral-900 border border-neutral-800 rounded-2xl p-8 shadow-2xl">
           <div className="relative w-16 h-16 rounded-2xl bg-white mx-auto mb-4 flex items-center justify-center shadow-xl">
             <img 
@@ -296,7 +296,7 @@ export const ClientLivePortal: React.FC<ClientLivePortalProps> = ({
   const selectedCamera = allowedCameras.find((c) => c.id === selectedCameraId) || allowedCameras[0];
 
   return (
-    <div className="min-h-screen bg-neutral-950 text-neutral-100 flex flex-col">
+    <div className="min-h-dvh bg-neutral-950 text-neutral-100 flex flex-col">
       {/* Top Client Header (Mobile-Responsive & Well-Spaced) */}
       <header className="bg-neutral-900 border-b border-neutral-800 px-3.5 sm:px-5 py-3 sticky top-0 z-40 backdrop-blur-md">
         <div className="max-w-7xl mx-auto flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">

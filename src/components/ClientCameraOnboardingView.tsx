@@ -26,6 +26,7 @@ import {
   FileCode,
   Eye,
 } from 'lucide-react';
+import { buildWhatsAppUrl } from '../lib/whatsapp';
 
 interface ClientCameraOnboardingViewProps {
   projects: Project[];
@@ -108,10 +109,8 @@ export const ClientCameraOnboardingView: React.FC<ClientCameraOnboardingViewProp
 
   const getWhatsAppOnboardingShareUrl = () => {
     const url = getOnboardingUrl(selectedProjectId);
-    const msg = encodeURIComponent(
-      `Hola ${currentProject.clientName}, te comparto el Portal de Auto-Registro de Cámaras de SIDESEGUATE:\n\n${url}\n\nDesde ahí puedes ingresar fácilmente la IP, usuario y canales de tus cámaras o DVR para que nuestro servidor las agregue automáticamente en vivo.`
-    );
-    return `https://api.whatsapp.com/send?text=${msg}`;
+    const msg = `Hola ${currentProject.clientName}, te comparto el Portal de Auto-Registro de Cámaras de SIDESEGUATE:\n\n${url}\n\nDesde ahí puedes ingresar fácilmente la IP, usuario y canales de tus cámaras o DVR para que nuestro servidor las agregue automáticamente en vivo.`;
+    return buildWhatsAppUrl({ text: msg, phone: currentProject.clientPhone });
   };
 
   // Preview RTSP URLs before submitting
@@ -171,7 +170,7 @@ export const ClientCameraOnboardingView: React.FC<ClientCameraOnboardingViewProp
   };
 
   return (
-    <div className={isStandaloneClientMode ? 'min-h-screen bg-neutral-950 text-neutral-100 p-4 sm:p-8' : 'space-y-6'}>
+    <div className={isStandaloneClientMode ? 'min-h-dvh bg-neutral-950 text-neutral-100 p-4 sm:p-8' : 'space-y-6'}>
       <div className={isStandaloneClientMode ? 'max-w-5xl mx-auto space-y-6' : 'space-y-6'}>
         {/* Standalone Client Portal Top Header */}
         {isStandaloneClientMode && (
@@ -449,7 +448,7 @@ export const ClientCameraOnboardingView: React.FC<ClientCameraOnboardingViewProp
                 <label className="block text-xs text-neutral-300 mb-1.5">
                   ¿Cuántas cámaras (canales) tiene este equipo?
                 </label>
-                <div className="grid grid-cols-4 gap-2">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                   {[
                     { count: 1, label: '1 Cámara única' },
                     { count: 4, label: 'DVR 4 Canales' },
