@@ -18,8 +18,16 @@ export interface CloudP2PState {
   frames: Record<string, string>;
 }
 
-const GITHUB_CLOUD_STATE_URL =
+// Orígenes del estado 24/7, en orden de preferencia (Cloud State branch / runner Windows).
+const GITHUB_RAW_STATE_URL =
+  'https://raw.githubusercontent.com/gsosa7829-beep/sideseguate-vms/cloud-state/live-frames.json';
+const GITHUB_API_STATE_URL =
   'https://api.github.com/repos/gsosa7829-beep/sideseguate-vms/contents/live-frames.json?ref=cloud-state';
+// Proxy del dev/preview server (vite-plugin-cloud-frames): evita CORS y la cuota de 60 req/h.
+const LOCAL_PROXY_STATE_URL = '/p2p/live-frames.json';
+const LOCAL_PROXY_FRAME_BASE = '/p2p/frame';
+
+type CloudStatePayload = Partial<CloudP2PState> & { online?: boolean; stale?: boolean };
 
 class CloudP2PClient {
   private state: CloudP2PState = {
@@ -39,6 +47,9 @@ class CloudP2PClient {
   private pollTimer: ReturnType<typeof setInterval> | null = null;
   private localReachable = false;
   private sameOriginReachable = false;
+  private proxyReachable = false;
+  private proxyCooldownUntil = 0;
+  private proxyFails = 0;
 
   constructor() {
     if (typeof window !== 'undefined') {
@@ -56,6 +67,9 @@ class CloudP2PClient {
 
   public getBestFrameUrl(channel: number): string | null {
     const ch = Math.min(4, Math.max(1, channel || 1));
+    if (this.proxyReachable) {
+      return `${LOCAL_PROXY_FRAME_BASE}/${ch}?t=${Date.now()}`;
+    }
     if (this.sameOriginReachable && typeof window !== 'undefined') {
       return `${window.location.origin}/frame/${ch}?t=${Date.now()}`;
     }
@@ -174,36 +188,66 @@ class CloudP2PClient {
       this.localReachable = false;
     }
 
-    // 2. Fetch 24/7 Cloud State from GitHub Cloud State branch (works even with PC completely OFF)
-    try {
-      const res = await fetch(`${GITHUB_CLOUD_STATE_URL}&_t=${Date.now()}`, {
-        headers: {
-          Accept: 'application/vnd.github.v3.raw',
-        },
-        cache: 'no-store',
-      });
-      if (res.ok) {
-        const cloudData = await res.json();
-        if (cloudData?.online) {
-          this.state = {
-            online: true,
-            source: cloudData.tunnelUrl ? 'cloud-tunnel-24-7' : 'cloud-github-24-7',
-            mode: cloudData.mode || 'github-cloud-runner-24-7',
-            serial: cloudData.serial || 'FB2200254',
-            model: cloudData.model || 'iDS-7204HUHI-M1/S',
-            encryption: cloudData.encryption || 'HELGDM',
-            tunnelUrl: cloudData.tunnelUrl || '',
-            updatedAt: cloudData.updatedAt || new Date().toISOString(),
-            channels: cloudData.channels || {},
-            frames: cloudData.frames || {},
-          };
-          this.notify();
-          return;
+    // 2. Estado 24/7: proxy local del servidor > CDN crudo de GitHub > API de GitHub.
+    //    (La API sin token solo permite 60 peticiones/hora, por eso ya no es la primera opción.)
+    const proxyAllowed = Date.now() > this.proxyCooldownUntil;
+    const sources = [
+      ...(proxyAllowed
+        ? [{ url: `${LOCAL_PROXY_STATE_URL}?t=${Date.now()}`, viaProxy: true }]
+        : []),
+      { url: `${GITHUB_RAW_STATE_URL}?t=${Date.now()}`, viaProxy: false },
+      { url: `${GITHUB_API_STATE_URL}&_t=${Date.now()}`, viaProxy: false },
+    ];
+
+    for (const source of sources) {
+      try {
+        const res = await fetch(source.url, {
+          headers: { Accept: 'application/vnd.github.v3.raw' },
+          cache: 'no-store',
+        });
+        if (!res.ok) {
+          if (source.viaProxy) this.disableProxy();
+          continue;
         }
+        const cloudData = (await res.json()) as CloudStatePayload;
+        if (!cloudData?.online) {
+          if (source.viaProxy) this.disableProxy();
+          continue;
+        }
+        this.proxyReachable = source.viaProxy;
+        this.state = {
+          online: true,
+          source: cloudData.tunnelUrl ? 'cloud-tunnel-24-7' : 'cloud-github-24-7',
+          mode: cloudData.mode || 'github-cloud-runner-24-7',
+          serial: cloudData.serial || 'FB2200254',
+          model: cloudData.model || 'iDS-7204HUHI-M1/S',
+          encryption: cloudData.encryption || 'HELGDM',
+          tunnelUrl: cloudData.tunnelUrl || '',
+          updatedAt: cloudData.updatedAt || new Date().toISOString(),
+          channels: cloudData.channels || {},
+          frames: cloudData.frames || {},
+        };
+        this.notify();
+        return;
+      } catch {
+        if (source.viaProxy) this.disableProxy();
+        // Probamos la siguiente fuente.
       }
-    } catch {
-      // Ignore transient network errors
     }
+  }
+
+  /** El proxy solo existe en dev/preview: tras 3 fallos lo ignoramos por 5 minutos. */
+  private disableProxy() {
+    this.proxyReachable = false;
+    this.proxyFails += 1;
+    if (this.proxyFails >= 3) {
+      this.proxyCooldownUntil = Date.now() + 5 * 60 * 1000;
+      this.proxyFails = 0;
+    }
+  }
+
+  public isProxyReachable(): boolean {
+    return this.proxyReachable;
   }
 }
 

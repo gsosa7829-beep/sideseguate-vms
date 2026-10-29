@@ -3,11 +3,13 @@ import react from '@vitejs/plugin-react';
 import path from 'path';
 import {defineConfig} from 'vite';
 import {VitePWA} from 'vite-plugin-pwa';
+import {cloudFramesProxy} from './vite-plugin-cloud-frames';
 
 export default defineConfig(() => {
   return {
     base: './',
     plugins: [
+      cloudFramesProxy(),
       react(),
       tailwindcss(),
       VitePWA({

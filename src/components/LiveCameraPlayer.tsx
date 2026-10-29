@@ -105,7 +105,9 @@ export const LiveCameraPlayer: React.FC<LiveCameraPlayerProps> = ({
         timer = setTimeout(fetchNextFrame, 800);
         return;
       }
-      const isLocal = frameUrl.startsWith('http://localhost:8890');
+      // El proxy del dev server (/p2p/frame) y el runner local (:8890) entregan frames casi en tiempo real.
+      const isLocal =
+        frameUrl.startsWith('/p2p/frame') || frameUrl.startsWith('http://localhost:8890');
       const isDataUrl = frameUrl.startsWith('data:image/');
       const img = new Image();
       if (!isDataUrl) {
