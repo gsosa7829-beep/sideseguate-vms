@@ -24,7 +24,6 @@ import {
   Smartphone,
   Radio,
   ShieldCheck,
-  Download,
 } from 'lucide-react';
 import {
   GOOGLE_CLOUD_PROJECT_ID,
@@ -412,16 +411,6 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
               <span>Programa PC</span>
             </button>
           )}
-
-          <a
-            href="/SIDESEGUATE-Streaming-Proyecto-Completo.zip"
-            download="SIDESEGUATE-Streaming-Proyecto-Completo.zip"
-            className="h-9 px-2.5 sm:px-3 bg-emerald-950/80 hover:bg-emerald-900 text-emerald-300 border border-emerald-700/70 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition whitespace-nowrap shrink-0"
-            title="Descargar archivo ZIP con todo el código fuente del proyecto SIDESEGUATE Streaming"
-          >
-            <Download className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-            <span>Descargar ZIP</span>
-          </a>
 
           {onOpenSecurityModal && (
             <button

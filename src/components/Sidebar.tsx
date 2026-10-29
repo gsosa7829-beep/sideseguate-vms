@@ -1,4 +1,5 @@
 import React from 'react';
+import { LOGO_URL } from '../lib/assets';
 import { NavigationTab } from '../lib/types';
 import { 
   LayoutGrid, 
@@ -154,7 +155,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <div className="flex items-center gap-3 overflow-hidden">
             <div className="relative w-9 h-9 rounded-xl overflow-hidden bg-white flex items-center justify-center shrink-0 border border-sky-500/40 shadow-sm">
               <img 
-                src="/logo-sideseguate.jpg" 
+                src={LOGO_URL} 
                 alt="SIDESEGUATE Logo" 
                 referrerPolicy="no-referrer"
                 className="w-full h-full object-cover"

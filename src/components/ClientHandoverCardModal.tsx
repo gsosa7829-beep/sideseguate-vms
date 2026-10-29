@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
+import { LOGO_URL } from '../lib/assets';
 import { Camera, Project, ShareLink } from '../lib/types';
 import { formatExpirationText } from '../lib/tokenSecurity';
+import { getPublicBaseUrl } from '../lib/publicUrl';
 import { buildWhatsAppUrl, hasDirectWhatsAppTarget } from '../lib/whatsapp';
 import {
   generateRealQrCode,
@@ -53,7 +55,7 @@ export const ClientHandoverCardModal: React.FC<ClientHandoverCardModalProps> = (
 
   if (!isOpen || !shareLink) return null;
 
-  const baseUrl = window.location.origin + window.location.pathname.replace(/\/$/, '');
+  const baseUrl = getPublicBaseUrl();
   const fullUrl = `${baseUrl}/?token=${shareLink.token}`;
 
   const assignedCameras = cameras.filter((c) =>
@@ -122,7 +124,7 @@ export const ClientHandoverCardModal: React.FC<ClientHandoverCardModalProps> = (
         <div className="px-5 py-4 border-b border-neutral-800 flex items-center justify-between bg-neutral-950">
           <div className="flex items-center gap-2.5">
             <img
-              src="/logo-sideseguate.jpg"
+              src={LOGO_URL}
               alt="SIDESEGUATE Logo"
               referrerPolicy="no-referrer"
               className="w-8 h-8 rounded-lg object-cover bg-white shrink-0 shadow-sm"
@@ -177,7 +179,7 @@ export const ClientHandoverCardModal: React.FC<ClientHandoverCardModalProps> = (
               <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                 <div className="w-8 h-8 rounded-md bg-white overflow-hidden shadow border border-neutral-200 flex items-center justify-center">
                   <img
-                    src="/logo-sideseguate.jpg"
+                    src={LOGO_URL}
                     alt="SIDESEGUATE"
                     referrerPolicy="no-referrer"
                     className="w-full h-full object-cover"
