@@ -233,7 +233,7 @@ export const VideoWall: React.FC<VideoWallProps> = ({
                     : 'Motor Directo Hikvision P2P V3 + Cloud 24/7'}
                 </span>
                 <span className="px-2 py-0.5 rounded-md bg-neutral-950 border border-neutral-800 text-[11px] font-mono text-sky-300">
-                  SN: {DETECTED_IVMS_DEVICE.deviceSerial} ({DETECTED_IVMS_DEVICE.model})
+                  SN: {DETECTED_IVMS_DEVICE.deviceSerial} ({DETECTED_IVMS_DEVICE.deviceModel})
                 </span>
                 <span className="px-2 py-0.5 rounded-md bg-emerald-950/80 border border-emerald-500/40 text-[11px] font-mono font-semibold text-emerald-300 flex items-center gap-1">
                   <ShieldCheck className="w-3 h-3" />

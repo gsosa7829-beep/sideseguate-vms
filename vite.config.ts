@@ -3,11 +3,13 @@ import react from '@vitejs/plugin-react';
 import path from 'path';
 import {defineConfig} from 'vite';
 import {VitePWA} from 'vite-plugin-pwa';
+import {cloudFramesProxy} from './vite-plugin-cloud-frames';
 
 export default defineConfig(() => {
   return {
     base: './',
     plugins: [
+      cloudFramesProxy(),
       react(),
       tailwindcss(),
       VitePWA({
@@ -101,6 +103,8 @@ export default defineConfig(() => {
       hmr: process.env.DISABLE_HMR !== 'true',
       // Disable file watching when DISABLE_HMR is true to save CPU during agent edits.
       watch: process.env.DISABLE_HMR === 'true' ? null : {},
+      // Allow the sandboxed preview proxy host (https://<port>-<sandbox>.e2b.app).
+      allowedHosts: ['.e2b.app', 'localhost', '127.0.0.1'],
     },
   };
 });
