@@ -38,6 +38,7 @@ class CloudP2PClient {
   private listeners = new Set<(state: CloudP2PState) => void>();
   private pollTimer: ReturnType<typeof setInterval> | null = null;
   private localReachable = false;
+  private sameOriginReachable = false;
 
   constructor() {
     if (typeof window !== 'undefined') {
@@ -55,6 +56,9 @@ class CloudP2PClient {
 
   public getBestFrameUrl(channel: number): string | null {
     const ch = Math.min(4, Math.max(1, channel || 1));
+    if (this.sameOriginReachable && typeof window !== 'undefined') {
+      return `${window.location.origin}/frame/${ch}?t=${Date.now()}`;
+    }
     if (this.localReachable) {
       return `http://localhost:8890/frame/${ch}?t=${Date.now()}`;
     }
@@ -95,6 +99,43 @@ class CloudP2PClient {
   }
 
   private async pollOnce() {
+    // 0. If opened directly on the P2P server origin (:8890 or *.trycloudflare.com), check same-origin /status first
+    if (
+      typeof window !== 'undefined' &&
+      (window.location.port === '8890' ||
+        window.location.hostname.endsWith('.trycloudflare.com'))
+    ) {
+      try {
+        const res = await fetch(`${window.location.origin}/status`, {
+          cache: 'no-store',
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data?.online) {
+            this.sameOriginReachable = true;
+            const isLocal = window.location.port === '8890';
+            this.localReachable = isLocal;
+            this.state = {
+              ...this.state,
+              online: true,
+              source: isLocal ? 'local-p2p' : 'cloud-tunnel-24-7',
+              mode: isLocal ? 'local-plus-cloud-24-7' : 'github-cloud-runner-24-7',
+              serial: data.serial || 'FB2200254',
+              model: data.model || 'iDS-7204HUHI-M1/S',
+              encryption: data.encryption || 'HELGDM',
+              tunnelUrl: isLocal ? this.state.tunnelUrl : window.location.origin,
+              updatedAt: new Date().toISOString(),
+              channels: data.channels || this.state.channels,
+            };
+            this.notify();
+            return;
+          }
+        }
+      } catch {
+        this.sameOriginReachable = false;
+      }
+    }
+
     // 1. Try local P2P server first if not on HTTPS remote host (or if localhost is allowed)
     const isHttpsRemote =
       typeof window !== 'undefined' &&

@@ -1,4 +1,5 @@
 $ErrorActionPreference = "Continue"
+$ProgressPreference = "SilentlyContinue"
 $scriptRoot = if ($PSScriptRoot) { $PSScriptRoot } else { (Get-Location).Path }
 $ivmsDir = "C:\Program Files (x86)\iVMS-4200 Site\iVMS-4200 Client\Client"
 $cloudBinDir = Join-Path $scriptRoot "cloud-p2p-runtime\bin"
@@ -112,6 +113,7 @@ public class HikNativeP2PServer {
     public static string P2PLinkKey;
     public static string DevPublicIp;
     public static string SrvInfoJson;
+    public static byte[] WebAppHtmlBytes;
 
     public static void OnMsg(int iIndex, int iMsgType, int iErrorCode, string pMessageInfo, IntPtr pUser) {
         // Keep delegate alive
@@ -340,6 +342,14 @@ public class HikNativeP2PServer {
                     return;
                 }
 
+                if ((path == "/" || path == "/index.html" || path == "/app" || path == "/consola") && WebAppHtmlBytes != null && WebAppHtmlBytes.Length > 0) {
+                    string htmlHdr = "HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\nContent-Length: " + WebAppHtmlBytes.Length + "\r\nAccess-Control-Allow-Origin: *\r\nCache-Control: no-cache\r\nConnection: close\r\n\r\n";
+                    byte[] bHtmlHdr = Encoding.ASCII.GetBytes(htmlHdr);
+                    stream.Write(bHtmlHdr, 0, bHtmlHdr.Length);
+                    stream.Write(WebAppHtmlBytes, 0, WebAppHtmlBytes.Length);
+                    return;
+                }
+
                 // Default: /status JSON
                 StringBuilder sb = new StringBuilder();
                 sb.Append("{\"online\":true,\"serial\":\"FB2200254\",\"model\":\"iDS-7204HUHI-M1/S\",\"encryption\":\"HELGDM\",\"transport\":\"Hikvision P2P V3 Native (NetStream.dll)\",\"channels\":{");
@@ -374,4 +384,9 @@ public class HikNativeP2PServer {
 
 $listenPort = if ($env:HIK_PORT) { [int]$env:HIK_PORT } else { 8890 }
 Add-Type -TypeDefinition $code -ReferencedAssemblies System.Windows.Forms
+$consolaHtmlPath = Join-Path $scriptRoot "consola.html"
+if (Test-Path $consolaHtmlPath) {
+    [HikNativeP2PServer]::WebAppHtmlBytes = [System.IO.File]::ReadAllBytes($consolaHtmlPath)
+    Write-Output "[HikP2PServer] Loaded Web Console HTML ($(([HikNativeP2PServer]::WebAppHtmlBytes).Length) bytes) on GET /"
+}
 [HikNativeP2PServer]::StartServer($clientDir, $p2pUserId, $p2pDataStr, $p2pSaltIndex, $p2pLinkKey, $devPublicIp, $listenPort)
