@@ -620,9 +620,108 @@ test('createFlashTemporaryLink and formatExpirationText handle second-precision 
   });
 
   assert.ok(flashLink.token.startsWith('sdg_flash_45s_'));
-  assert.equal(verifyShareLink(flashLink).valid, false);
   assert.equal(formatExpirationText(flashLink.expiresAt, baseNow + 15000), 'Expira en 30 seg');
   assert.equal(formatExpirationText(flashLink.expiresAt, baseNow + 46000), 'Expirado');
+});
+
+test('un enlace relámpago vigente es válido: el prefijo del token no lo revoca', async () => {
+  const { createFlashTemporaryLink, verifyShareLink } = await import('./tokenSecurity.ts');
+
+  const vigente = createFlashTemporaryLink({
+    durationSeconds: 180,
+    projectId: 'proj-sideseguate-01',
+    cameraIds: ['cam-1'],
+  });
+
+  // Regresión: antes `token.startsWith('sdg_flash_')` invalidaba TODOS los
+  // enlaces relámpago y el cliente veía "expirado y revocado por el
+  // administrador" aunque el enlace estuviera vigente.
+  const result = verifyShareLink(vigente);
+  assert.equal(result.valid, true, 'un flash vigente debe abrir el portal');
+  assert.equal(result.reason, undefined);
+
+  // Caducado de verdad (creado hace 5 min con 30 s de vida) -> expired.
+  const vencido = createFlashTemporaryLink({
+    durationSeconds: 30,
+    projectId: 'proj-sideseguate-01',
+    cameraIds: [],
+    nowMs: Date.now() - 5 * 60 * 1000,
+  });
+  const resultadoVencido = verifyShareLink(vencido);
+  assert.equal(resultadoVencido.valid, false);
+  assert.equal(resultadoVencido.reason, 'expired');
+  assert.ok(resultadoVencido.message.includes('expirado'));
+});
+
+test('detectExpiryOption respeta la caducidad original del enlace al editarlo', async () => {
+  const { detectExpiryOption, EXPIRY_PRESETS } = await import('./tokenSecurity.ts');
+
+  const createdAt = '2026-01-01T00:00:00.000Z';
+  const createdMs = new Date(createdAt).getTime();
+  const build = (expiresAt: string | null) => ({
+    id: 'link-1',
+    projectId: 'p',
+    token: 'sdg_live_x',
+    title: 't',
+    clientName: 'c',
+    cameraIds: [] as string[],
+    expiresAt,
+    isActive: true,
+    allowPtz: false,
+    allowAudio: true,
+    allowSnapshot: true,
+    showWatermark: true,
+    maxConcurrentViewers: 3,
+    accessCount: 0,
+    lastAccessedAt: null,
+    createdAt,
+  });
+
+  // Regresión: el formulario forzaba '7d' para TODOS los enlaces.
+  assert.equal(detectExpiryOption(build(null)), 'never');
+  assert.equal(detectExpiryOption(build(new Date(createdMs + EXPIRY_PRESETS['24h']).toISOString())), '24h');
+  assert.equal(detectExpiryOption(build(new Date(createdMs + EXPIRY_PRESETS['7d']).toISOString())), '7d');
+  assert.equal(detectExpiryOption(build(new Date(createdMs + EXPIRY_PRESETS['30d']).toISOString())), '30d');
+  // Fecha fuera de los presets -> 'custom', no se sobrescribe.
+  assert.equal(detectExpiryOption(build(new Date(createdMs + 3 * 24 * 3600 * 1000).toISOString())), 'custom');
+  // Enlace nuevo (sin initialLink) -> 7 días por defecto.
+  assert.equal(detectExpiryOption(null), '7d');
+});
+
+test('los tokens de demostración ya no están vetados por texto: manda isActive/expiresAt', async () => {
+  const { verifyShareLink } = await import('./tokenSecurity.ts');
+
+  const baseLink = {
+    id: 'link-x',
+    projectId: 'proj-1',
+    token: 'sdg_live_demo7849',
+    title: 'Demo',
+    clientName: 'Cliente',
+    cameraIds: [],
+    expiresAt: null,
+    isActive: true,
+    allowPtz: false,
+    allowAudio: true,
+    allowSnapshot: true,
+    showWatermark: true,
+    maxConcurrentViewers: 3,
+    accessCount: 0,
+    lastAccessedAt: null,
+    createdAt: new Date().toISOString(),
+  };
+
+  // Un token "demo" activo y sin caducidad es un enlace válido.
+  assert.equal(verifyShareLink(baseLink).valid, true);
+
+  // Pausado por el administrador.
+  const pausado = verifyShareLink({ ...baseLink, isActive: false });
+  assert.equal(pausado.valid, false);
+  assert.equal(pausado.reason, 'inactive');
+
+  // Sin documento en la nube -> not_found (ya no dice "revocado").
+  const inexistente = verifyShareLink(null);
+  assert.equal(inexistente.reason, 'not_found');
+  assert.ok(!inexistente.message.toLowerCase().includes('administrador'));
 });
 
 test('computeIvmsChannelSourceRect and DETECTED_IVMS_DEVICE map iVMS-4200 quadrants accurately', async () => {

@@ -23,7 +23,7 @@ import {
   resolveStreamUrls,
   emptyGateway,
 } from './lib/streamGateway';
-import { formatExpirationText, createFlashTemporaryLink, REVOKED_SHARE_TOKENS } from './lib/tokenSecurity';
+import { formatExpirationText, createFlashTemporaryLink } from './lib/tokenSecurity';
 import { generateMediaMtxYaml } from './lib/mediaMtxGenerator';
 import { applyTunnelToCameras, formatBuyerAccessNotification } from './lib/pcLauncherGenerator';
 import { LiveCameraPlayer } from './components/LiveCameraPlayer';
@@ -79,6 +79,7 @@ import { FirstRunSetup } from './components/FirstRunSetup';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { useOnlineStatus } from './lib/usePWAInstall';
 import { buildWhatsAppUrl } from './lib/whatsapp';
+import { toPublicCameras } from './lib/publicCamera';
 
 import { 
   QrCode,
@@ -232,6 +233,7 @@ function AppShell() {
     timestamp: string;
   } | null>(null);
   const latestLogIdRef = useRef<string | null>(null);
+  const toastTimerRef = useRef<number | null>(null);
   const shareLinksRef = useRef<ShareLink[]>([]);
   const audioAlertsRef = useRef<boolean>(true);
 
@@ -334,8 +336,22 @@ function AppShell() {
     // Check URL query param ?flash=45 or ?token=xyz or ?share=xyz or ?onboarding=xyz or hash #token=xyz
     const urlFlashSecs = params.get('flash') || params.get('previewSecs');
     const urlToken = params.get('token') || params.get('share') || params.get('onboarding');
-    if (urlFlashSecs || urlToken) {
-      setClientTokenView(urlToken || 'revoked_link');
+
+    if (urlFlashSecs) {
+      // Antes se abría el portal con el token literal 'revoked_link', que no
+      // existe en la nube y mostraba "enlace expirado". Ahora generamos un
+      // enlace relámpago real (vigente) y lo abrimos.
+      const parsedSecs = Number(urlFlashSecs);
+      const durationSeconds = Number.isFinite(parsedSecs) && parsedSecs > 0 ? parsedSecs : 60;
+      const flashLink = createFlashTemporaryLink({
+        durationSeconds,
+        projectId: loadedProjects[0]?.id || '',
+        cameraIds: loadedCameras.map((cam) => cam.id),
+      });
+      setShareLinks((prev) => [flashLink, ...prev]);
+      setClientTokenView(flashLink.token);
+    } else if (urlToken) {
+      setClientTokenView(urlToken);
     } else {
       const hash = window.location.hash;
       if (hash.startsWith('#token=')) {
@@ -429,7 +445,14 @@ function AppShell() {
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
-    setTimeout(() => setToastMessage(null), 3200);
+    // Un solo temporizador: si llega un aviso nuevo, el anterior ya no lo borra.
+    if (toastTimerRef.current !== null) {
+      window.clearTimeout(toastTimerRef.current);
+    }
+    toastTimerRef.current = window.setTimeout(() => {
+      setToastMessage(null);
+      toastTimerRef.current = null;
+    }, 3200);
   };
 
   const handleSimulateBuyerAccess = () => {
@@ -530,32 +553,46 @@ function AppShell() {
     }
   };
 
+  /**
+   * Guarda un enlace en local y lo publica en la nube.
+   *
+   * El aviso al usuario sólo confirma la sincronización cuando Firestore
+   * realmente la aceptó. Antes se mostraba "sincronizado" incluso si la
+   * escritura fallaba, y entonces el cliente abría un enlace que no existía en
+   * la nube y veía "enlace expirado / revocado".
+   */
   const handleSaveShareLink = (link: ShareLink) => {
     let updated: ShareLink[];
     const exists = shareLinks.some((l) => l.id === link.id);
     if (exists) {
       updated = shareLinks.map((l) => (l.id === link.id ? link : l));
-      showToast('Enlace actualizado en la nube (listo para 4G/Wi-Fi)');
     } else {
       updated = [link, ...shareLinks];
-      showToast('Enlace creado y sincronizado en la nube para celulares 4G/Wi-Fi');
     }
     setShareLinks(updated);
     storage.saveShareLinks(updated);
-    upsertCloudShareLink(link).catch((err) => console.warn('Cloud share link sync error:', err));
+
+    showToast(exists ? 'Guardando cambios del enlace…' : 'Creando enlace y publicándolo en la nube…');
+
+    upsertCloudShareLink(link)
+      .then(() => {
+        showToast(
+          exists
+            ? 'Enlace actualizado en la nube (listo para 4G/Wi-Fi)'
+            : 'Enlace creado y sincronizado en la nube para celulares 4G/Wi-Fi'
+        );
+      })
+      .catch((err) => {
+        console.error('Cloud share link sync error:', err);
+        showToast('⚠️ El enlace quedó guardado sólo en este equipo: no se pudo publicar en la nube. El cliente no podrá abrirlo todavía.');
+      });
   };
 
   const handleToggleLinkActive = (id: string) => {
     let toggledLink: ShareLink | null = null;
     const updated = shareLinks.map((l) => {
       if (l.id === id) {
-        const nextState = !l.isActive;
-        showToast(
-          nextState
-            ? 'Enlace activado en la nube para el cliente'
-            : 'Enlace pausado en la nube inmediatamente'
-        );
-        toggledLink = { ...l, isActive: nextState };
+        toggledLink = { ...l, isActive: !l.isActive };
         return toggledLink;
       }
       return l;
@@ -563,9 +600,19 @@ function AppShell() {
     setShareLinks(updated);
     storage.saveShareLinks(updated);
     if (toggledLink) {
-      upsertCloudShareLink(toggledLink).catch((err) =>
-        console.warn('Cloud share link toggle error:', err)
-      );
+      const target: ShareLink = toggledLink;
+      upsertCloudShareLink(target)
+        .then(() =>
+          showToast(
+            target.isActive
+              ? 'Enlace activado en la nube para el cliente'
+              : 'Enlace pausado en la nube inmediatamente'
+          )
+        )
+        .catch((err) => {
+          console.error('Cloud share link toggle error:', err);
+          showToast('⚠️ No se pudo actualizar el enlace en la nube. Revisa la conexión e inténtalo de nuevo.');
+        });
     }
   };
 
@@ -573,7 +620,6 @@ function AppShell() {
     let expiredLink: ShareLink | null = null;
     const updated = shareLinks.map((l) => {
       if (l.id === id) {
-        showToast('Enlace expirado en la nube inmediatamente');
         expiredLink = { ...l, isActive: false, expiresAt: new Date(Date.now() - 1000).toISOString() };
         return expiredLink;
       }
@@ -582,9 +628,13 @@ function AppShell() {
     setShareLinks(updated);
     storage.saveShareLinks(updated);
     if (expiredLink) {
-      upsertCloudShareLink(expiredLink).catch((err) =>
-        console.warn('Cloud share link expire error:', err)
-      );
+      const target: ShareLink = expiredLink;
+      upsertCloudShareLink(target)
+        .then(() => showToast('Enlace expirado en la nube inmediatamente'))
+        .catch((err) => {
+          console.error('Cloud share link expire error:', err);
+          showToast('⚠️ No se pudo expirar el enlace en la nube. Revisa la conexión e inténtalo de nuevo.');
+        });
     }
   };
 
@@ -688,9 +738,13 @@ function AppShell() {
   if (clientTokenView || clientOnboardingProjectId) {
     return (
       <ClientLivePortal
-        token={clientTokenView || 'revoked'}
-        shareLink={null}
-        cameras={[]}
+        token={clientTokenView || ''}
+        // Si el token existe en este dispositivo (por ejemplo un enlace
+        // relámpago recién creado o uno que aún no llegó a Firestore), se usa
+        // como respaldo para no mostrar un falso "enlace expirado".
+        shareLink={shareLinks.find((l) => l.token === clientTokenView) || null}
+        // Sólo lo necesario para reproducir: sin usuario, contraseña ni RTSP.
+        cameras={toPublicCameras(cameras)}
         isAdminPreview={adminAuthStorage.isAuthorizedOwnerDevice()}
         isCloudLoading={false}
         onBackToAdmin={

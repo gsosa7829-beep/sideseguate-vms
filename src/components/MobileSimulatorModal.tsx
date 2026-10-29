@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { Camera, ShareLink, Project } from '../lib/types';
 import { ClientLivePortal } from './ClientLivePortal';
-import { X, Smartphone, ExternalLink, RefreshCw, Copy, Check } from 'lucide-react';
+import { toPublicCameras } from '../lib/publicCamera';
+import { X, Smartphone, ExternalLink, RefreshCw, Copy, Check, Link2 } from 'lucide-react';
 
 interface MobileSimulatorModalProps {
   isOpen: boolean;
@@ -18,9 +19,10 @@ export const MobileSimulatorModal: React.FC<MobileSimulatorModalProps> = ({
   cameras,
   projects,
 }) => {
-  const [selectedToken, setSelectedToken] = useState<string>(
-    shareLinks[0]?.token || 'sdg_live_demo7849'
-  );
+  // Sin enlaces reales no se simula nada: antes se usaba el token fijo
+  // 'sdg_live_demo7849', que estaba en la lista negra y el simulador mostraba
+  // siempre "enlace expirado y revocado por el administrador".
+  const [selectedToken, setSelectedToken] = useState<string>(shareLinks[0]?.token || '');
   const [copied, setCopied] = useState(false);
 
   if (!isOpen) return null;
@@ -29,7 +31,8 @@ export const MobileSimulatorModal: React.FC<MobileSimulatorModalProps> = ({
   const currentProject = projects.find((p) => p.id === currentLink?.projectId);
 
   const handleCopy = () => {
-    const fullUrl = `${window.location.origin}${window.location.pathname}?token=${selectedToken}`;
+    if (!currentLink) return;
+    const fullUrl = `${window.location.origin}${window.location.pathname}?token=${currentLink.token}`;
     navigator.clipboard.writeText(fullUrl);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
@@ -128,12 +131,24 @@ export const MobileSimulatorModal: React.FC<MobileSimulatorModalProps> = ({
 
             {/* Inner Phone Screen */}
             <div className="flex-1 bg-neutral-950 rounded-[30px] overflow-y-auto border border-neutral-850 scrollbar-none flex flex-col">
-              <ClientLivePortal
-                shareLink={currentLink}
-                cameras={cameras}
-                project={currentProject}
-                isAdminPreview={false}
-              />
+              {currentLink ? (
+                <ClientLivePortal
+                  shareLink={currentLink}
+                  cameras={toPublicCameras(cameras)}
+                  project={currentProject}
+                  isAdminPreview={false}
+                />
+              ) : (
+                <div className="flex-1 flex flex-col items-center justify-center p-6 text-center">
+                  <div className="w-14 h-14 rounded-2xl bg-neutral-900 border border-neutral-800 flex items-center justify-center mb-3">
+                    <Link2 className="w-6 h-6 text-neutral-500" />
+                  </div>
+                  <h3 className="text-sm font-semibold text-white mb-1">Aún no hay enlaces</h3>
+                  <p className="text-[11px] text-neutral-400 leading-relaxed">
+                    Crea un enlace para un cliente y aquí verás exactamente lo que verá en su celular.
+                  </p>
+                </div>
+              )}
             </div>
 
             {/* Home indicator bar */}
