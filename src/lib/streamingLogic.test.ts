@@ -17,6 +17,7 @@ import {
   fromCloudCameraDoc,
 } from './cloudSyncHelpers.ts';
 import { ShareLink, Camera } from './types.ts';
+import { mergeCloudShareLinks, shareLinkListsDiffer } from './shareLinkMerge.ts';
 
 test('buildHikvisionRtspUrl creates standard Hikvision channel URL', () => {
   const urlMain = buildHikvisionRtspUrl({
@@ -250,7 +251,7 @@ test('toCloudCameraPayload and fromCloudCameraDoc sanitize and preserve camera f
     locationDesc: 'Parqueo Exterior',
     ptzSupported: true,
     nightVision: true,
-    verificationCode: 'HELGDM'
+    verificationCode: 'VERIF-DEMO'
   };
 
   const payload = toCloudCameraPayload(cam);
@@ -261,7 +262,7 @@ test('toCloudCameraPayload and fromCloudCameraDoc sanitize and preserve camera f
   const restored = fromCloudCameraDoc(payload as unknown as Record<string, unknown>);
   assert.equal(restored.id, 'cam-new-4g');
   assert.equal(restored.name, 'CH5: Domo Exterior PTZ');
-  assert.equal(restored.verificationCode, 'HELGDM');
+  assert.equal(restored.verificationCode, 'VERIF-DEMO');
   assert.equal(sanitizeCloudId('invalid id/with spaces!'), 'invalid_id_with_spaces_');
 });
 
@@ -487,49 +488,110 @@ test('validateClientCameraSubmission, buildClientSubmittedCameras, and cloneNext
   assert.equal(clonedCh5.rtspUrl, 'rtsp://admin:ClaveCliente2026@190.149.45.88:554/Streaming/Channels/501');
 });
 
-test('authenticateAdminAccount and createAdminAccount enforce corporate panel security and role creation', async () => {
-  const {
-    DEFAULT_ADMIN_ACCOUNTS,
-    authenticateAdminAccount,
-    createAdminAccount,
-  } = await import('./adminAuth.ts');
+test('el panel no trae cuentas de fábrica y exige contraseña de 10+ caracteres', async () => {
+  const { adminAuthStorage, PASSWORD_MIN_LENGTH } = await import('./adminAuth.ts');
 
-  // Valid login by email
-  const loginAdmin = authenticateAdminAccount(
-    DEFAULT_ADMIN_ACCOUNTS,
-    'admin@sideseguate.com',
-    'Sideseguate2026'
-  );
-  assert.equal(loginAdmin.success, true);
-  assert.equal(loginAdmin.account?.role, 'superadmin');
+  // Sin cuentas sembradas: el primer arranque obliga a crear la del propietario.
+  const noCuentas = adminAuthStorage.getAccounts();
+  assert.deepEqual(noCuentas, []);
+  assert.equal(PASSWORD_MIN_LENGTH, 10);
+});
 
-  // Valid login by Hikvision engineer username
-  const loginHik = authenticateAdminAccount(
-    DEFAULT_ADMIN_ACCOUNTS,
-    'vi1fdr',
-    'Dvr232323'
-  );
-  assert.equal(loginHik.success, true);
-  assert.equal(loginHik.account?.role, 'engineer');
+test('createAdminAccount guarda hash PBKDF2 y nunca la contraseña en claro', async () => {
+  const { createAdminAccount } = await import('./adminAuth.ts');
 
-  // Wrong password rejected
-  const badPass = authenticateAdminAccount(
-    DEFAULT_ADMIN_ACCOUNTS,
-    'admin',
-    'wrong123'
-  );
-  assert.equal(badPass.success, false);
+  const password = 'Bodega2026Segura';
+  const res = await createAdminAccount([], {
+    displayName: 'María López',
+    description: 'Encargada de bodega Zona 12, turno matutino',
+    email: 'maria@sideseguate.com',
+    password,
+    role: 'operator',
+  });
 
-  // Create new corporate account
-  const created = createAdminAccount(DEFAULT_ADMIN_ACCOUNTS, {
-    username: 'gerencia_gt',
-    email: 'gerencia@sideseguate.com',
-    password: 'Guate2026',
-    displayName: 'Gerencia General',
+  assert.equal(res.valid, true);
+  const acc = res.account!;
+  assert.equal(acc.role, 'operator');
+  assert.equal(acc.roleLabel, 'Operador de Monitoreo');
+  assert.equal(acc.username, 'maria');
+  assert.equal(acc.description, 'Encargada de bodega Zona 12, turno matutino');
+
+  // Lo persistido no contiene la contraseña ni un campo `password`.
+  assert.ok(!('password' in (acc as unknown as Record<string, unknown>)));
+  assert.ok(acc.passwordHash.length > 20);
+  assert.ok(acc.passwordSalt.length > 10);
+  assert.ok(!JSON.stringify(acc).includes(password));
+  assert.equal(acc.hashAlgorithm, 'PBKDF2-SHA256');
+});
+
+test('createAdminAccount rechaza datos incompletos o duplicados', async () => {
+  const { createAdminAccount } = await import('./adminAuth.ts');
+  const base = {
+    displayName: 'Carlos Ruiz',
+    description: 'Ingeniero de campo, instala DVR',
+    email: 'carlos@sideseguate.com',
+    password: 'Campo2026Seguro',
+    role: 'engineer' as const,
+  };
+
+  const ok = await createAdminAccount([], base);
+  assert.equal(ok.valid, true);
+
+  // Descripción obligatoria: sin ella no se sabe a quién se le da acceso.
+  const sinDescripcion = await createAdminAccount([], { ...base, email: 'otro@sideseguate.com', description: '' });
+  assert.equal(sinDescripcion.valid, false);
+  assert.match(sinDescripcion.error || '', /describe/i);
+
+  // Contraseña corta rechazada.
+  const corta = await createAdminAccount([], { ...base, email: 'x@sideseguate.com', password: 'corta1' });
+  assert.equal(corta.valid, false);
+
+  // Contraseña sin números rechazada.
+  const sinNumeros = await createAdminAccount([], { ...base, email: 'y@sideseguate.com', password: 'SoloLetrasSeguras' });
+  assert.equal(sinNumeros.valid, false);
+
+  // Correo duplicado rechazado.
+  const duplicado = await createAdminAccount([ok.account!], base);
+  assert.equal(duplicado.valid, false);
+  assert.match(duplicado.error || '', /correo/i);
+});
+
+test('authenticateAdminAccount valida el hash, bloquea tras 5 intentos y no filtra si el usuario existe', async () => {
+  const { createAdminAccount, authenticateAdminAccount, MAX_LOGIN_ATTEMPTS, getLockoutState, clearFailedAttempts } = await import('./adminAuth.ts');
+
+  const created = await createAdminAccount([], {
+    displayName: 'Guillermo Sosa',
+    description: 'Propietario de SIDESEGUATE',
+    email: 'gsosa@sideseguate.com',
+    password: 'Panel2026Seguro',
     role: 'superadmin',
   });
-  assert.equal(created.valid, true);
-  assert.equal(created.updatedAccounts.length, DEFAULT_ADMIN_ACCOUNTS.length + 1);
+  const accounts = [created.account!];
+
+  // Login correcto por correo y por usuario.
+  const porCorreo = await authenticateAdminAccount(accounts, 'gsosa@sideseguate.com', 'Panel2026Seguro');
+  assert.equal(porCorreo.success, true);
+  assert.equal(porCorreo.account?.role, 'superadmin');
+
+  const porUsuario = await authenticateAdminAccount(accounts, 'gsosa', 'Panel2026Seguro');
+  assert.equal(porUsuario.success, true);
+
+  // Contraseña incorrecta.
+  const mala = await authenticateAdminAccount(accounts, 'gsosa', 'Incorrecta2026');
+  assert.equal(mala.success, false);
+
+  // Usuario inexistente: falla sin revelar si la cuenta existe.
+  const inexistente = await authenticateAdminAccount(accounts, 'nadie', 'Cualquiera2026');
+  assert.equal(inexistente.success, false);
+  assert.ok(!/no existe|no encontrad|inexistente/i.test(inexistente.error || ''));
+  assert.doesNotMatch(inexistente.error || '', /Cualquiera2026/);
+
+  // Los intentos fallidos quedan contados para el bloqueo.
+  const lock = getLockoutState('gsosa');
+  assert.ok(lock.attempts >= 1);
+
+  assert.equal(MAX_LOGIN_ATTEMPTS, 5);
+  clearFailedAttempts('gsosa');
 });
 
 test('createFlashTemporaryLink and formatExpirationText handle second-precision flash links accurately', async () => {
@@ -548,11 +610,12 @@ test('createFlashTemporaryLink and formatExpirationText handle second-precision 
   assert.equal(formatExpirationText(flashLink.expiresAt, baseNow + 46000), 'Expirado');
 });
 
-test('computeIvmsChannelSourceRect and DETECTED_IVMS_DEVICE map iVMS-4200 FB2200254 HELGDM quadrants accurately', async () => {
+test('computeIvmsChannelSourceRect and DETECTED_IVMS_DEVICE map iVMS-4200 quadrants accurately', async () => {
   const { computeIvmsChannelSourceRect, DETECTED_IVMS_DEVICE } = await import('./ivmsLiveBridge.ts');
 
   assert.equal(DETECTED_IVMS_DEVICE.deviceSerial, 'FB2200254');
-  assert.equal(DETECTED_IVMS_DEVICE.verificationCode, 'HELGDM');
+  // El código de verificación no se guarda en el código fuente.
+  assert.equal(DETECTED_IVMS_DEVICE.verificationCode, '');
   assert.equal(DETECTED_IVMS_DEVICE.lanIp, '192.168.1.81');
 
   const ch1Rect = computeIvmsChannelSourceRect(1920, 1080, 1, {
@@ -574,7 +637,154 @@ test('computeIvmsChannelSourceRect and DETECTED_IVMS_DEVICE map iVMS-4200 FB2200
   assert.deepEqual(ch4Rect, { sx: 960, sy: 540, sw: 960, sh: 540 });
 });
 
+test('validateDeviceRequest exige serie, código y alias para el auto-registro del cliente', async () => {
+  const { validateDeviceRequest, normalizeSerial, normalizeVerificationCode } = await import(
+    './clientDevices.ts'
+  );
 
+  assert.equal(normalizeSerial(' fb 22-00254 '), 'FB2200254');
+  assert.equal(normalizeVerificationCode('a1b2c3'), 'A1B2C3');
 
+  const ok = validateDeviceRequest({
+    serialNumber: 'FB2200254',
+    verificationCode: 'A1B2C3',
+    alias: 'Bodega Zona 12',
+    clientName: 'Comercial Los Pinos',
+  });
+  assert.equal(ok.valid, true);
 
+  // Serie demasiado corta
+  const serieCorta = validateDeviceRequest({
+    serialNumber: 'FB22',
+    verificationCode: 'A1B2C3',
+    alias: 'Bodega Zona 12',
+    clientName: 'Comercial Los Pinos',
+  });
+  assert.equal(serieCorta.valid, false);
+  assert.match(serieCorta.error || '', /serie/i);
 
+  // Alias obligatorio: sin nombre no se reconoce el equipo
+  const sinAlias = validateDeviceRequest({
+    serialNumber: 'FB2200254',
+    verificationCode: 'A1B2C3',
+    alias: '',
+    clientName: 'Comercial Los Pinos',
+  });
+  assert.equal(sinAlias.valid, false);
+
+  // Código de verificación demasiado corto
+  const codigoCorto = validateDeviceRequest({
+    serialNumber: 'FB2200254',
+    verificationCode: 'A1',
+    alias: 'Bodega Zona 12',
+    clientName: 'Comercial Los Pinos',
+  });
+  assert.equal(codigoCorto.valid, false);
+});
+
+test('createDeviceRequest crea solicitudes pendientes, evita duplicados y permite aprobación', async () => {
+  const {
+    createDeviceRequest,
+    reviewDeviceRequest,
+    isDuplicateDevice,
+    buildApprovalMessage,
+  } = await import('./clientDevices.ts');
+
+  const first = createDeviceRequest([], {
+    serialNumber: 'fb-2200254',
+    verificationCode: 'abc123',
+    alias: 'Bodega Zona 12',
+    clientName: 'Comercial Los Pinos',
+    clientPhone: '5555-1234',
+  });
+  assert.equal(first.valid, true);
+  const device = first.device!;
+  assert.equal(device.status, 'pending');
+  assert.equal(device.serialNumber, 'FB2200254');
+  assert.equal(device.verificationCode, 'ABC123');
+
+  // Un segundo registro del mismo equipo se rechaza mientras esté pendiente.
+  const duplicate = createDeviceRequest([device], {
+    serialNumber: 'FB2200254',
+    verificationCode: 'XYZ999',
+    alias: 'Otra bodega',
+    clientName: 'Comercial Los Pinos',
+  });
+  assert.equal(duplicate.valid, false);
+  assert.equal(isDuplicateDevice([device], 'fb-2200254'), true);
+
+  // Aprobación: cambia el estado y marca fecha de revisión.
+  const approved = reviewDeviceRequest([device], device.id, 'approved');
+  assert.equal(approved[0].status, 'approved');
+  assert.ok(approved[0].reviewedAt);
+
+  // Rechazo con nota.
+  const rejected = reviewDeviceRequest([device], device.id, 'rejected', 'Serie no coincide');
+  assert.equal(rejected[0].status, 'rejected');
+  assert.equal(rejected[0].reviewNote, 'Serie no coincide');
+
+  // El mensaje de aprobación incluye alias, cliente y enlace.
+  const msg = buildApprovalMessage(device, 'https://sideseguate.com/live');
+  assert.match(msg, /Bodega Zona 12/);
+  assert.match(msg, /Comercial Los Pinos/);
+  assert.match(msg, /https:\/\/sideseguate\.com\/live/);
+});
+
+const mkLink = (over: Partial<ShareLink>): ShareLink => ({
+  id: 'link-1',
+  projectId: 'proj-1',
+  token: 'sdg_live_abc123',
+  title: 'Cliente Demo',
+  clientName: 'Comercial Los Pinos',
+  cameraIds: ['cam-1'],
+  expiresAt: null,
+  isActive: true,
+  allowPtz: false,
+  allowAudio: false,
+  allowSnapshot: true,
+  showWatermark: true,
+  maxConcurrentViewers: 2,
+  accessCount: 0,
+  lastAccessedAt: null,
+  createdAt: '2026-01-01T00:00:00.000Z',
+  ...over,
+});
+
+test('mergeCloudShareLinks nunca borra los enlaces locales (bug del enlace que desaparecía)', () => {
+  const local = [mkLink({})];
+
+  // La nube responde vacío → la lista local se mantiene intacta.
+  assert.equal(mergeCloudShareLinks(local, []).length, 1);
+  assert.equal(mergeCloudShareLinks(local, null).length, 1);
+  assert.equal(mergeCloudShareLinks(local, undefined).length, 1);
+
+  // La nube trae otro enlace → se añade sin perder el local.
+  const cloudOnly = mkLink({ id: 'remote-id', token: 'sdg_live_zzz999', title: 'Otro cliente' });
+  const merged = mergeCloudShareLinks(local, [cloudOnly]);
+  assert.equal(merged.length, 2);
+  assert.ok(merged.some((l) => l.token === 'sdg_live_abc123'));
+  assert.ok(merged.some((l) => l.token === 'sdg_live_zzz999'));
+});
+
+test('mergeCloudShareLinks conserva el id local y descarta enlaces sin token', () => {
+  const local = [mkLink({ id: 'local-id' })];
+  const cloud = [mkLink({ id: 'remote-id', title: 'Título actualizado', accessCount: 7 })];
+  const merged = mergeCloudShareLinks(local, cloud);
+
+  assert.equal(merged.length, 1);
+  assert.equal(merged[0].id, 'local-id', 'el id local debe conservarse');
+  assert.equal(merged[0].title, 'Título actualizado', 'los datos de nube sí se aplican');
+  assert.equal(merged[0].accessCount, 7);
+
+  const sinToken = mergeCloudShareLinks(local, [{ ...mkLink({}), token: '' }]);
+  assert.equal(sinToken.length, 1);
+});
+
+test('shareLinkListsDiffer detecta cambios reales y evita renders inútiles', () => {
+  const a = [mkLink({})];
+  const b = [mkLink({})];
+  assert.equal(shareLinkListsDiffer(a, b), false);
+  assert.equal(shareLinkListsDiffer(a, [mkLink({ accessCount: 3 })]), true);
+  assert.equal(shareLinkListsDiffer(a, [mkLink({ isActive: false })]), true);
+  assert.equal(shareLinkListsDiffer(a, []), true);
+});

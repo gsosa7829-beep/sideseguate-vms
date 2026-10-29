@@ -94,7 +94,7 @@ export const SadpScannerView: React.FC = () => {
             <button
               onClick={() =>
                 handleCopy(
-                  'rtsp://vi1fdr:Dvr232323@192.168.1.41:554/Streaming/Channels/101',
+                  'rtsp://usuario:contraseña@192.168.1.41:554/Streaming/Channels/101',
                   'sadp_rtsp'
                 )
               }
@@ -148,10 +148,10 @@ export const SadpScannerView: React.FC = () => {
           <div className="bg-blue-950/20 border border-blue-800/40 p-3.5 rounded-lg text-blue-200 leading-relaxed space-y-1">
             <div className="flex items-center gap-1.5 font-bold text-blue-300">
               <ShieldCheck className="w-4 h-4 text-blue-400 shrink-0" />
-              <span>Código de Verificación: HELGDM</span>
+              <span>Código de Verificación: ••••••</span>
             </div>
             <p className="text-[11px] text-blue-200/90">
-              En los DVRs AcuSense viene activo el <em>Cifrado de Flujo</em>. En el menú del DVR (Red &gt; Ajustes Avanzados &gt; Acceso a Plataforma), desmarcar <strong>Cifrado de Flujo</strong> ingresando <code className="text-white font-bold font-mono">HELGDM</code> para permitir el remuxing web directo.
+              En los DVRs AcuSense viene activo el <em>Cifrado de Flujo</em>. En el menú del DVR (Red &gt; Ajustes Avanzados &gt; Acceso a Plataforma), desmarcar <strong>Cifrado de Flujo</strong> ingresando el código de verificación del equipo para permitir el remuxing web directo.
             </p>
           </div>
         </div>
@@ -284,7 +284,7 @@ export const SadpScannerView: React.FC = () => {
               },
               {
                 key: 'helgdmDisabled',
-                title: 'Desactivar Cifrado de Flujo (Código HELGDM)',
+                title: 'Desactivar Cifrado de Flujo',
                 desc: 'En Red > Acceso a Plataforma, desactivar Stream Encryption.',
               },
               {
@@ -295,7 +295,7 @@ export const SadpScannerView: React.FC = () => {
               {
                 key: 'rtspPort554',
                 title: 'Puerto RTSP 554 Respondiendo en LAN',
-                desc: 'Verificado con usuario vi1fdr en canales 101 al 402.',
+                desc: 'Verificado en canales 101 al 402.',
               },
             ].map((item) => {
               const checked = !!checklist[item.key];
@@ -329,7 +329,7 @@ export const SadpScannerView: React.FC = () => {
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-neutral-800 pb-3">
           <div>
             <h4 className="text-sm font-bold text-white">
-              Inventario de los 5 Equipos Detectados en SADP Tool & Cuenta iVMS-4200 (vi1fdr)
+              Inventario de los Equipos Detectados en SADP Tool & Cuenta iVMS-4200
             </h4>
             <p className="text-xs text-neutral-400">
               Equipos identificados en las capturas de red local del cliente (SADP Tool + Hik-Connect P2P).
@@ -376,7 +376,7 @@ export const SadpScannerView: React.FC = () => {
                   3c-1b-... · SN: FB2200254
                 </td>
                 <td className="py-2.5 px-3 text-sky-400 font-bold">4 Canales</td>
-                <td className="py-2.5 px-3 text-emerald-400">Cuenta P2P: vi1fdr</td>
+                <td className="py-2.5 px-3 text-emerald-400">Cuenta P2P: ••••••</td>
                 <td className="py-2.5 pl-3 text-amber-300 font-sans">
                   En Línea (Error 1602: Conectar cámara física 12V en CH1-CH4)
                 </td>

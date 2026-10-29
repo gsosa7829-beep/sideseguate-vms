@@ -6,7 +6,7 @@ export const CLIENT_HIKVISION_HARDWARE = [
     name: 'EQUIPO DE PRUEBA (FB2200254) · Hikvision AcuSense DVR (iVMS-4200)',
     serial: '0420240307CCWRFB2200254WCVU',
     shortSerial: 'FB2200254',
-    verificationCode: 'HELGDM',
+    verificationCode: '',
     lanIp: '192.168.1.81',
     publicIp: '190.148.33.229',
     firmware: 'V4.75.013, Build 240919',
@@ -15,8 +15,8 @@ export const CLIENT_HIKVISION_HARDWARE = [
     httpPort: 80,
     rtspPort: 554,
     totalChannels: 13,
-    recommendedStream: '1080p / 5MP TurboHD (Código: HELGDM)',
-    rtspSyntaxExample: 'rtsp://admin:HELGDM@192.168.1.81:554/Streaming/Channels/101'
+    recommendedStream: '1080p / 5MP TurboHD ',
+    rtspSyntaxExample: 'rtsp://usuario:contraseña@192.168.1.81:554/Streaming/Channels/101'
   },
   {
     model: 'iDS-7108HQHI-M1/S0',
@@ -31,7 +31,7 @@ export const CLIENT_HIKVISION_HARDWARE = [
     rtspPort: 554,
     totalChannels: 8,
     recommendedStream: '1080p Lite / 4MP AcuSense',
-    rtspSyntaxExample: 'rtsp://vi1fdr:Dvr232323@192.168.1.41:554/Streaming/Channels/101'
+    rtspSyntaxExample: 'rtsp://usuario:contraseña@192.168.1.41:554/Streaming/Channels/101'
   },
   {
     model: 'DS-7108HGHI-F1/N',
@@ -40,7 +40,7 @@ export const CLIENT_HIKVISION_HARDWARE = [
     mfgDate: '12/2020',
     totalChannels: 8,
     recommendedStream: '720p / 1080p Lite',
-    rtspSyntaxExample: 'rtsp://vi1fdr:Dvr232323@IP:554/Streaming/Channels/101'
+    rtspSyntaxExample: 'rtsp://usuario:contraseña@IP:554/Streaming/Channels/101'
   }
 ];
 
@@ -68,21 +68,21 @@ export const INITIAL_PROJECTS: Project[] = [
 ];
 
 export const INITIAL_CAMERAS: Camera[] = [
-  // DVR Principal en iVMS-4200: EQUIPO DE PRUEBA (FB2200254 · Código HELGDM · IP 192.168.1.81)
+  // DVR Principal en iVMS-4200: EQUIPO DE PRUEBA (FB2200254 · IP 192.168.1.81)
   {
     id: 'cam-ids-ch1',
     projectId: 'proj-sideseguate-01',
-    name: 'CH1: Camera 01 · Entrada Principal (FB2200254 · HELGDM)',
+    name: 'CH1: Camera 01 · Entrada Principal (FB2200254)',
     deviceType: 'hikvision_dvr',
     host: '192.168.1.81',
     port: 554,
     onvifPort: 8000,
     username: 'admin',
-    password: 'HELGDM',
-    verificationCode: 'HELGDM',
+    password: '',
+    verificationCode: '',
     channel: 1,
     streamType: 'main',
-    rtspUrl: 'rtsp://admin:HELGDM@192.168.1.81:554/Streaming/Channels/101',
+    rtspUrl: 'rtsp://usuario:contraseña@192.168.1.81:554/Streaming/Channels/101',
     hlsStreamUrl: 'http://localhost:8888/cam_cam-ids-_ch1__camera_01___entrada_principal__192_168_1_41_/index.m3u8',
     webrtcUrl: 'http://localhost:8889/cam_cam-ids-_ch1__camera_01___entrada_principal__192_168_1_41_/whep',
     status: 'online',
@@ -90,25 +90,25 @@ export const INITIAL_CAMERAS: Camera[] = [
     resolution: '1920x1080 (1080p FHD)',
     bitrateKbps: 2048,
     codec: 'H.264',
-    locationDesc: 'Canal 1 iVMS-4200 · EQUIPO DE PRUEBA (FB2200254 · Código: HELGDM)',
+    locationDesc: 'Canal 1 iVMS-4200 · EQUIPO DE PRUEBA (FB2200254)',
     ptzSupported: true,
     nightVision: true,
-    notes: 'DVR: iDS-7204HUHI-M1/S | SN: FB2200254 | Código Verificación: HELGDM | IP LAN: 192.168.1.81 | IP Pública P2P: 190.148.33.229'
+    notes: 'DVR: iDS-7204HUHI-M1/S | SN: FB2200254 | IP LAN: 192.168.1.81 | IP Pública P2P: 190.148.33.229'
   },
   {
     id: 'cam-ids-ch2',
     projectId: 'proj-sideseguate-01',
-    name: 'CH2: Camera 02 · Bodega & Andén (FB2200254 · HELGDM)',
+    name: 'CH2: Camera 02 · Bodega & Andén (FB2200254)',
     deviceType: 'hikvision_dvr',
     host: '192.168.1.81',
     port: 554,
     onvifPort: 8000,
     username: 'admin',
-    password: 'HELGDM',
-    verificationCode: 'HELGDM',
+    password: '',
+    verificationCode: '',
     channel: 2,
     streamType: 'main',
-    rtspUrl: 'rtsp://admin:HELGDM@192.168.1.81:554/Streaming/Channels/201',
+    rtspUrl: 'rtsp://usuario:contraseña@192.168.1.81:554/Streaming/Channels/201',
     hlsStreamUrl: 'http://localhost:8888/cam_cam-ids-_ch2__camera_02___bodega___and_n__192_168_1_41_/index.m3u8',
     webrtcUrl: 'http://localhost:8889/cam_cam-ids-_ch2__camera_02___bodega___and_n__192_168_1_41_/whep',
     status: 'online',
@@ -116,25 +116,25 @@ export const INITIAL_CAMERAS: Camera[] = [
     resolution: '1920x1080 (1080p FHD)',
     bitrateKbps: 2048,
     codec: 'H.264',
-    locationDesc: 'Canal 2 iVMS-4200 · EQUIPO DE PRUEBA (FB2200254 · Código: HELGDM)',
+    locationDesc: 'Canal 2 iVMS-4200 · EQUIPO DE PRUEBA (FB2200254 )',
     ptzSupported: true,
     nightVision: true,
-    notes: 'DVR: iDS-7204HUHI-M1/S | SN: FB2200254 | Código Verificación: HELGDM | IP LAN: 192.168.1.81'
+    notes: 'DVR: iDS-7204HUHI-M1/S | SN: FB2200254 | IP LAN: 192.168.1.81'
   },
   {
     id: 'cam-ids-ch3',
     projectId: 'proj-sideseguate-01',
-    name: 'CH3: Camera 03 · Parqueo (FB2200254 · HELGDM)',
+    name: 'CH3: Camera 03 · Parqueo (FB2200254)',
     deviceType: 'hikvision_dvr',
     host: '192.168.1.81',
     port: 554,
     onvifPort: 8000,
     username: 'admin',
-    password: 'HELGDM',
-    verificationCode: 'HELGDM',
+    password: '',
+    verificationCode: '',
     channel: 3,
     streamType: 'sub',
-    rtspUrl: 'rtsp://admin:HELGDM@192.168.1.81:554/Streaming/Channels/302',
+    rtspUrl: 'rtsp://usuario:contraseña@192.168.1.81:554/Streaming/Channels/302',
     hlsStreamUrl: 'http://localhost:8888/cam_cam-ids-_ch3__camera_03___parqueo__192_168_1_41_substream_/index.m3u8',
     webrtcUrl: 'http://localhost:8889/cam_cam-ids-_ch3__camera_03___parqueo__192_168_1_41_substream_/whep',
     status: 'online',
@@ -142,25 +142,25 @@ export const INITIAL_CAMERAS: Camera[] = [
     resolution: '1280x720 (720p HD Substream)',
     bitrateKbps: 800,
     codec: 'H.264',
-    locationDesc: 'Canal 3 iVMS-4200 · EQUIPO DE PRUEBA (FB2200254 · Código: HELGDM)',
+    locationDesc: 'Canal 3 iVMS-4200 · EQUIPO DE PRUEBA (FB2200254 )',
     ptzSupported: true,
     nightVision: true,
-    notes: 'Flujo secundario /302 en 192.168.1.81 | SN: FB2200254 | Código Verificación: HELGDM'
+    notes: 'Flujo secundario /302 en 192.168.1.81 | SN: FB2200254 '
   },
   {
     id: 'cam-ids-ch4',
     projectId: 'proj-sideseguate-01',
-    name: 'CH4: Camera 04 · Perímetro Exterior (FB2200254 · HELGDM)',
+    name: 'CH4: Camera 04 · Perímetro Exterior (FB2200254)',
     deviceType: 'hikvision_dvr',
     host: '192.168.1.81',
     port: 554,
     onvifPort: 8000,
     username: 'admin',
-    password: 'HELGDM',
-    verificationCode: 'HELGDM',
+    password: '',
+    verificationCode: '',
     channel: 4,
     streamType: 'main',
-    rtspUrl: 'rtsp://admin:HELGDM@192.168.1.81:554/Streaming/Channels/401',
+    rtspUrl: 'rtsp://usuario:contraseña@192.168.1.81:554/Streaming/Channels/401',
     hlsStreamUrl: 'http://localhost:8888/cam_cam-ids-_ch4__camera_04___per_metro_exterior__192_168_1_41_/index.m3u8',
     webrtcUrl: 'http://localhost:8889/cam_cam-ids-_ch4__camera_04___per_metro_exterior__192_168_1_41_/whep',
     status: 'online',
@@ -168,27 +168,27 @@ export const INITIAL_CAMERAS: Camera[] = [
     resolution: '1920x1080 (1080p FHD)',
     bitrateKbps: 2048,
     codec: 'H.264',
-    locationDesc: 'Canal 4 iVMS-4200 · EQUIPO DE PRUEBA (FB2200254 · Código: HELGDM)',
+    locationDesc: 'Canal 4 iVMS-4200 · EQUIPO DE PRUEBA (FB2200254 )',
     ptzSupported: true,
     nightVision: true,
-    notes: 'Canal 4 DVR iDS-7204HUHI-M1/S | SN: FB2200254 | Código Verificación: HELGDM'
+    notes: 'Canal 4 DVR iDS-7204HUHI-M1/S | SN: FB2200254 '
   },
 
   // Canales IP Adicionales en FB2200254 (camera 5@FB2200254 y camera 6@FB2200254)
   {
     id: 'cam-ds7108-ch1',
     projectId: 'proj-sideseguate-01',
-    name: 'CH5: camera 5@FB2200254 · Recepción & Oficinas (HELGDM)',
+    name: 'CH5: camera 5@FB2200254 · Recepción & Oficinas',
     deviceType: 'hikvision_dvr',
     host: '192.168.1.81',
     port: 554,
     onvifPort: 8000,
     username: 'admin',
-    password: 'HELGDM',
-    verificationCode: 'HELGDM',
+    password: '',
+    verificationCode: '',
     channel: 5,
     streamType: 'main',
-    rtspUrl: 'rtsp://admin:HELGDM@192.168.1.81:554/Streaming/Channels/501',
+    rtspUrl: 'rtsp://usuario:contraseña@192.168.1.81:554/Streaming/Channels/501',
     hlsStreamUrl: 'http://localhost:8888/cam_cam-ds71_ch5__recepci_n___oficinas__dvr_8ch_192_168_1_41_/index.m3u8',
     webrtcUrl: 'http://localhost:8889/cam_cam-ds71_ch5__recepci_n___oficinas__dvr_8ch_192_168_1_41_/whep',
     status: 'online',
@@ -196,25 +196,25 @@ export const INITIAL_CAMERAS: Camera[] = [
     resolution: '1280x720 (720p HD)',
     bitrateKbps: 1536,
     codec: 'H.264',
-    locationDesc: 'Canal 5 IP iVMS-4200 (camera 5@FB2200254 · Código: HELGDM)',
+    locationDesc: 'Canal 5 IP iVMS-4200 (camera 5@FB2200254 )',
     ptzSupported: true,
     nightVision: true,
-    notes: 'Canal 5 en FB2200254 (192.168.1.81) | Código Verificación: HELGDM'
+    notes: 'Canal 5 en FB2200254 (192.168.1.81) '
   },
   {
     id: 'cam-ds7108-ch2',
     projectId: 'proj-sideseguate-01',
-    name: 'CH6: camera 6@FB2200254 · Pasillo Administrativo (HELGDM)',
+    name: 'CH6: camera 6@FB2200254 · Pasillo Administrativo',
     deviceType: 'hikvision_dvr',
     host: '192.168.1.81',
     port: 554,
     onvifPort: 8000,
     username: 'admin',
-    password: 'HELGDM',
-    verificationCode: 'HELGDM',
+    password: '',
+    verificationCode: '',
     channel: 6,
     streamType: 'sub',
-    rtspUrl: 'rtsp://admin:HELGDM@192.168.1.81:554/Streaming/Channels/602',
+    rtspUrl: 'rtsp://usuario:contraseña@192.168.1.81:554/Streaming/Channels/602',
     hlsStreamUrl: 'http://localhost:8888/cam_cam-ds71_ch6__pasillo_administrativo__dvr_8ch_192_168_1_41_/index.m3u8',
     webrtcUrl: 'http://localhost:8889/cam_cam-ds71_ch6__pasillo_administrativo__dvr_8ch_192_168_1_41_/whep',
     status: 'online',
@@ -222,10 +222,10 @@ export const INITIAL_CAMERAS: Camera[] = [
     resolution: '704x480 (4CIF Substream)',
     bitrateKbps: 512,
     codec: 'H.264',
-    locationDesc: 'Canal 6 IP iVMS-4200 (camera 6@FB2200254 · Código: HELGDM)',
+    locationDesc: 'Canal 6 IP iVMS-4200 (camera 6@FB2200254 )',
     ptzSupported: true,
     nightVision: true,
-    notes: 'Canal 6 en FB2200254 (192.168.1.81) | Código Verificación: HELGDM'
+    notes: 'Canal 6 en FB2200254 (192.168.1.81) '
   }
 ];
 

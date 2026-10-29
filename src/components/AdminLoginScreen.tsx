@@ -1,5 +1,9 @@
 import React, { useState } from 'react';
-import { AdminAccount, authenticateAdminAccount } from '../lib/adminAuth';
+import {
+  AdminAccount,
+  authenticateAdminAccount,
+  getLockoutState,
+} from '../lib/adminAuth';
 import {
   Shield,
   Lock,
@@ -28,20 +32,22 @@ export const AdminLoginScreen: React.FC<AdminLoginScreenProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const lock = getLockoutState(identifier);
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     setIsSubmitting(true);
 
-    setTimeout(() => {
-      const res = authenticateAdminAccount(accounts, identifier, password);
-      if (res.success && res.account) {
-        onLoginSuccess(res.account);
-      } else {
-        setError(res.error || 'Credenciales no autorizadas. Verifica tu usuario y contraseña.');
-        setIsSubmitting(false);
-      }
-    }, 200);
+    const res = await authenticateAdminAccount(accounts, identifier, password);
+    if (res.success && res.account) {
+      onLoginSuccess(res.account);
+      return;
+    }
+
+    setError(res.error || 'Credenciales no autorizadas. Verifica tu usuario y contraseña.');
+    setPassword('');
+    setIsSubmitting(false);
   };
 
   return (
@@ -86,7 +92,7 @@ export const AdminLoginScreen: React.FC<AdminLoginScreenProps> = ({
               Acceso al Panel
             </h1>
             <p className="text-xs text-neutral-400 mt-0.5">
-              Ingresa tus credenciales para acceder al sistema
+              Acceso restringido al personal autorizado
             </p>
           </div>
         </div>
@@ -96,6 +102,16 @@ export const AdminLoginScreen: React.FC<AdminLoginScreenProps> = ({
           <div className="bg-red-950/60 border border-red-500/40 rounded-xl p-3 flex items-start gap-2.5 text-xs text-red-200 animate-fade-in">
             <AlertCircle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
             <div className="flex-1 font-medium leading-relaxed">{error}</div>
+          </div>
+        )}
+
+        {lock.locked && (
+          <div className="bg-amber-950/60 border border-amber-600/50 rounded-xl p-3 flex items-start gap-2.5 text-xs text-amber-200">
+            <AlertCircle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+            <div className="flex-1 font-medium leading-relaxed">
+              Cuenta bloqueada por {Math.ceil(lock.remainingMs / 60000)} minuto(s) tras
+              {' '}{lock.attempts} intentos fallidos.
+            </div>
           </div>
         )}
 
@@ -158,7 +174,7 @@ export const AdminLoginScreen: React.FC<AdminLoginScreenProps> = ({
 
           <button
             type="submit"
-            disabled={isSubmitting}
+            disabled={isSubmitting || lock.locked}
             className="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-400 hover:to-blue-500 text-white font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 transition shadow-lg shadow-sky-500/25 active:scale-[0.99] disabled:opacity-50"
           >
             {isSubmitting ? (

@@ -182,6 +182,8 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
         return { section: 'Accesos de Clientes', title: 'Enlaces Privados para Clientes' };
       case 'client_onboarding':
         return { section: 'Equipos y Red Local', title: 'Asistente Rápido: Agregar Cámaras y DVRs al Servidor' };
+      case 'dvr_registry':
+        return { section: 'Equipos y Red Local', title: 'Registro de DVRs por el Cliente' };
       case 'clients_projects':
         return { section: 'Accesos de Clientes', title: 'Cartera de Clientes y Demos de Cámaras' };
       case 'access_audit':
@@ -423,11 +425,11 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
               type="button"
               onClick={onOpenSecurityModal}
               className="h-9 px-2.5 sm:px-3 bg-neutral-950 hover:bg-neutral-850 text-neutral-200 border border-neutral-800 rounded-xl text-xs font-medium flex items-center justify-center gap-1.5 transition whitespace-nowrap shrink-0"
-              title="Gestión de Cuentas Corporativas y Seguridad del Panel"
+              title="Mi cuenta de administrador: contraseña y seguridad del panel"
             >
               <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />
               <span className="hidden sm:inline">
-                {currentAdminAccount ? `Admin: ${currentAdminAccount.username}` : 'Cuentas'}
+                Mi cuenta
               </span>
             </button>
           )}

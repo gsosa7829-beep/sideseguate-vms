@@ -14,6 +14,7 @@ import {
   recordCloudShareLinkAccess,
 } from './lib/firebase';
 import { maskRtspUrl, cloneNextDvrChannel } from './lib/rtspHelper';
+import { mergeCloudShareLinks, shareLinkListsDiffer } from './lib/shareLinkMerge';
 import { formatExpirationText, createFlashTemporaryLink, REVOKED_SHARE_TOKENS } from './lib/tokenSecurity';
 import { generateMediaMtxYaml } from './lib/mediaMtxGenerator';
 import { applyTunnelToCameras, formatBuyerAccessNotification, getCameraMediaMtxPath } from './lib/pcLauncherGenerator';
@@ -31,6 +32,9 @@ import { ProjectModal } from './components/ProjectModal';
 import { Sidebar } from './components/Sidebar';
 import { TopNavbar, UiThemePreset } from './components/TopNavbar';
 import { VideoWall } from './components/VideoWall';
+const DvrRegistryView = lazy(() =>
+  import('./components/DvrRegistryView').then((m) => ({ default: m.DvrRegistryView }))
+);
 const AccessAuditView = lazy(() =>
   import('./components/AccessAuditView').then((m) => ({ default: m.AccessAuditView }))
 );
@@ -53,14 +57,12 @@ const DesktopProgramModal = lazy(() =>
   import('./components/DesktopProgramModal').then((m) => ({ default: m.DesktopProgramModal }))
 );
 import { AdminLoginScreen } from './components/AdminLoginScreen';
-const AdminSecurityModal = lazy(() =>
-  import('./components/AdminSecurityModal').then((m) => ({ default: m.AdminSecurityModal }))
+const AdminAccountModal = lazy(() =>
+  import('./components/AdminAccountModal').then((m) => ({ default: m.AdminAccountModal }))
 );
-import {
-  AdminAccount,
-  adminAuthStorage,
-  DEFAULT_ADMIN_ACCOUNTS,
-} from './lib/adminAuth';
+import { AdminAccount, adminAuthStorage } from './lib/adminAuth';
+import { FirstRunSetup } from './components/FirstRunSetup';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { useOnlineStatus } from './lib/usePWAInstall';
 import { buildWhatsAppUrl } from './lib/whatsapp';
 
@@ -126,6 +128,10 @@ function AppShell() {
   const [adminAccounts, setAdminAccounts] = useState<AdminAccount[]>(() =>
     adminAuthStorage.getAccounts()
   );
+  // Primer arranque: no existen cuentas todavía (no hay usuarios de fábrica).
+  const [needsSetup, setNeedsSetup] = useState<boolean>(() =>
+    adminAuthStorage.needsFirstRunSetup()
+  );
   const [requireLoginOnBoot, setRequireLoginOnBoot] = useState<boolean>(() =>
     adminAuthStorage.getRequireLoginOnBoot()
   );
@@ -169,7 +175,7 @@ function AppShell() {
   // Entities
   const [projects, setProjects] = useState<Project[]>([]);
   const [cameras, setCameras] = useState<Camera[]>([]);
-  const [shareLinks, setShareLinks] = useState<ShareLink[]>([]);
+  const [shareLinks, setShareLinks] = useState<ShareLink[]>(() => storage.getShareLinks());
   const [accessLogs, setAccessLogs] = useState<AccessLog[]>([]);
   const [cloudSyncStatus, setCloudSyncStatus] = useState<'connecting' | 'live' | 'error'>('connecting');
 
@@ -303,8 +309,9 @@ function AppShell() {
 
     setProjects(loadedProjects);
     setCameras(loadedCameras);
-    setShareLinks([]);
-    storage.saveShareLinks([]);
+    // Se conservan los enlaces ya creados: no se borran al abrir el panel.
+    setShareLinks(loadedLinks);
+    storage.saveShareLinks(loadedLinks);
     setAccessLogs(loadedLogs);
 
     if (loadedCameras.length > 0) {
@@ -325,18 +332,15 @@ function AppShell() {
       }
     }
 
-    // Purge all share links in Cloud Firestore so no external link exists
-    purgeAllCloudShareLinks().catch(() => {});
-
     // Seed Firestore if empty so default cameras are immediately live in the cloud
     seedInitialCloudDataIfEmpty({
       projects: loadedProjects,
       cameras: loadedCameras,
-      shareLinks: [],
+      shareLinks: loadedLinks,
       accessLogs: loadedLogs,
     });
 
-    // Sync updated iVMS-4200 (FB2200254 · HELGDM) camera metadata to Cloud Firestore
+    // Sincroniza los metadatos de las cámaras del DVR a Cloud Firestore
     loadedCameras.forEach((cam) => {
       upsertCloudCamera(cam).catch(() => {});
     });
@@ -352,7 +356,7 @@ function AppShell() {
           const pathSlug = getCameraMediaMtxPath(cam);
           return {
             ...cam,
-            verificationCode: cam.verificationCode || 'HELGDM',
+            verificationCode: cam.verificationCode || '',
             hlsStreamUrl: cam.hlsStreamUrl || `http://localhost:8888/${pathSlug}/index.m3u8`,
             webrtcUrl: cam.webrtcUrl || `http://localhost:8889/${pathSlug}/whep`,
           };
@@ -363,9 +367,14 @@ function AppShell() {
           prev && cloudCameras.some((c) => c.id === prev) ? prev : cloudCameras[0]?.id || ''
         );
       },
-      onShareLinks: () => {
-        setShareLinks([]);
-        storage.saveShareLinks([]);
+      onShareLinks: (cloudLinks) => {
+        // La nube solo aporta/actualiza enlaces; nunca elimina los locales.
+        setShareLinks((prev) => {
+          const merged = mergeCloudShareLinks(prev, cloudLinks);
+          if (merged === prev || !shareLinkListsDiffer(merged, prev)) return prev;
+          storage.saveShareLinks(merged);
+          return merged;
+        });
       },
       onAccessLogs: (cloudLogs) => {
         if (cloudLogs.length > 0) {
@@ -654,12 +663,34 @@ function AppShell() {
     );
   }
 
-  // Strict Security Gate: Require authentication to access VMS console
+  // Configuración inicial: no hay usuarios de fábrica, se crea el del propietario.
+  if (needsSetup) {
+    return (
+      <FirstRunSetup
+        onComplete={(account) => {
+          adminAuthStorage.saveAccounts([account]);
+          adminAuthStorage.saveCurrentSession(account);
+          adminAuthStorage.authorizeCurrentOwnerDevice();
+          setAdminAccounts([account]);
+          setCurrentAdminAccount(account);
+          setIsPanelLocked(false);
+          setNeedsSetup(false);
+        }}
+      />
+    );
+  }
+
+  // Gate de seguridad: sin sesión válida no se entra al panel.
   if (isPanelLocked || !currentAdminAccount) {
     return (
       <AdminLoginScreen
         accounts={adminAccounts}
         onLoginSuccess={(account) => {
+          const updated = adminAccounts.map((a) =>
+            a.id === account.id ? { ...a, lastLoginAt: account.lastLoginAt } : a
+          );
+          adminAuthStorage.saveAccounts(updated);
+          setAdminAccounts(updated);
           adminAuthStorage.authorizeCurrentOwnerDevice();
           adminAuthStorage.saveCurrentSession(account);
           setCurrentAdminAccount(account);
@@ -1174,6 +1205,15 @@ function AppShell() {
           )}
 
           {/* VIEW 6: Auditoría de Accesos */}
+          {/* Registro de DVRs: el cliente agrega su equipo en 3 campos */}
+          {activeTab === 'dvr_registry' && (
+            <DvrRegistryView
+              clientName={currentAdminAccount.displayName}
+              isAdmin
+              onShowToast={showToast}
+            />
+          )}
+
           {activeTab === 'access_audit' && (
             <AccessAuditView
               logs={accessLogs}
@@ -1456,36 +1496,42 @@ function AppShell() {
         onShowToast={showToast}
       />
 
-      <AdminSecurityModal
-        isOpen={isSecurityModalOpen}
-        onClose={() => setIsSecurityModalOpen(false)}
-        accounts={adminAccounts}
-        currentAccount={currentAdminAccount}
-        requireLoginOnBoot={requireLoginOnBoot}
-        onUpdateAccounts={(updated) => {
-          setAdminAccounts(updated);
-          adminAuthStorage.saveAccounts(updated);
-          showToast('Cuentas corporativas del panel actualizadas');
-        }}
-        onToggleRequireLoginOnBoot={(req) => {
-          setRequireLoginOnBoot(req);
-          adminAuthStorage.setRequireLoginOnBoot(req);
-          showToast(
-            req
-              ? 'Candado de inicio de sesión activado al abrir el sistema'
-              : 'Inicio de sesión desactivado al abrir el sistema'
-          );
-        }}
-        onLockPanelNow={() => {
-          adminAuthStorage.saveCurrentSession(null);
-          setCurrentAdminAccount(null);
-          setIsPanelLocked(true);
-        }}
-      />
+      {currentAdminAccount && (
+        <AdminAccountModal
+          isOpen={isSecurityModalOpen}
+          onClose={() => setIsSecurityModalOpen(false)}
+          account={currentAdminAccount}
+          requireLoginOnBoot={requireLoginOnBoot}
+          onUpdateAccount={(updatedAccount) => {
+            const updated = adminAccounts.map((a) =>
+              a.id === updatedAccount.id ? updatedAccount : a
+            );
+            setAdminAccounts(updated);
+            adminAuthStorage.saveAccounts(updated);
+            setCurrentAdminAccount(updatedAccount);
+            adminAuthStorage.saveCurrentSession(updatedAccount);
+          }}
+          onToggleRequireLoginOnBoot={(req) => {
+            setRequireLoginOnBoot(req);
+            adminAuthStorage.setRequireLoginOnBoot(req);
+            showToast(
+              req
+                ? 'Candado de inicio de sesión activado al abrir el sistema'
+                : 'Inicio de sesión desactivado al abrir el sistema'
+            );
+          }}
+          onShowToast={showToast}
+          onLockPanelNow={() => {
+            adminAuthStorage.saveCurrentSession(null);
+            setCurrentAdminAccount(null);
+            setIsPanelLocked(true);
+          }}
+        />
+      )}
       {/* Mobile Quick-Navigation Bottom Dock (Spacious Touch Targets for Smartphones) */}
       <nav
         aria-label="Navegación rápida móvil"
-        className="md:hidden fixed bottom-0 inset-x-0 z-30 bg-neutral-950/95 border-t border-neutral-800 backdrop-blur-md px-2 pt-1.5 pb-[max(0.375rem,env(safe-area-inset-bottom))] grid grid-cols-5 gap-1"
+        className="md:hidden fixed bottom-0 inset-x-0 z-30 bg-neutral-950/95 border-t border-neutral-800 backdrop-blur-md px-2 pt-1.5 pb-[max(0.375rem,env(safe-area-inset-bottom))] grid grid-cols-4 gap-1"
       >
         <button
           type="button"
@@ -1539,14 +1585,7 @@ function AppShell() {
           <span>Enlaces</span>
         </button>
 
-        <button
-          type="button"
-          onClick={() => setIsSidebarCollapsed(false)}
-          className="flex flex-col items-center justify-center py-1.5 rounded-xl text-[10px] font-medium text-neutral-400 hover:text-white transition"
-        >
-          <Server className="w-4 h-4 mb-0.5" />
-          <span>Menú</span>
-        </button>
+
       </nav>
     </div>
   );
@@ -1555,8 +1594,10 @@ function AppShell() {
 // Envoltorio: las vistas con `lazy()` se descargan solo al abrirlas.
 export default function App() {
   return (
-    <Suspense fallback={<AppLoadingFallback />}>
-      <AppShell />
-    </Suspense>
+    <ErrorBoundary>
+      <Suspense fallback={<AppLoadingFallback />}>
+        <AppShell />
+      </Suspense>
+    </ErrorBoundary>
   );
 }

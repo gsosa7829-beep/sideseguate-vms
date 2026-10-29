@@ -48,12 +48,16 @@ export const VideoWall: React.FC<VideoWallProps> = ({
     tunnelUrl: string;
     totalFramesCh1: number;
     latencyMs: number;
+    updatedAt: string;
+    proxy: boolean;
   }>({
     online: true,
     source: 'local-p2p',
     tunnelUrl: '',
     totalFramesCh1: 0,
     latencyMs: 82,
+    updatedAt: '',
+    proxy: false,
   });
 
   useEffect(() => {
@@ -64,6 +68,8 @@ export const VideoWall: React.FC<VideoWallProps> = ({
         tunnelUrl: state.tunnelUrl,
         totalFramesCh1: state.channels?.['1']?.totalFrames || 0,
         latencyMs: state.channels?.['1']?.lastFrameAgeMs || 80,
+        updatedAt: state.updatedAt,
+        proxy: cloudP2pClient.isProxyReachable(),
       });
     });
   }, []);
@@ -86,7 +92,7 @@ export const VideoWall: React.FC<VideoWallProps> = ({
     const res = await ivmsLiveBridge.startCapture();
     if (res.ok) {
       setBridgeFeedback(
-        '¡Ventana iVMS-4200 vinculada en vivo! Mostrando cámaras reales (SN: FB2200254 · Código: HELGDM).'
+        '¡Ventana iVMS-4200 vinculada en vivo! Mostrando cámaras reales del DVR.'
       );
       setTimeout(() => setBridgeFeedback(null), 5000);
     } else if (res.error) {
@@ -201,7 +207,7 @@ export const VideoWall: React.FC<VideoWallProps> = ({
         </div>
       </div>
 
-      {/* Motor Nativo Hikvision P2P V3 Directo (DVR FB2200254 · Código HELGDM · Sin Compartir Pantalla) */}
+      {/* Motor Nativo Hikvision P2P V3 Directo (DVR FB2200254 · Sin Compartir Pantalla) */}
       <div
         className={`rounded-xl border p-3.5 transition ${
           nativeP2pStatus.online || ivmsBridgeActive
@@ -235,9 +241,30 @@ export const VideoWall: React.FC<VideoWallProps> = ({
                 <span className="px-2 py-0.5 rounded-md bg-neutral-950 border border-neutral-800 text-[11px] font-mono text-sky-300">
                   SN: {DETECTED_IVMS_DEVICE.deviceSerial} ({DETECTED_IVMS_DEVICE.deviceModel})
                 </span>
+                {(() => {
+                  const ageSeconds = nativeP2pStatus.updatedAt
+                    ? Math.max(0, Math.round((Date.now() - new Date(nativeP2pStatus.updatedAt).getTime()) / 1000))
+                    : null;
+                  const stale = ageSeconds === null || ageSeconds > 30;
+                  return (
+                    <span
+                      className={`px-2 py-0.5 rounded-md border text-[11px] font-mono font-semibold flex items-center gap-1 ${
+                        stale
+                          ? 'bg-amber-950/80 border-amber-500/40 text-amber-300'
+                          : 'bg-sky-950/80 border-sky-500/40 text-sky-300'
+                      }`}
+                      title="El servidor publica una imagen nueva cada pocos segundos (modo imagen), no es video continuo."
+                    >
+                      <Radio className="w-3 h-3" />
+                      {stale
+                        ? 'Sin actualizar'
+                        : `Modo imagen · hace ${ageSeconds}s`}
+                    </span>
+                  );
+                })()}
                 <span className="px-2 py-0.5 rounded-md bg-emerald-950/80 border border-emerald-500/40 text-[11px] font-mono font-semibold text-emerald-300 flex items-center gap-1">
                   <ShieldCheck className="w-3 h-3" />
-                  Cifrado: {DETECTED_IVMS_DEVICE.verificationCode}
+                  Cifrado: ••••••
                 </span>
                 <span className="px-2 py-0.5 rounded-md bg-neutral-950 border border-neutral-800 text-[11px] font-mono text-neutral-300">
                   DVR: {DETECTED_IVMS_DEVICE.lanIp} · WAN P2P: {DETECTED_IVMS_DEVICE.publicIp}
@@ -245,7 +272,7 @@ export const VideoWall: React.FC<VideoWallProps> = ({
               </div>
               <p className="text-xs text-neutral-300 mt-1">
                 {nativeP2pStatus.online
-                  ? `Conectado directamente a los 4 canales del DVR FB2200254 mediante el motor nativo de Hikvision (NetStream.dll x64 · Clave HELGDM) en modo ${
+                  ? `Conectado directamente a los 4 canales del DVR FB2200254 mediante el motor nativo de Hikvision (NetStream.dll x64) en modo ${
                       nativeP2pStatus.source === 'local-p2p'
                         ? 'Híbrido (Local :8890 + Nube 24/7)'
                         : '100% Nube 24/7 (Sin necesidad de tener la PC encendida)'
