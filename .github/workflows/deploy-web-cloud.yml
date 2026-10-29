@@ -31,7 +31,7 @@ jobs:
 
       - name: Install Dependencies & Build Production Bundle
         run: |
-          npm install --legacy-peer-deps
+          npm ci
           npm run build
 
       - name: Publish Production Build to gh-pages Branch
