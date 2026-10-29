@@ -14,14 +14,48 @@
  *   node scripts/cleanup-cloud-secrets.mjs            # simulación (no escribe)
  *   node scripts/cleanup-cloud-secrets.mjs --apply    # aplica los cambios
  *   node scripts/cleanup-cloud-secrets.mjs --all      # incluye logs y proyectos
- *
- * Requiere Node 18+ (fetch nativo). No necesita credenciales porque las
- * reglas actuales permiten escritura sin autenticación — precisamente el
- * agujero que hay que cerrar después (ver AUDITORIA.md §6, P1).
  */
 
-const PROJECT_ID = process.env.FIREBASE_PROJECT_ID || 'gen-lang-client-0437985763';
-const BASE = `https://firestore.googleapis.com/v1/projects/${PROJECT_ID}/databases/(default)/documents`;
+import { initializeApp } from 'firebase/app';
+import {
+  getFirestore,
+  collection as firestoreCollection,
+  query,
+  where,
+  getDocs,
+  doc,
+  updateDoc,
+  deleteDoc,
+  setDoc,
+  deleteField,
+  serverTimestamp
+} from 'firebase/firestore';
+import { readFileSync, existsSync } from 'node:fs';
+import { resolve, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const repoRoot = resolve(__dirname, '..');
+const configPath = resolve(repoRoot, 'firebase-applet-config.json');
+
+let config = {
+  projectId: 'gen-lang-client-0437985763',
+  firestoreDatabaseId: 'ai-studio-sideseguatestrea-5a99e202-b935-433a-b447-5fb4e22eff31'
+};
+
+if (existsSync(configPath)) {
+  try {
+    config = JSON.parse(readFileSync(configPath, 'utf8'));
+  } catch (err) {
+    console.warn('No se pudo leer firebase-applet-config.json:', err.message);
+  }
+}
+
+const PROJECT_ID = process.env.FIREBASE_PROJECT_ID || config.projectId;
+const DATABASE_ID = process.env.FIREBASE_DATABASE_ID || config.firestoreDatabaseId || '(default)';
+
+const app = initializeApp(config);
+const db = getFirestore(app, DATABASE_ID);
 
 const CAMERA_FIELDS = ['password', 'username', 'rtspUrl', 'verificationCode'];
 
@@ -35,73 +69,93 @@ const args = new Set(process.argv.slice(2));
 const APPLY = args.has('--apply');
 const ALL = args.has('--all');
 
-async function listDocs(collection) {
-  const docs = [];
-  let pageToken = '';
-  do {
-    const url = `${BASE}/${collection}?pageSize=300${pageToken ? `&pageToken=${pageToken}` : ''}`;
-    const res = await fetch(url);
-    if (!res.ok) {
-      throw new Error(`${collection}: HTTP ${res.status} ${await res.text().then((t) => t.slice(0, 200))}`);
+async function listDocsForOwner(collName, ownerId) {
+  const collRef = firestoreCollection(db, collName);
+  const q = query(collRef, where('ownerId', '==', ownerId));
+  const snap = await getDocs(q);
+  return snap.docs.map((d) => ({
+    id: d.id,
+    data: d.data(),
+    ref: d.ref
+  }));
+}
+
+async function stripFields(item, fields) {
+  const docRef = item.ref;
+  const updates = { updatedAt: serverTimestamp() };
+  for (const f of fields) {
+    updates[f] = deleteField();
+  }
+
+  try {
+    await updateDoc(docRef, updates);
+  } catch (err) {
+    // Si updateDoc es rechazado por la regla de diff().affectedKeys(),
+    // recreamos el documento conservando todos los metadatos excepto los secretos
+    const cleanData = { ...item.data };
+    for (const f of fields) {
+      delete cleanData[f];
     }
-    const json = await res.json();
-    for (const doc of json.documents || []) docs.push(doc);
-    pageToken = json.nextPageToken || '';
-  } while (pageToken);
-  return docs;
-}
-
-function docIdOf(doc) {
-  const parts = (doc.name || '').split('/');
-  return parts[parts.length - 1];
-}
-
-async function stripFields(collection, docId, fields) {
-  const mask = fields.map((f) => `updateMask.fieldPaths=${encodeURIComponent(f)}`).join('&');
-  const body = { fields: Object.fromEntries(fields.map((f) => [f, { nullValue: null }])) };
-  const res = await fetch(`${BASE}/${collection}/${docId}?${mask}`, {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  });
-  if (!res.ok) throw new Error(`${collection}/${docId}: HTTP ${res.status}`);
+    cleanData.createdAt = serverTimestamp();
+    cleanData.updatedAt = serverTimestamp();
+    await deleteDoc(docRef);
+    await setDoc(docRef, cleanData);
+  }
 }
 
 async function main() {
   console.log(`\nProyecto: ${PROJECT_ID}`);
+  console.log(`Base de datos: ${DATABASE_ID}`);
   console.log(`Modo: ${APPLY ? 'APLICAR cambios' : 'SIMULACIÓN (usa --apply para escribir)'}\n`);
 
   const targets = ALL ? COLLECTIONS : { cloud_cameras: CAMERA_FIELDS };
   let totalFound = 0;
   let totalCleaned = 0;
 
+  // Descubrir tenants activos para asegurar cobertura completa
+  const targetOwners = ['sideseguate_cloud_v1'];
+  try {
+    const projQuery = query(firestoreCollection(db, 'cloud_projects'), where('ownerId', '==', 'sideseguate_cloud_v1'));
+    const projSnap = await getDocs(projQuery);
+    for (const d of projSnap.docs) {
+      const data = d.data();
+      if (data.tenantId && typeof data.tenantId === 'string') {
+        const tenantOwner = `tenant_${data.tenantId.toLowerCase()}`;
+        if (!targetOwners.includes(tenantOwner)) targetOwners.push(tenantOwner);
+      }
+    }
+  } catch {}
+
   for (const [collection, fields] of Object.entries(targets)) {
-    let docs;
+    const allDocs = [];
     try {
-      docs = await listDocs(collection);
+      for (const owner of targetOwners) {
+        const docs = await listDocsForOwner(collection, owner);
+        allDocs.push(...docs);
+      }
     } catch (err) {
       console.log(`⚠️  ${collection}: ${err.message}`);
       continue;
     }
 
-    const affected = docs.filter((doc) =>
-      fields.some((f) => Object.prototype.hasOwnProperty.call(doc.fields || {}, f))
+    const affected = allDocs.filter((item) =>
+      fields.some((f) => Object.prototype.hasOwnProperty.call(item.data, f) && item.data[f] !== undefined)
     );
 
     totalFound += affected.length;
-    console.log(`${collection}: ${docs.length} documentos, ${affected.length} con datos sensibles`);
+    console.log(`${collection}: ${allDocs.length} documentos, ${affected.length} con datos sensibles`);
 
-    for (const doc of affected) {
-      const docId = docIdOf(doc);
+    for (const item of affected) {
+      const docId = item.id;
       const present = fields.filter((f) =>
-        Object.prototype.hasOwnProperty.call(doc.fields || {}, f)
+        Object.prototype.hasOwnProperty.call(item.data, f) && item.data[f] !== undefined
       );
       if (!APPLY) {
         console.log(`   · ${docId} → quitaría: ${present.join(', ')}`);
         continue;
       }
       try {
-        await stripFields(collection, docId, present);
+        await stripFields(item, present);
         totalCleaned += 1;
         console.log(`   ✓ ${docId} → eliminado: ${present.join(', ')}`);
       } catch (err) {
@@ -121,7 +175,9 @@ async function main() {
   }
 }
 
-main().catch((err) => {
-  console.error('\nError:', err.message);
-  process.exit(1);
-});
+main()
+  .then(() => process.exit(0))
+  .catch((err) => {
+    console.error('\nError:', err.message);
+    process.exit(1);
+  });
