@@ -425,11 +425,11 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
               type="button"
               onClick={onOpenSecurityModal}
               className="h-9 px-2.5 sm:px-3 bg-neutral-950 hover:bg-neutral-850 text-neutral-200 border border-neutral-800 rounded-xl text-xs font-medium flex items-center justify-center gap-1.5 transition whitespace-nowrap shrink-0"
-              title="Gestión de Cuentas Corporativas y Seguridad del Panel"
+              title="Mi cuenta de administrador: contraseña y seguridad del panel"
             >
               <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />
               <span className="hidden sm:inline">
-                {currentAdminAccount ? `Admin: ${currentAdminAccount.username}` : 'Cuentas'}
+                Mi cuenta
               </span>
             </button>
           )}

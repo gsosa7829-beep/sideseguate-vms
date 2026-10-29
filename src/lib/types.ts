@@ -36,7 +36,7 @@ export interface Camera {
   locationDesc: string;
   ptzSupported: boolean;
   nightVision: boolean;
-  verificationCode?: string; // Hikvision Stream Encryption / Verification Code (e.g. HELGDM)
+  verificationCode?: string; // Hikvision Stream Encryption / Verification Code (definido por el cliente)
   cloudId?: string; // Hik-Connect / P2P Domain ID
   notes?: string;
   mapX?: number; // 0-100 percentage on tactical floorplan

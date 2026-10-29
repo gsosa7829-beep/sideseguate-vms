@@ -17,6 +17,7 @@ import {
   fromCloudCameraDoc,
 } from './cloudSyncHelpers.ts';
 import { ShareLink, Camera } from './types.ts';
+import { mergeCloudShareLinks, shareLinkListsDiffer } from './shareLinkMerge.ts';
 
 test('buildHikvisionRtspUrl creates standard Hikvision channel URL', () => {
   const urlMain = buildHikvisionRtspUrl({
@@ -250,7 +251,7 @@ test('toCloudCameraPayload and fromCloudCameraDoc sanitize and preserve camera f
     locationDesc: 'Parqueo Exterior',
     ptzSupported: true,
     nightVision: true,
-    verificationCode: 'HELGDM'
+    verificationCode: 'VERIF-DEMO'
   };
 
   const payload = toCloudCameraPayload(cam);
@@ -261,7 +262,7 @@ test('toCloudCameraPayload and fromCloudCameraDoc sanitize and preserve camera f
   const restored = fromCloudCameraDoc(payload as unknown as Record<string, unknown>);
   assert.equal(restored.id, 'cam-new-4g');
   assert.equal(restored.name, 'CH5: Domo Exterior PTZ');
-  assert.equal(restored.verificationCode, 'HELGDM');
+  assert.equal(restored.verificationCode, 'VERIF-DEMO');
   assert.equal(sanitizeCloudId('invalid id/with spaces!'), 'invalid_id_with_spaces_');
 });
 
@@ -609,11 +610,12 @@ test('createFlashTemporaryLink and formatExpirationText handle second-precision 
   assert.equal(formatExpirationText(flashLink.expiresAt, baseNow + 46000), 'Expirado');
 });
 
-test('computeIvmsChannelSourceRect and DETECTED_IVMS_DEVICE map iVMS-4200 FB2200254 HELGDM quadrants accurately', async () => {
+test('computeIvmsChannelSourceRect and DETECTED_IVMS_DEVICE map iVMS-4200 quadrants accurately', async () => {
   const { computeIvmsChannelSourceRect, DETECTED_IVMS_DEVICE } = await import('./ivmsLiveBridge.ts');
 
   assert.equal(DETECTED_IVMS_DEVICE.deviceSerial, 'FB2200254');
-  assert.equal(DETECTED_IVMS_DEVICE.verificationCode, 'HELGDM');
+  // El código de verificación no se guarda en el código fuente.
+  assert.equal(DETECTED_IVMS_DEVICE.verificationCode, '');
   assert.equal(DETECTED_IVMS_DEVICE.lanIp, '192.168.1.81');
 
   const ch1Rect = computeIvmsChannelSourceRect(1920, 1080, 1, {
@@ -726,4 +728,63 @@ test('createDeviceRequest crea solicitudes pendientes, evita duplicados y permit
   assert.match(msg, /Bodega Zona 12/);
   assert.match(msg, /Comercial Los Pinos/);
   assert.match(msg, /https:\/\/sideseguate\.com\/live/);
+});
+
+const mkLink = (over: Partial<ShareLink>): ShareLink => ({
+  id: 'link-1',
+  projectId: 'proj-1',
+  token: 'sdg_live_abc123',
+  title: 'Cliente Demo',
+  clientName: 'Comercial Los Pinos',
+  cameraIds: ['cam-1'],
+  expiresAt: null,
+  isActive: true,
+  allowPtz: false,
+  allowAudio: false,
+  allowSnapshot: true,
+  showWatermark: true,
+  maxConcurrentViewers: 2,
+  accessCount: 0,
+  lastAccessedAt: null,
+  createdAt: '2026-01-01T00:00:00.000Z',
+  ...over,
+});
+
+test('mergeCloudShareLinks nunca borra los enlaces locales (bug del enlace que desaparecía)', () => {
+  const local = [mkLink({})];
+
+  // La nube responde vacío → la lista local se mantiene intacta.
+  assert.equal(mergeCloudShareLinks(local, []).length, 1);
+  assert.equal(mergeCloudShareLinks(local, null).length, 1);
+  assert.equal(mergeCloudShareLinks(local, undefined).length, 1);
+
+  // La nube trae otro enlace → se añade sin perder el local.
+  const cloudOnly = mkLink({ id: 'remote-id', token: 'sdg_live_zzz999', title: 'Otro cliente' });
+  const merged = mergeCloudShareLinks(local, [cloudOnly]);
+  assert.equal(merged.length, 2);
+  assert.ok(merged.some((l) => l.token === 'sdg_live_abc123'));
+  assert.ok(merged.some((l) => l.token === 'sdg_live_zzz999'));
+});
+
+test('mergeCloudShareLinks conserva el id local y descarta enlaces sin token', () => {
+  const local = [mkLink({ id: 'local-id' })];
+  const cloud = [mkLink({ id: 'remote-id', title: 'Título actualizado', accessCount: 7 })];
+  const merged = mergeCloudShareLinks(local, cloud);
+
+  assert.equal(merged.length, 1);
+  assert.equal(merged[0].id, 'local-id', 'el id local debe conservarse');
+  assert.equal(merged[0].title, 'Título actualizado', 'los datos de nube sí se aplican');
+  assert.equal(merged[0].accessCount, 7);
+
+  const sinToken = mergeCloudShareLinks(local, [{ ...mkLink({}), token: '' }]);
+  assert.equal(sinToken.length, 1);
+});
+
+test('shareLinkListsDiffer detecta cambios reales y evita renders inútiles', () => {
+  const a = [mkLink({})];
+  const b = [mkLink({})];
+  assert.equal(shareLinkListsDiffer(a, b), false);
+  assert.equal(shareLinkListsDiffer(a, [mkLink({ accessCount: 3 })]), true);
+  assert.equal(shareLinkListsDiffer(a, [mkLink({ isActive: false })]), true);
+  assert.equal(shareLinkListsDiffer(a, []), true);
 });

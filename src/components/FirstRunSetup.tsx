@@ -1,65 +1,72 @@
 import React, { useState } from 'react';
-import {
-  AdminAccount,
-  PASSWORD_MIN_LENGTH,
-  createAdminAccount,
-  generateTemporaryPassword,
-} from '../lib/adminAuth';
+import { AdminAccount, PASSWORD_MIN_LENGTH, createAdminAccount } from '../lib/adminAuth';
 import {
   ShieldCheck,
-  User,
   KeyRound,
   Eye,
   EyeOff,
   AlertCircle,
-  ArrowRight,
   Sparkles,
   Building2,
   Lock,
+  CheckCircle2,
+  Cctv,
+  Smartphone,
 } from 'lucide-react';
 
 interface FirstRunSetupProps {
   onComplete: (account: AdminAccount) => void;
 }
 
+const BULLETS = [
+  'El panel tiene una sola cuenta: la del administrador.',
+  'No se crean usuarios adicionales ni correos de equipo.',
+  'Tu contraseña se guarda cifrada (PBKDF2-SHA256) en este equipo.',
+];
+
 /**
- * Asistente que se muestra **solo la primera vez**, cuando todavía no existe
- * ninguna cuenta: crea la del propietario / super administrador.
+ * Pantalla de **primer arranque**.
  *
- * No hay credenciales por defecto en el código: la contraseña la define
- * la persona que instala el sistema.
+ * El sistema no trae usuarios ni contraseñas de fábrica: aquí el propietario
+ * define únicamente la contraseña de la cuenta de administrador. No hay alta de
+ * usuarios; a partir de este momento solo se entra con esa contraseña.
  */
 export const FirstRunSetup: React.FC<FirstRunSetupProps> = ({ onComplete }) => {
-  const [displayName, setDisplayName] = useState('');
-  const [description, setDescription] = useState('Propietario y responsable del centro de monitoreo');
-  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
+  const rules = {
+    length: password.length >= PASSWORD_MIN_LENGTH,
+    letters: /[A-Za-z]/.test(password),
+    numbers: /\d/.test(password),
+    matches: password.length > 0 && password === confirmPassword,
+  };
+  const allValid = rules.length && rules.letters && rules.numbers && rules.matches;
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
 
-    if (password !== confirmPassword) {
-      setError('Las contraseñas no coinciden.');
+    if (!allValid) {
+      setError('Revisa los requisitos de la contraseña.');
       return;
     }
 
     setSaving(true);
     const res = await createAdminAccount([], {
-      displayName,
-      description,
-      email,
+      displayName: 'Administrador',
+      description: 'Cuenta única con acceso total al panel de monitoreo',
+      email: 'admin@sideseguate.local',
       password,
       role: 'superadmin',
     });
     setSaving(false);
 
     if (!res.valid || !res.account) {
-      setError(res.error || 'No se pudo crear la cuenta.');
+      setError(res.error || 'No se pudo configurar el acceso.');
       return;
     }
 
@@ -76,7 +83,7 @@ export const FirstRunSetup: React.FC<FirstRunSetupProps> = ({ onComplete }) => {
         }}
       />
 
-      <div className="w-full max-w-lg bg-neutral-900/90 backdrop-blur-xl border border-neutral-800 rounded-3xl shadow-2xl p-6 sm:p-8 relative z-10 space-y-6">
+      <div className="w-full max-w-md bg-neutral-900/90 backdrop-blur-xl border border-neutral-800 rounded-3xl shadow-2xl p-6 sm:p-8 relative z-10 space-y-6">
         <div className="text-center space-y-2.5">
           <div className="inline-flex relative">
             <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-emerald-600 to-teal-500 p-0.5 shadow-lg shadow-emerald-500/20">
@@ -92,17 +99,26 @@ export const FirstRunSetup: React.FC<FirstRunSetupProps> = ({ onComplete }) => {
           <div>
             <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-950/80 border border-emerald-500/30 text-[10px] font-mono font-semibold text-emerald-400 mb-1">
               <Building2 className="w-2.5 h-2.5" />
-              <span>CONFIGURACIÓN INICIAL</span>
+              <span>PRIMER ARRANQUE</span>
             </div>
             <h1 className="text-lg sm:text-xl font-bold text-white tracking-tight">
-              Crea tu cuenta de propietario
+              Define la contraseña del administrador
             </h1>
-            <p className="text-xs text-neutral-400 mt-1 max-w-sm mx-auto">
-              Este sistema no trae usuarios de fábrica. Define aquí la cuenta con la que
-              administrarás el equipo, las cámaras y los clientes.
+            <p className="text-xs text-neutral-400 mt-1 max-w-sm mx-auto leading-relaxed">
+              Este sistema no trae contraseñas de fábrica. Crea aquí la clave con la que
+              entrarás al panel.
             </p>
           </div>
         </div>
+
+        <ul className="space-y-1.5 text-[11px] text-neutral-400 bg-neutral-950/60 border border-neutral-800 rounded-xl p-3">
+          {BULLETS.map((b) => (
+            <li key={b} className="flex items-start gap-1.5">
+              <CheckCircle2 className="w-3 h-3 text-emerald-500 shrink-0 mt-0.5" />
+              <span>{b}</span>
+            </li>
+          ))}
+        </ul>
 
         {error && (
           <div className="bg-red-950/60 border border-red-800/70 rounded-xl p-3 flex items-start gap-2 text-xs text-red-200">
@@ -113,136 +129,99 @@ export const FirstRunSetup: React.FC<FirstRunSetupProps> = ({ onComplete }) => {
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-[11px] font-semibold uppercase tracking-wider text-neutral-400 mb-1.5">
-              Nombre completo *
+            <label
+              htmlFor="setup-password"
+              className="block text-[11px] font-semibold uppercase tracking-wider text-neutral-400 mb-1.5"
+            >
+              Contraseña del administrador *
             </label>
             <div className="relative">
-              <User className="w-4 h-4 text-neutral-500 absolute left-3 top-3" />
+              <KeyRound className="w-4 h-4 text-neutral-500 absolute left-3 top-3" />
               <input
-                type="text"
+                id="setup-password"
+                type={showPassword ? 'text' : 'password'}
                 required
                 autoFocus
-                value={displayName}
-                onChange={(e) => setDisplayName(e.target.value)}
-                placeholder="Ej. Guillermo Sosa"
-                className="w-full bg-neutral-950 border border-neutral-800 rounded-xl pl-9 pr-3.5 py-2.5 text-sm text-white placeholder-neutral-600 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition"
+                autoComplete="new-password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder={`Mínimo ${PASSWORD_MIN_LENGTH} caracteres`}
+                className="w-full bg-neutral-950 border border-neutral-800 rounded-xl pl-9 pr-10 py-2.5 text-sm font-mono text-white placeholder-neutral-600 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+                className="absolute right-2 top-2 p-1.5 rounded-lg text-neutral-500 hover:text-white hover:bg-neutral-800 transition"
+              >
+                {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
+            </div>
+          </div>
+
+          <div>
+            <label
+              htmlFor="setup-confirm"
+              className="block text-[11px] font-semibold uppercase tracking-wider text-neutral-400 mb-1.5"
+            >
+              Repite la contraseña *
+            </label>
+            <div className="relative">
+              <Lock className="w-4 h-4 text-neutral-500 absolute left-3 top-3" />
+              <input
+                id="setup-confirm"
+                type={showPassword ? 'text' : 'password'}
+                required
+                autoComplete="new-password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                placeholder="Escríbela otra vez"
+                className="w-full bg-neutral-950 border border-neutral-800 rounded-xl pl-9 pr-3.5 py-2.5 text-sm font-mono text-white placeholder-neutral-600 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition"
               />
             </div>
           </div>
 
-          <div>
-            <label className="block text-[11px] font-semibold uppercase tracking-wider text-neutral-400 mb-1.5">
-              ¿Quién es y qué hará? *
-            </label>
-            <textarea
-              required
-              rows={2}
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder="Ej. Propietario de SIDESEGUATE, autoriza enlaces de clientes"
-              className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-3.5 py-2.5 text-sm text-white placeholder-neutral-600 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition resize-none"
-            />
-          </div>
-
-          <div>
-            <label className="block text-[11px] font-semibold uppercase tracking-wider text-neutral-400 mb-1.5">
-              Correo electrónico *
-            </label>
-            <input
-              type="email"
-              required
-              autoComplete="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="tu@correo.com"
-              className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-3.5 py-2.5 text-sm text-white placeholder-neutral-600 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition font-mono"
-            />
-            <p className="text-[10px] text-neutral-500 mt-1">
-              El usuario para entrar se genera automáticamente a partir del correo.
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              <label className="block text-[11px] font-semibold uppercase tracking-wider text-neutral-400 mb-1.5">
-                Contraseña *
-              </label>
-              <div className="relative">
-                <KeyRound className="w-4 h-4 text-neutral-500 absolute left-3 top-3" />
-                <input
-                  type={showPassword ? 'text' : 'password'}
-                  required
-                  autoComplete="new-password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder={`Mínimo ${PASSWORD_MIN_LENGTH} caracteres`}
-                  className="w-full bg-neutral-950 border border-neutral-800 rounded-xl pl-9 pr-10 py-2.5 text-sm text-white placeholder-neutral-600 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition font-mono"
+          <div className="grid grid-cols-2 gap-1.5 text-[10.5px]">
+            {[
+              { ok: rules.length, label: `Al menos ${PASSWORD_MIN_LENGTH} caracteres` },
+              { ok: rules.letters && rules.numbers, label: 'Letras y números' },
+              { ok: rules.matches, label: 'Las dos coinciden' },
+              { ok: password.length > 0, label: 'Se guarda cifrada' },
+            ].map((r) => (
+              <div
+                key={r.label}
+                className={`flex items-center gap-1.5 ${r.ok ? 'text-emerald-400' : 'text-neutral-500'}`}
+              >
+                <CheckCircle2
+                  className={`w-3 h-3 shrink-0 ${r.ok ? 'text-emerald-500' : 'text-neutral-700'}`}
                 />
-                <button
-                  type="button"
-                  aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-2.5 top-2.5 text-neutral-500 hover:text-neutral-300"
-                >
-                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                </button>
+                <span>{r.label}</span>
               </div>
-            </div>
-
-            <div>
-              <label className="block text-[11px] font-semibold uppercase tracking-wider text-neutral-400 mb-1.5">
-                Repetir contraseña *
-              </label>
-              <div className="relative">
-                <Lock className="w-4 h-4 text-neutral-500 absolute left-3 top-3" />
-                <input
-                  type={showPassword ? 'text' : 'password'}
-                  required
-                  autoComplete="new-password"
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  placeholder="Repite la contraseña"
-                  className="w-full bg-neutral-950 border border-neutral-800 rounded-xl pl-9 pr-3.5 py-2.5 text-sm text-white placeholder-neutral-600 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition font-mono"
-                />
-              </div>
-            </div>
+            ))}
           </div>
-
-          <button
-            type="button"
-            onClick={() => {
-              const generated = generateTemporaryPassword();
-              setPassword(generated);
-              setConfirmPassword(generated);
-              setShowPassword(true);
-            }}
-            className="text-[11px] text-sky-400 hover:text-sky-300 font-medium flex items-center gap-1.5"
-          >
-            <Sparkles className="w-3.5 h-3.5" />
-            Generar una contraseña segura por mí
-          </button>
 
           <button
             type="submit"
-            disabled={saving}
-            className="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-white font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 transition shadow-lg shadow-emerald-500/25 active:scale-[0.99] disabled:opacity-50"
+            disabled={saving || !allValid}
+            className="w-full py-3 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold rounded-xl text-sm flex items-center justify-center gap-2 transition"
           >
             {saving ? (
               <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
             ) : (
-              <>
-                <ShieldCheck className="w-3.5 h-3.5" />
-                <span>Crear cuenta y entrar</span>
-                <ArrowRight className="w-3.5 h-3.5 ml-0.5" />
-              </>
+              <Lock className="w-4 h-4" />
             )}
+            <span>{saving ? 'Guardando…' : 'Guardar y entrar al panel'}</span>
           </button>
         </form>
 
-        <p className="text-[10px] text-neutral-500 text-center leading-relaxed">
-          Tu contraseña se guarda cifrada con PBKDF2-SHA256 (150 000 iteraciones) y nunca
-          se muestra ni se envía a ningún servidor.
-        </p>
+        <div className="flex items-center justify-center gap-4 text-[10px] text-neutral-500 pt-1 border-t border-neutral-800">
+          <span className="flex items-center gap-1">
+            <Cctv className="w-3 h-3" /> Cámaras y DVR
+          </span>
+          <span className="flex items-center gap-1">
+            <Smartphone className="w-3 h-3" /> Enlaces para clientes
+          </span>
+        </div>
       </div>
     </div>
   );

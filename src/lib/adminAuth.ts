@@ -398,6 +398,54 @@ export function generateTemporaryPassword(length = 14): string {
   return chars.join('');
 }
 
+/**
+ * Cambia la contraseña de la única cuenta de administrador.
+ * Verifica la contraseña actual antes de aplicar el cambio.
+ */
+export async function changeAdminPassword(
+  account: AdminAccount,
+  currentPassword: string,
+  newPassword: string
+): Promise<{ success: boolean; account?: AdminAccount; error?: string }> {
+  if (newPassword.length < PASSWORD_MIN_LENGTH) {
+    return {
+      success: false,
+      error: `La nueva contraseña debe tener al menos ${PASSWORD_MIN_LENGTH} caracteres.`,
+    };
+  }
+  if (!/[A-Za-z]/.test(newPassword) || !/\d/.test(newPassword)) {
+    return { success: false, error: 'La nueva contraseña debe combinar letras y números.' };
+  }
+  if (newPassword === currentPassword) {
+    return { success: false, error: 'La nueva contraseña debe ser distinta a la actual.' };
+  }
+
+  const derivedCurrent = await derivePasswordHash(currentPassword, account.passwordSalt);
+  const matches =
+    account.hashAlgorithm === 'PBKDF2-SHA256'
+      ? safeEqual(derivedCurrent.hash, account.passwordHash)
+      : safeEqual(
+          fallbackDigest(currentPassword, account.passwordSalt, account.hashIterations),
+          account.passwordHash
+        );
+
+  if (!matches) {
+    return { success: false, error: 'La contraseña actual no es correcta.' };
+  }
+
+  const derived = await derivePasswordHash(newPassword);
+  return {
+    success: true,
+    account: {
+      ...account,
+      passwordHash: derived.hash,
+      passwordSalt: derived.salt,
+      hashIterations: derived.iterations,
+      hashAlgorithm: derived.algorithm,
+    },
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Control de intentos (anti fuerza bruta)
 // ---------------------------------------------------------------------------

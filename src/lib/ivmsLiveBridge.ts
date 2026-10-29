@@ -1,7 +1,7 @@
 // ============================================================================
 // SIDESEGUATE VMS — Puente en Vivo iVMS-4200 & Telemetría MediaMTX
 // Equipo detectado en PC: Hikvision iDS-7204HUHI-M1/S (SN: FB2200254)
-// Código de Verificación / Encriptación de Stream: HELGDM
+// El código de verificación del DVR se captura en tiempo de ejecución (nunca en el código).
 // ============================================================================
 
 export type IvmsLayoutMode = 'quad_2x2' | 'full_1x1' | 'grid_3x2';
@@ -39,7 +39,7 @@ export const DETECTED_IVMS_DEVICE: DetectedIvmsDeviceInfo = {
   deviceSerial: 'FB2200254',
   deviceModel: 'iDS-7204HUHI-M1/S',
   firmware: 'V4.75.013 build 240919',
-  verificationCode: 'HELGDM',
+  verificationCode: '', // se toma del DVR en tiempo de ejecución
   lanIp: '192.168.1.81',
   publicIp: '190.148.33.229',
   streamPort: 9020,

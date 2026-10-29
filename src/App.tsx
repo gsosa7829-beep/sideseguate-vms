@@ -14,6 +14,7 @@ import {
   recordCloudShareLinkAccess,
 } from './lib/firebase';
 import { maskRtspUrl, cloneNextDvrChannel } from './lib/rtspHelper';
+import { mergeCloudShareLinks, shareLinkListsDiffer } from './lib/shareLinkMerge';
 import { formatExpirationText, createFlashTemporaryLink, REVOKED_SHARE_TOKENS } from './lib/tokenSecurity';
 import { generateMediaMtxYaml } from './lib/mediaMtxGenerator';
 import { applyTunnelToCameras, formatBuyerAccessNotification, getCameraMediaMtxPath } from './lib/pcLauncherGenerator';
@@ -56,8 +57,8 @@ const DesktopProgramModal = lazy(() =>
   import('./components/DesktopProgramModal').then((m) => ({ default: m.DesktopProgramModal }))
 );
 import { AdminLoginScreen } from './components/AdminLoginScreen';
-const AdminSecurityModal = lazy(() =>
-  import('./components/AdminSecurityModal').then((m) => ({ default: m.AdminSecurityModal }))
+const AdminAccountModal = lazy(() =>
+  import('./components/AdminAccountModal').then((m) => ({ default: m.AdminAccountModal }))
 );
 import { AdminAccount, adminAuthStorage } from './lib/adminAuth';
 import { FirstRunSetup } from './components/FirstRunSetup';
@@ -174,7 +175,7 @@ function AppShell() {
   // Entities
   const [projects, setProjects] = useState<Project[]>([]);
   const [cameras, setCameras] = useState<Camera[]>([]);
-  const [shareLinks, setShareLinks] = useState<ShareLink[]>([]);
+  const [shareLinks, setShareLinks] = useState<ShareLink[]>(() => storage.getShareLinks());
   const [accessLogs, setAccessLogs] = useState<AccessLog[]>([]);
   const [cloudSyncStatus, setCloudSyncStatus] = useState<'connecting' | 'live' | 'error'>('connecting');
 
@@ -308,8 +309,9 @@ function AppShell() {
 
     setProjects(loadedProjects);
     setCameras(loadedCameras);
-    setShareLinks([]);
-    storage.saveShareLinks([]);
+    // Se conservan los enlaces ya creados: no se borran al abrir el panel.
+    setShareLinks(loadedLinks);
+    storage.saveShareLinks(loadedLinks);
     setAccessLogs(loadedLogs);
 
     if (loadedCameras.length > 0) {
@@ -330,14 +332,11 @@ function AppShell() {
       }
     }
 
-    // Purge all share links in Cloud Firestore so no external link exists
-    purgeAllCloudShareLinks().catch(() => {});
-
     // Seed Firestore if empty so default cameras are immediately live in the cloud
     seedInitialCloudDataIfEmpty({
       projects: loadedProjects,
       cameras: loadedCameras,
-      shareLinks: [],
+      shareLinks: loadedLinks,
       accessLogs: loadedLogs,
     });
 
@@ -368,9 +367,14 @@ function AppShell() {
           prev && cloudCameras.some((c) => c.id === prev) ? prev : cloudCameras[0]?.id || ''
         );
       },
-      onShareLinks: () => {
-        setShareLinks([]);
-        storage.saveShareLinks([]);
+      onShareLinks: (cloudLinks) => {
+        // La nube solo aporta/actualiza enlaces; nunca elimina los locales.
+        setShareLinks((prev) => {
+          const merged = mergeCloudShareLinks(prev, cloudLinks);
+          if (merged === prev || !shareLinkListsDiffer(merged, prev)) return prev;
+          storage.saveShareLinks(merged);
+          return merged;
+        });
       },
       onAccessLogs: (cloudLogs) => {
         if (cloudLogs.length > 0) {
@@ -1492,32 +1496,38 @@ function AppShell() {
         onShowToast={showToast}
       />
 
-      <AdminSecurityModal
-        isOpen={isSecurityModalOpen}
-        onClose={() => setIsSecurityModalOpen(false)}
-        accounts={adminAccounts}
-        currentAccount={currentAdminAccount}
-        requireLoginOnBoot={requireLoginOnBoot}
-        onUpdateAccounts={(updated) => {
-          setAdminAccounts(updated);
-          adminAuthStorage.saveAccounts(updated);
-        }}
-        onShowToast={showToast}
-        onToggleRequireLoginOnBoot={(req) => {
-          setRequireLoginOnBoot(req);
-          adminAuthStorage.setRequireLoginOnBoot(req);
-          showToast(
-            req
-              ? 'Candado de inicio de sesión activado al abrir el sistema'
-              : 'Inicio de sesión desactivado al abrir el sistema'
-          );
-        }}
-        onLockPanelNow={() => {
-          adminAuthStorage.saveCurrentSession(null);
-          setCurrentAdminAccount(null);
-          setIsPanelLocked(true);
-        }}
-      />
+      {currentAdminAccount && (
+        <AdminAccountModal
+          isOpen={isSecurityModalOpen}
+          onClose={() => setIsSecurityModalOpen(false)}
+          account={currentAdminAccount}
+          requireLoginOnBoot={requireLoginOnBoot}
+          onUpdateAccount={(updatedAccount) => {
+            const updated = adminAccounts.map((a) =>
+              a.id === updatedAccount.id ? updatedAccount : a
+            );
+            setAdminAccounts(updated);
+            adminAuthStorage.saveAccounts(updated);
+            setCurrentAdminAccount(updatedAccount);
+            adminAuthStorage.saveCurrentSession(updatedAccount);
+          }}
+          onToggleRequireLoginOnBoot={(req) => {
+            setRequireLoginOnBoot(req);
+            adminAuthStorage.setRequireLoginOnBoot(req);
+            showToast(
+              req
+                ? 'Candado de inicio de sesión activado al abrir el sistema'
+                : 'Inicio de sesión desactivado al abrir el sistema'
+            );
+          }}
+          onShowToast={showToast}
+          onLockPanelNow={() => {
+            adminAuthStorage.saveCurrentSession(null);
+            setCurrentAdminAccount(null);
+            setIsPanelLocked(true);
+          }}
+        />
+      )}
       {/* Mobile Quick-Navigation Bottom Dock (Spacious Touch Targets for Smartphones) */}
       <nav
         aria-label="Navegación rápida móvil"
