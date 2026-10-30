@@ -147,16 +147,16 @@ export const ArchitectureTab: React.FC<ArchitectureTabProps> = ({ cameras }) => 
           {/* 3 Key Pillars: Windows 1-Click, 24/7 Hosting Options, Zero Cloud Storage */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
             {/* Pillar 1: 1-Click BAT */}
-            <div className="bg-neutral-900/90 border border-neutral-800 hover:border-blue-500/50 transition-all rounded-2xl p-5 flex flex-col justify-between shadow-lg">
+            <div className="bg-neutral-900/90 border border-neutral-800 hover:border-sky-500/50 transition-all rounded-2xl p-5 flex flex-col justify-between shadow-lg">
               <div>
-                <div className="w-10 h-10 rounded-xl bg-blue-500/10 text-blue-400 border border-blue-500/20 flex items-center justify-center mb-3">
+                <div className="w-10 h-10 rounded-xl bg-sky-500/10 text-sky-400 border border-sky-500/20 flex items-center justify-center mb-3">
                   <Play className="w-5 h-5 fill-current" />
                 </div>
                 <h4 className="text-sm font-bold text-white mb-2">
                   1. Arranque con 1 Clic (`start-windows.bat`)
                 </h4>
                 <p className="text-xs text-neutral-400 leading-relaxed mb-3">
-                  MediaMTX es un ejecutable oficial nativo para Windows (<code className="text-blue-300 font-mono">mediamtx.exe</code>).
+                  MediaMTX es un ejecutable oficial nativo para Windows (<code className="text-sky-300 font-mono">mediamtx.exe</code>).
                   Solo haces doble clic en <code className="text-emerald-400 font-mono">start-windows.bat</code>. Si no tienes el archivo, el script lo descarga solo y lo enciende al instante.
                 </p>
               </div>
@@ -167,7 +167,7 @@ export const ArchitectureTab: React.FC<ArchitectureTabProps> = ({ cameras }) => 
             </div>
 
             {/* Pillar 2: 24/7 Server Options */}
-            <div className="bg-neutral-900/90 border border-neutral-800 hover:border-blue-500/50 transition-all rounded-2xl p-5 flex flex-col justify-between shadow-lg">
+            <div className="bg-neutral-900/90 border border-neutral-800 hover:border-sky-500/50 transition-all rounded-2xl p-5 flex flex-col justify-between shadow-lg">
               <div>
                 <div className="w-10 h-10 rounded-xl bg-purple-500/10 text-purple-400 border border-purple-500/20 flex items-center justify-center mb-3">
                   <Server className="w-5 h-5" />
@@ -186,7 +186,7 @@ export const ArchitectureTab: React.FC<ArchitectureTabProps> = ({ cameras }) => 
             </div>
 
             {/* Pillar 3: Zero Storage */}
-            <div className="bg-neutral-900/90 border border-neutral-800 hover:border-blue-500/50 transition-all rounded-2xl p-5 flex flex-col justify-between shadow-lg">
+            <div className="bg-neutral-900/90 border border-neutral-800 hover:border-sky-500/50 transition-all rounded-2xl p-5 flex flex-col justify-between shadow-lg">
               <div>
                 <div className="w-10 h-10 rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center justify-center mb-3">
                   <CloudOff className="w-5 h-5" />
@@ -208,7 +208,7 @@ export const ArchitectureTab: React.FC<ArchitectureTabProps> = ({ cameras }) => 
           {/* In-Depth: How the Windows Server works */}
           <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-6 shadow-xl space-y-4">
             <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-xl bg-blue-600/20 border border-blue-500/30 text-blue-400 flex items-center justify-center">
+              <div className="w-9 h-9 rounded-xl bg-sky-600/20 border border-sky-500/30 text-sky-400 flex items-center justify-center">
                 <Monitor className="w-5 h-5" />
               </div>
               <div>
@@ -223,12 +223,12 @@ export const ArchitectureTab: React.FC<ArchitectureTabProps> = ({ cameras }) => 
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
               {/* Option A: Cloud VPS with Windows Server */}
-              <div className="bg-neutral-950 border border-blue-800/40 rounded-xl p-5 relative">
-                <span className="absolute top-4 right-4 px-2 py-0.5 rounded text-[10px] font-bold bg-blue-900/60 text-blue-300 border border-blue-700">
+              <div className="bg-neutral-950 border border-sky-800/40 rounded-xl p-5 relative">
+                <span className="absolute top-4 right-4 px-2 py-0.5 rounded text-[10px] font-bold bg-sky-900/60 text-sky-300 border border-sky-700">
                   RECOMENDADO
                 </span>
                 <div className="text-sm font-bold text-white mb-1 flex items-center gap-2">
-                  <Server className="w-4 h-4 text-blue-400" />
+                  <Server className="w-4 h-4 text-sky-400" />
                   Opción A: Servidor VPS con Windows Server 24/7
                 </div>
                 <p className="text-xs text-neutral-300 leading-relaxed mb-3">
@@ -308,7 +308,7 @@ export const ArchitectureTab: React.FC<ArchitectureTabProps> = ({ cameras }) => 
                 <p className="text-neutral-400">El servidor no pide video a las cámaras. No consume ancho de banda y no escribe nada en el disco duro.</p>
               </div>
               <div className="bg-neutral-950 p-3 rounded-xl border border-neutral-800">
-                <div className="font-bold text-blue-400 mb-1">2. Cliente abre el link</div>
+                <div className="font-bold text-sky-400 mb-1">2. Cliente abre el link</div>
                 <p className="text-neutral-400">MediaMTX contacta de inmediato al DVR Hikvision, convierte la señal a formato web en memoria RAM y se la muestra al cliente.</p>
               </div>
               <div className="bg-neutral-950 p-3 rounded-xl border border-neutral-800">
@@ -359,7 +359,7 @@ echo [INFO] Minimiza esta ventana para mantener el streaming activo 24/7.
 echo.
 mediamtx.exe mediamtx.yml
 pause`, 'bat')}
-                className="px-3.5 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-semibold flex items-center gap-1.5 transition shadow-md"
+                className="px-3.5 py-2 bg-sky-600 hover:bg-sky-500 text-white rounded-xl text-xs font-semibold flex items-center gap-1.5 transition shadow-md"
               >
                 {copiedKey === 'bat' ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
                 {copiedKey === 'bat' ? 'Copiado al portapapeles' : 'Copiar start-windows.bat'}
@@ -577,7 +577,7 @@ pause`}
       {activeTab === 'architecture' && (
         <div className="space-y-6">
           {/* Client Real Credentials & Stream Encryption Notice */}
-          <div className="bg-gradient-to-r from-neutral-900 via-neutral-900 to-blue-950/60 border border-blue-600/40 rounded-2xl p-5 shadow-xl">
+          <div className="bg-gradient-to-r from-neutral-900 via-neutral-900 to-sky-950/60 border border-sky-600/40 rounded-2xl p-5 shadow-xl">
             <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
               <div>
                 <div className="flex items-center gap-2 mb-1.5">
@@ -597,7 +597,7 @@ pause`}
               <div className="flex flex-wrap items-center gap-2 font-mono text-xs">
                 <div className="bg-neutral-950 border border-neutral-800 px-3 py-2 rounded-xl">
                   <span className="text-neutral-500 block text-[10px]">USUARIO</span>
-                  <span className="text-blue-400 font-bold">tu-usuario</span>
+                  <span className="text-sky-400 font-bold">tu-usuario</span>
                 </div>
                 <div className="bg-neutral-950 border border-neutral-800 px-3 py-2 rounded-xl">
                   <span className="text-neutral-500 block text-[10px]">CONTRASEÑA</span>
@@ -614,7 +614,7 @@ pause`}
             <div className="mt-4 pt-3 border-t border-neutral-800/80 text-xs text-neutral-300 flex items-start gap-2.5">
               <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
               <div className="leading-relaxed">
-                <strong className="text-white">Importante para el Técnico en Sitio:</strong> En los DVRs Hikvision AcuSense (como el <code className="text-blue-400 font-mono">iDS-7204HUHI-M1/S</code>), la función <em>Cifrado de Flujo (Stream Encryption)</em> viene habilitada con el código de verificación de tu equipo. Para que MediaMTX pueda transcodificar a HLS sin recibir cuadros negros, en el menú del DVR ve a: <strong>Configuración &gt; Red &gt; Ajustes Avanzados &gt; Acceso a la Plataforma</strong> y desactiva <strong>Cifrado de Flujo</strong> (te pedirá ingresar ese mismo código para confirmar).
+                <strong className="text-white">Importante para el Técnico en Sitio:</strong> En los DVRs Hikvision AcuSense (como el <code className="text-sky-400 font-mono">iDS-7204HUHI-M1/S</code>), la función <em>Cifrado de Flujo (Stream Encryption)</em> viene habilitada con el código de verificación de tu equipo. Para que MediaMTX pueda transcodificar a HLS sin recibir cuadros negros, en el menú del DVR ve a: <strong>Configuración &gt; Red &gt; Ajustes Avanzados &gt; Acceso a la Plataforma</strong> y desactiva <strong>Cifrado de Flujo</strong> (te pedirá ingresar ese mismo código para confirmar).
               </div>
             </div>
           </div>
@@ -635,7 +635,7 @@ pause`}
                   </p>
                 </div>
               </div>
-              <span className="px-2.5 py-1 rounded-full text-xs font-mono font-bold bg-blue-950 text-blue-300 border border-blue-800">
+              <span className="px-2.5 py-1 rounded-full text-xs font-mono font-bold bg-sky-950 text-sky-300 border border-sky-800">
                 LAN IP: 192.168.1.41
               </span>
             </div>
@@ -670,7 +670,7 @@ pause`}
           {/* Interactive Pipeline Steps */}
           <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-6 shadow-xl">
             <h3 className="text-sm font-bold text-white mb-4 flex items-center gap-2">
-              <Workflow className="w-4 h-4 text-blue-400" />
+              <Workflow className="w-4 h-4 text-sky-400" />
               Pipeline de Streaming de Baja Latencia: De la Cámara al Navegador del Cliente
             </h3>
 
@@ -678,7 +678,7 @@ pause`}
               {/* Step 1 */}
               <div className="bg-neutral-950 border border-neutral-800 rounded-xl p-4 flex flex-col justify-between">
                 <div>
-                  <div className="text-[11px] font-bold text-blue-400 mb-1">PASO 1 • ORIGEN</div>
+                  <div className="text-[11px] font-bold text-sky-400 mb-1">PASO 1 • ORIGEN</div>
                   <h4 className="text-sm font-semibold text-white mb-2">Cámaras & DVRs</h4>
                   <p className="text-xs text-neutral-400 leading-relaxed">
                     Hikvision DVR/NVR y cámaras IP en routers locales transmiten el flujo de video crudo.
@@ -692,7 +692,7 @@ pause`}
               {/* Step 2 */}
               <div className="bg-neutral-950 border border-neutral-800 rounded-xl p-4 flex flex-col justify-between">
                 <div>
-                  <div className="text-[11px] font-bold text-blue-400 mb-1">PASO 2 • GATEWAY</div>
+                  <div className="text-[11px] font-bold text-sky-400 mb-1">PASO 2 • GATEWAY</div>
                   <h4 className="text-sm font-semibold text-white mb-2">MediaMTX + FFmpeg</h4>
                   <p className="text-xs text-neutral-400 leading-relaxed">
                     Instalado en servidor VPS Ubuntu. Ingiere RTSP bajo demanda y remultiplexa a formatos web nativos.
@@ -706,7 +706,7 @@ pause`}
               {/* Step 3 */}
               <div className="bg-neutral-950 border border-neutral-800 rounded-xl p-4 flex flex-col justify-between">
                 <div>
-                  <div className="text-[11px] font-bold text-blue-400 mb-1">PASO 3 • PLATAFORMA</div>
+                  <div className="text-[11px] font-bold text-sky-400 mb-1">PASO 3 • PLATAFORMA</div>
                   <h4 className="text-sm font-semibold text-white mb-2">SIDESEGUATE Web</h4>
                   <p className="text-xs text-neutral-400 leading-relaxed">
                     Control de proyectos, permisos, generación de enlaces privados, PIN y expiración configurable.
@@ -720,7 +720,7 @@ pause`}
               {/* Step 4 */}
               <div className="bg-neutral-950 border border-neutral-800 rounded-xl p-4 flex flex-col justify-between">
                 <div>
-                  <div className="text-[11px] font-bold text-blue-400 mb-1">PASO 4 • DESTINO</div>
+                  <div className="text-[11px] font-bold text-sky-400 mb-1">PASO 4 • DESTINO</div>
                   <h4 className="text-sm font-semibold text-white mb-2">Cliente Final</h4>
                   <p className="text-xs text-neutral-400 leading-relaxed">
                     El cliente abre el link en Chrome, Safari, Edge o móvil. Cero descargas, cero apps de terceros.
@@ -745,7 +745,7 @@ pause`}
                 </span>
               </div>
               <p className="text-xs text-neutral-400 leading-relaxed mb-3">
-                Hikvision soporta RTSP y ONVIF de fábrica. La sintaxis <code className="text-blue-400 font-mono">/Streaming/Channels/101</code> permite conectar canales independientes tanto en flujo principal (1080p) como en substream (720p).
+                Hikvision soporta RTSP y ONVIF de fábrica. La sintaxis <code className="text-sky-400 font-mono">/Streaming/Channels/101</code> permite conectar canales independientes tanto en flujo principal (1080p) como en substream (720p).
               </p>
               <div className="text-[11px] text-neutral-400 bg-neutral-950 p-2.5 rounded-lg border border-neutral-800 flex items-center gap-1.5">
                 <Check className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
@@ -798,7 +798,7 @@ pause`}
           <div className="flex items-center justify-between">
             <div>
               <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                <FileCode className="w-4 h-4 text-blue-400" />
+                <FileCode className="w-4 h-4 text-sky-400" />
                 Archivo de Configuración: /etc/mediamtx.yml
               </h3>
               <p className="text-xs text-neutral-400">
@@ -808,7 +808,7 @@ pause`}
 
             <button
               onClick={() => handleCopy(mediamtxYaml, 'mediamtx')}
-              className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-medium flex items-center gap-1.5 transition"
+              className="px-3 py-1.5 bg-sky-600 hover:bg-sky-500 text-white rounded-lg text-xs font-medium flex items-center gap-1.5 transition"
             >
               {copiedKey === 'mediamtx' ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
               {copiedKey === 'mediamtx' ? 'Copiado al portapapeles' : 'Copiar YAML'}

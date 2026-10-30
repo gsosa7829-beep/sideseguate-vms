@@ -471,12 +471,12 @@ export const LiveCameraPlayer: React.FC<LiveCameraPlayerProps> = ({
           <div className="absolute bottom-3 right-3 z-20 bg-neutral-950/95 backdrop-blur-md border border-neutral-800 p-3 rounded-xl shadow-2xl text-white w-56">
             <div className="flex items-center justify-between pb-2 mb-2 border-b border-neutral-800 text-xs font-semibold text-neutral-200">
               <span className="flex items-center gap-1.5">
-                <Compass className="w-3.5 h-3.5 text-blue-400" />
+                <Compass className="w-3.5 h-3.5 text-sky-400" />
                 <span>Control PTZ ONVIF</span>
               </span>
               <button 
                 onClick={resetPtz}
-                className="text-[11px] text-blue-400 hover:text-blue-300 font-medium"
+                className="text-[11px] text-sky-400 hover:text-sky-300 font-medium"
               >
                 Centrar
               </button>
@@ -510,7 +510,7 @@ export const LiveCameraPlayer: React.FC<LiveCameraPlayerProps> = ({
               <button
                 aria-label="Inclinar cámara arriba"
                 onClick={() => setPtzTilt((t) => Math.max(-50, t - 15))}
-                className="bg-neutral-900 hover:bg-neutral-800 active:bg-blue-600 border border-neutral-800 rounded flex items-center justify-center text-xs font-bold transition"
+                className="bg-neutral-900 hover:bg-neutral-800 active:bg-sky-600 border border-neutral-800 rounded flex items-center justify-center text-xs font-bold transition"
               >
                 ▲
               </button>
@@ -518,7 +518,7 @@ export const LiveCameraPlayer: React.FC<LiveCameraPlayerProps> = ({
               <button
                 aria-label="Girar cámara a la izquierda"
                 onClick={() => setPtzPan((p) => Math.max(-100, p - 20))}
-                className="bg-neutral-900 hover:bg-neutral-800 active:bg-blue-600 border border-neutral-800 rounded flex items-center justify-center text-xs font-bold transition"
+                className="bg-neutral-900 hover:bg-neutral-800 active:bg-sky-600 border border-neutral-800 rounded flex items-center justify-center text-xs font-bold transition"
               >
                 ◀
               </button>
@@ -532,7 +532,7 @@ export const LiveCameraPlayer: React.FC<LiveCameraPlayerProps> = ({
               <button
                 aria-label="Girar cámara a la derecha"
                 onClick={() => setPtzPan((p) => Math.min(100, p + 20))}
-                className="bg-neutral-900 hover:bg-neutral-800 active:bg-blue-600 border border-neutral-800 rounded flex items-center justify-center text-xs font-bold transition"
+                className="bg-neutral-900 hover:bg-neutral-800 active:bg-sky-600 border border-neutral-800 rounded flex items-center justify-center text-xs font-bold transition"
               >
                 ▶
               </button>
@@ -540,7 +540,7 @@ export const LiveCameraPlayer: React.FC<LiveCameraPlayerProps> = ({
               <button
                 aria-label="Inclinar cámara abajo"
                 onClick={() => setPtzTilt((t) => Math.min(50, t + 15))}
-                className="bg-neutral-900 hover:bg-neutral-800 active:bg-blue-600 border border-neutral-800 rounded flex items-center justify-center text-xs font-bold transition"
+                className="bg-neutral-900 hover:bg-neutral-800 active:bg-sky-600 border border-neutral-800 rounded flex items-center justify-center text-xs font-bold transition"
               >
                 ▼
               </button>
@@ -633,7 +633,7 @@ export const LiveCameraPlayer: React.FC<LiveCameraPlayerProps> = ({
               onClick={() => setShowPtzControls(!showPtzControls)}
               className={`h-8 px-2.5 rounded-lg border text-xs transition flex items-center justify-center gap-1.5 whitespace-nowrap ${
                 showPtzControls
-                  ? 'bg-blue-600 text-white border-blue-500'
+                  ? 'bg-sky-600 text-white border-sky-500'
                   : 'bg-neutral-900 border-neutral-800 text-neutral-300 hover:text-white'
               }`}
             >

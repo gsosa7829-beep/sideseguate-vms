@@ -150,7 +150,7 @@ export const ShareLinkModal: React.FC<ShareLinkModalProps> = ({
         {/* Header */}
         <div className="px-6 py-4 border-b border-neutral-800 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl bg-blue-600/20 text-blue-400 border border-blue-500/30 flex items-center justify-center">
+            <div className="w-9 h-9 rounded-xl bg-sky-600/20 text-sky-400 border border-sky-500/30 flex items-center justify-center">
               <Link2 className="w-5 h-5" />
             </div>
             <div>
@@ -181,7 +181,7 @@ export const ShareLinkModal: React.FC<ShareLinkModalProps> = ({
               <select
                 value={projectId}
                 onChange={(e) => setProjectId(e.target.value)}
-                className="w-full bg-neutral-950 border border-neutral-700 rounded-xl px-3 py-2 text-white focus:border-blue-500 focus:outline-none"
+                className="w-full bg-neutral-950 border border-neutral-700 rounded-xl px-3 py-2 text-white focus:border-sky-500 focus:outline-none"
               >
                 {projects.map((p) => (
                   <option key={p.id} value={p.id}>
@@ -201,7 +201,7 @@ export const ShareLinkModal: React.FC<ShareLinkModalProps> = ({
                 value={clientName}
                 onChange={(e) => setClientName(e.target.value)}
                 placeholder="Ej. Lic. Fernando Morales"
-                className="w-full bg-neutral-950 border border-neutral-700 rounded-xl px-3 py-2 text-white focus:border-blue-500 focus:outline-none"
+                className="w-full bg-neutral-950 border border-neutral-700 rounded-xl px-3 py-2 text-white focus:border-sky-500 focus:outline-none"
               />
             </div>
           </div>
@@ -216,7 +216,7 @@ export const ShareLinkModal: React.FC<ShareLinkModalProps> = ({
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="Ej. Acceso Garita y Bodega - Semanal"
-              className="w-full bg-neutral-950 border border-neutral-700 rounded-xl px-3 py-2 text-white focus:border-blue-500 focus:outline-none"
+              className="w-full bg-neutral-950 border border-neutral-700 rounded-xl px-3 py-2 text-white focus:border-sky-500 focus:outline-none"
             />
           </div>
 
@@ -224,13 +224,13 @@ export const ShareLinkModal: React.FC<ShareLinkModalProps> = ({
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <label className="text-neutral-300 font-medium flex items-center gap-1.5">
-                <Video className="w-3.5 h-3.5 text-blue-400" />
+                <Video className="w-3.5 h-3.5 text-sky-400" />
                 Cámaras Autorizadas ({selectedCameraIds.length}/{projectCameras.length}):
               </label>
               <button
                 type="button"
                 onClick={selectAllCameras}
-                className="text-[11px] text-blue-400 hover:text-blue-300 underline"
+                className="text-[11px] text-sky-400 hover:text-sky-300 underline"
               >
                 Seleccionar todas
               </button>
@@ -247,7 +247,7 @@ export const ShareLinkModal: React.FC<ShareLinkModalProps> = ({
                       key={cam.id}
                       className={`flex items-center justify-between p-2 rounded-lg cursor-pointer border transition ${
                         isChecked 
-                          ? 'bg-blue-950/40 border-blue-600/70 text-white' 
+                          ? 'bg-sky-950/40 border-sky-600/70 text-white' 
                           : 'bg-neutral-900 border-neutral-800/80 text-neutral-400 hover:text-neutral-200'
                       }`}
                     >
@@ -256,7 +256,7 @@ export const ShareLinkModal: React.FC<ShareLinkModalProps> = ({
                           type="checkbox"
                           checked={isChecked}
                           onChange={() => toggleCameraSelection(cam.id)}
-                          className="rounded text-blue-600 bg-neutral-900 border-neutral-700"
+                          className="rounded text-sky-600 bg-neutral-900 border-neutral-700"
                         />
                         <span className="font-medium">{cam.name}</span>
                       </div>
@@ -273,7 +273,7 @@ export const ShareLinkModal: React.FC<ShareLinkModalProps> = ({
           {/* Expiration Settings */}
           <div className="space-y-2">
             <label className="text-neutral-300 font-medium flex items-center gap-1.5">
-              <Calendar className="w-3.5 h-3.5 text-blue-400" />
+              <Calendar className="w-3.5 h-3.5 text-sky-400" />
               Tiempo de Validez / Caducidad del Enlace:
             </label>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
@@ -284,7 +284,7 @@ export const ShareLinkModal: React.FC<ShareLinkModalProps> = ({
                   onClick={() => setExpiryOption(opt)}
                   className={`py-2 px-1 text-center rounded-xl border transition font-medium ${
                     expiryOption === opt
-                      ? 'bg-blue-600 border-blue-500 text-white shadow-md'
+                      ? 'bg-sky-600 border-sky-500 text-white shadow-md'
                       : 'bg-neutral-950 border-neutral-800 text-neutral-400 hover:bg-neutral-800'
                   }`}
                 >
@@ -309,7 +309,7 @@ export const ShareLinkModal: React.FC<ShareLinkModalProps> = ({
                   setCustomExpiryDate(e.target.value);
                   setExpiryOption('custom');
                 }}
-                className="mt-1 w-full bg-neutral-950 border border-neutral-800 rounded-xl px-3 py-2 text-white focus:border-blue-500 focus:outline-none"
+                className="mt-1 w-full bg-neutral-950 border border-neutral-800 rounded-xl px-3 py-2 text-white focus:border-sky-500 focus:outline-none"
               />
               {expiryError && (
                 <p className="mt-1 text-[11px] text-red-400">{expiryError}</p>
@@ -332,7 +332,7 @@ export const ShareLinkModal: React.FC<ShareLinkModalProps> = ({
                   type="checkbox"
                   checked={usePin}
                   onChange={(e) => setUsePin(e.target.checked)}
-                  className="rounded text-blue-600 bg-neutral-900 border-neutral-700"
+                  className="rounded text-sky-600 bg-neutral-900 border-neutral-700"
                 />
                 <span className="flex items-center gap-1.5">
                   <Key className="w-3.5 h-3.5 text-amber-400" />
@@ -354,7 +354,7 @@ export const ShareLinkModal: React.FC<ShareLinkModalProps> = ({
                   value={pinCode}
                   onChange={(e) => setPinCode(e.target.value.replace(/\D/g, ''))}
                   placeholder="Ej. 2026 (4-6 dígitos)"
-                  className="w-full bg-neutral-900 border border-neutral-700 rounded-xl px-3 py-2 text-white font-mono tracking-widest text-center text-sm focus:border-blue-500 focus:outline-none"
+                  className="w-full bg-neutral-900 border border-neutral-700 rounded-xl px-3 py-2 text-white font-mono tracking-widest text-center text-sm focus:border-sky-500 focus:outline-none"
                 />
               </div>
             )}
@@ -363,7 +363,7 @@ export const ShareLinkModal: React.FC<ShareLinkModalProps> = ({
           {/* Granular Permissions */}
           <div className="space-y-2">
             <label className="text-neutral-300 font-medium flex items-center gap-1.5">
-              <Shield className="w-3.5 h-3.5 text-blue-400" />
+              <Shield className="w-3.5 h-3.5 text-sky-400" />
               Permisos Concedidos al Cliente en el Navegador:
             </label>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -372,7 +372,7 @@ export const ShareLinkModal: React.FC<ShareLinkModalProps> = ({
                   type="checkbox"
                   checked={allowSnapshot}
                   onChange={(e) => setAllowSnapshot(e.target.checked)}
-                  className="rounded text-blue-600 bg-neutral-900 border-neutral-700"
+                  className="rounded text-sky-600 bg-neutral-900 border-neutral-700"
                 />
                 <div className="flex items-center gap-1.5 text-neutral-300">
                   <CameraIcon className="w-3.5 h-3.5 text-neutral-400" />
@@ -385,7 +385,7 @@ export const ShareLinkModal: React.FC<ShareLinkModalProps> = ({
                   type="checkbox"
                   checked={allowAudio}
                   onChange={(e) => setAllowAudio(e.target.checked)}
-                  className="rounded text-blue-600 bg-neutral-900 border-neutral-700"
+                  className="rounded text-sky-600 bg-neutral-900 border-neutral-700"
                 />
                 <div className="flex items-center gap-1.5 text-neutral-300">
                   <Volume2 className="w-3.5 h-3.5 text-neutral-400" />
@@ -398,7 +398,7 @@ export const ShareLinkModal: React.FC<ShareLinkModalProps> = ({
                   type="checkbox"
                   checked={allowPtz}
                   onChange={(e) => setAllowPtz(e.target.checked)}
-                  className="rounded text-blue-600 bg-neutral-900 border-neutral-700"
+                  className="rounded text-sky-600 bg-neutral-900 border-neutral-700"
                 />
                 <div className="flex items-center gap-1.5 text-neutral-300">
                   <Compass className="w-3.5 h-3.5 text-neutral-400" />
@@ -411,7 +411,7 @@ export const ShareLinkModal: React.FC<ShareLinkModalProps> = ({
                   type="checkbox"
                   checked={showWatermark}
                   onChange={(e) => setShowWatermark(e.target.checked)}
-                  className="rounded text-blue-600 bg-neutral-900 border-neutral-700"
+                  className="rounded text-sky-600 bg-neutral-900 border-neutral-700"
                 />
                 <div className="flex items-center gap-1.5 text-neutral-300">
                   <Shield className="w-3.5 h-3.5 text-emerald-400" />
@@ -433,7 +433,7 @@ export const ShareLinkModal: React.FC<ShareLinkModalProps> = ({
             <button
               type="submit"
               disabled={Boolean(expiryError)}
-              className="px-5 py-2 bg-blue-600 hover:bg-blue-500 disabled:bg-neutral-700 disabled:text-neutral-400 disabled:cursor-not-allowed disabled:shadow-none text-white font-semibold rounded-xl transition shadow-lg shadow-blue-600/25 flex items-center gap-1.5"
+              className="px-5 py-2 bg-sky-600 hover:bg-sky-500 disabled:bg-neutral-700 disabled:text-neutral-400 disabled:cursor-not-allowed disabled:shadow-none text-white font-semibold rounded-xl transition shadow-lg shadow-sky-600/25 flex items-center gap-1.5"
             >
               <Check className="w-4 h-4" />
               {initialLink ? 'Guardar Cambios' : 'Crear Enlace Seguro'}

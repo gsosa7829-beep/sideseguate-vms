@@ -273,7 +273,7 @@ export const ClientCameraOnboardingView: React.FC<ClientCameraOnboardingViewProp
                   <button
                     type="button"
                     onClick={() => onOpenStandalonePreview(selectedProjectId)}
-                    className="px-3.5 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 shadow-sm transition"
+                    className="px-3.5 py-2 bg-sky-600 hover:bg-sky-500 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 shadow-sm transition"
                   >
                     <ExternalLink className="w-3.5 h-3.5" />
                     <span>Modo Pantalla Completa</span>
@@ -463,7 +463,7 @@ export const ClientCameraOnboardingView: React.FC<ClientCameraOnboardingViewProp
                       onClick={() => setChannelsCount(opt.count)}
                       className={`py-2 px-2.5 rounded-lg border text-xs font-semibold transition ${
                         channelsCount === opt.count
-                          ? 'bg-blue-600 border-blue-500 text-white'
+                          ? 'bg-sky-600 border-sky-500 text-white'
                           : 'bg-neutral-950 border-neutral-800 text-neutral-300 hover:border-neutral-700'
                       }`}
                     >
@@ -656,7 +656,7 @@ export const ClientCameraOnboardingView: React.FC<ClientCameraOnboardingViewProp
                       type="checkbox"
                       checked={ptzSupported}
                       onChange={(e) => setPtzSupported(e.target.checked)}
-                      className="rounded border-neutral-700 bg-neutral-950 text-blue-600"
+                      className="rounded border-neutral-700 bg-neutral-950 text-sky-600"
                     />
                     <span>Cámara con movimiento PTZ (Giro / Zoom)</span>
                   </label>
@@ -672,7 +672,7 @@ export const ClientCameraOnboardingView: React.FC<ClientCameraOnboardingViewProp
 
             <button
               type="submit"
-              className="w-full py-3 px-4 bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white font-bold rounded-xl text-xs sm:text-sm flex items-center justify-center gap-2 shadow-lg shadow-blue-600/20 transition"
+              className="w-full py-3 px-4 bg-sky-600 hover:bg-sky-500 active:bg-sky-700 text-white font-bold rounded-xl text-xs sm:text-sm flex items-center justify-center gap-2 shadow-lg shadow-sky-600/20 transition"
             >
               <Plus className="w-4 h-4" />
               <span>

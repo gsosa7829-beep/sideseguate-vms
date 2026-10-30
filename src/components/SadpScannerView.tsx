@@ -145,12 +145,12 @@ export const SadpScannerView: React.FC = () => {
             </p>
           </div>
 
-          <div className="bg-blue-950/20 border border-blue-800/40 p-3.5 rounded-lg text-blue-200 leading-relaxed space-y-1">
-            <div className="flex items-center gap-1.5 font-bold text-blue-300">
-              <ShieldCheck className="w-4 h-4 text-blue-400 shrink-0" />
+          <div className="bg-sky-950/20 border border-sky-800/40 p-3.5 rounded-lg text-sky-200 leading-relaxed space-y-1">
+            <div className="flex items-center gap-1.5 font-bold text-sky-300">
+              <ShieldCheck className="w-4 h-4 text-sky-400 shrink-0" />
               <span>Código de Verificación: ••••••</span>
             </div>
-            <p className="text-[11px] text-blue-200/90">
+            <p className="text-[11px] text-sky-200/90">
               En los DVRs AcuSense viene activo el <em>Cifrado de Flujo</em>. En el menú del DVR (Red &gt; Ajustes Avanzados &gt; Acceso a Plataforma), desmarcar <strong>Cifrado de Flujo</strong> ingresando el código de verificación del equipo para permitir el remuxing web directo.
             </p>
           </div>
