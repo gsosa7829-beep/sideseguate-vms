@@ -462,6 +462,20 @@ service cloud.firestore {
             'tenantId',
             'notes',
             'updatedAt'
+          ]) ||
+          // Action 3: Limpieza de credenciales heredadas.
+          // Permite QUITAR los cuatro campos antiguos (password, username,
+          // rtspUrl, verificationCode). No permite escribirlos: isValidCloudCamera
+          // exige `keys().hasOnly([...])` sin esos campos, así que el documento
+          // resultante nunca puede contenerlos. Sólo sirve para borrarlos.
+          // Sin esta rama, cualquier intento de limpieza se rechazaba y el
+          // script de mantenimiento acababa borrando documentos enteros.
+          incoming().diff(existing()).affectedKeys().hasOnly([
+            'password',
+            'username',
+            'rtspUrl',
+            'verificationCode',
+            'updatedAt'
           ])
         );
       allow delete: if isValidId(cameraId) && isAuthorizedOperator(existing().ownerId);
