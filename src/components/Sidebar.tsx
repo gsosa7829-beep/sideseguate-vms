@@ -1,24 +1,12 @@
 import React from 'react';
 import { LOGO_URL } from '../lib/assets';
 import { NavigationTab } from '../lib/types';
-import { 
-  LayoutGrid, 
-  Eye, 
-  Link2, 
-  Users, 
-  History, 
-  Cctv, 
-  SearchCode, 
-  Server, 
-  CloudOff, 
-  FileCode, 
-  Smartphone, 
-  ChevronLeft, 
-  ChevronRight,
+import { NAV_SECTIONS, sectionOfTab, defaultTabOfSection } from '../lib/navigation';
+import {
   Monitor,
-  Radio,
-  Compass,
-  UserPlus
+  Smartphone,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -34,6 +22,15 @@ interface SidebarProps {
   onOpenDesktopProgram: () => void;
 }
 
+/**
+ * Barra lateral de escritorio: **4 secciones**, una línea cada una.
+ *
+ * Antes eran 11 destinos en 4 grupos con subtítulos técnicos. Ahora cada
+ * sección muestra sus pantallas sólo cuando está abierta, así que de un vistazo
+ * se ven 4 opciones en vez de 11.
+ *
+ * En el móvil ya no se usa: ahí manda la barra inferior (`BottomNav`).
+ */
 export const Sidebar: React.FC<SidebarProps> = ({
   currentTab,
   onSelectTab,
@@ -44,259 +41,170 @@ export const Sidebar: React.FC<SidebarProps> = ({
   shareLinksCount,
   projectsCount,
   onOpenMobilePreview,
-  onOpenDesktopProgram
+  onOpenDesktopProgram,
 }) => {
-  const menuGroups = [
-    {
-      label: 'Centro de Monitoreo',
-      items: [
-        {
-          id: 'videowall' as NavigationTab,
-          label: 'Muro de Video',
-          icon: LayoutGrid,
-          meta: `${onlineCount}/${camerasCount}`,
-        },
-      ],
-    },
-    {
-      label: 'Accesos & Compradores',
-      items: [
-        {
-          id: 'share_links' as NavigationTab,
-          label: 'Enlaces para Clientes',
-          icon: Link2,
-          meta: `${shareLinksCount}`,
-        },
-        {
-          id: 'clients_projects' as NavigationTab,
-          label: 'Clientes y Demos',
-          icon: Users,
-          meta: `${projectsCount}`,
-        },
-        {
-          id: 'access_audit' as NavigationTab,
-          label: 'Auditoría de Conexiones',
-          icon: History,
-        },
-      ],
-    },
-    {
-      label: 'Hardware & Red Local',
-      items: [
-        {
-          id: 'client_onboarding' as NavigationTab,
-          label: 'Agregar Cámaras Fácil',
-          icon: UserPlus,
-          meta: 'RÁPIDO',
-        },
-        {
-          id: 'dvr_registry' as NavigationTab,
-          label: 'Registro de DVRs',
-          icon: Cctv,
-          meta: 'CLIENTE',
-        },
-        {
-          id: 'devices_catalog' as NavigationTab,
-          label: 'Catálogo de Cámaras',
-          icon: Cctv,
-          meta: `${camerasCount}`,
-        },
-        {
-          id: 'sadp_scanner' as NavigationTab,
-          label: 'Escáner SADP Tool',
-          icon: SearchCode,
-          meta: 'LAN',
-        },
-      ],
-    },
-    {
-      label: 'Infraestructura Gateway',
-      items: [
-        {
-          id: 'windows_server' as NavigationTab,
-          label: 'Gateway Windows 24/7',
-          icon: Server,
-        },
-        {
-          id: 'zero_storage' as NavigationTab,
-          label: 'Modo Cero Nube',
-          icon: CloudOff,
-          meta: '0 MB',
-        },
-        {
-          id: 'mediamtx_config' as NavigationTab,
-          label: 'Archivo mediamtx.yml',
-          icon: FileCode,
-        },
-      ],
-    },
-  ];
+  const activeSectionId = sectionOfTab(currentTab).id;
+
+  const metaOf = (sectionId: string): string | null => {
+    if (sectionId === 'monitor') return `${onlineCount}/${camerasCount}`;
+    if (sectionId === 'clients') return `${shareLinksCount}`;
+    if (sectionId === 'devices') return `${camerasCount}`;
+    return null;
+  };
 
   return (
-    <>
-      {/* Mobile Backdrop when expanded on small screens */}
-      {!isCollapsed && (
-        <div
-          onClick={onToggleCollapse}
-          className="fixed inset-0 bg-black/70 backdrop-blur-xs z-30 md:hidden"
-          aria-hidden="true"
-        />
-      )}
-      <aside
-        className={`bg-neutral-950 border-r border-neutral-800/90 flex flex-col justify-between transition-all duration-200 z-40 select-none shrink-0 ${
-          isCollapsed
-            ? 'hidden md:flex md:w-16'
-            : 'fixed inset-y-0 left-0 w-64 md:static md:flex'
-        }`}
-      >
-      {/* Top Brand Header */}
-      <div>
-        <div className="h-15 border-b border-neutral-800/90 px-3.5 flex items-center justify-between bg-neutral-900/50">
-          <div className="flex items-center gap-3 overflow-hidden">
-            <div className="relative w-9 h-9 rounded-xl overflow-hidden bg-white flex items-center justify-center shrink-0 border border-sky-500/40 shadow-sm">
-              <img 
-                src={LOGO_URL} 
-                alt="SIDESEGUATE Logo" 
+    <aside
+      aria-label="Navegación principal"
+      className={`bg-neutral-950 border-r border-neutral-800/90 hidden md:flex flex-col justify-between transition-all duration-200 select-none shrink-0 ${
+        isCollapsed ? 'md:w-16' : 'md:w-60'
+      }`}
+    >
+      <div className="min-w-0">
+        {/* Marca */}
+        <div className="h-14 border-b border-neutral-800/90 px-3 flex items-center justify-between gap-2 bg-neutral-900/40">
+          <div className="flex items-center gap-2.5 overflow-hidden">
+            <div className="relative w-8 h-8 rounded-lg overflow-hidden bg-white flex items-center justify-center shrink-0 border border-sky-500/40">
+              <img
+                src={LOGO_URL}
+                alt=""
                 referrerPolicy="no-referrer"
                 className="w-full h-full object-cover"
               />
             </div>
             {!isCollapsed && (
-              <div className="min-w-0">
-                <div className="flex items-center gap-1.5">
-                  <span className="font-display font-bold text-sm text-white tracking-tight truncate">
-                    SIDESEGUATE
-                  </span>
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" />
-                </div>
-                <span className="text-[11px] font-mono text-sky-400/90 block truncate">
-                  VMS STREAMING PRO
-                </span>
-              </div>
+              <span className="font-display font-bold text-sm text-white tracking-tight truncate">
+                SIDESEGUATE
+              </span>
             )}
           </div>
 
           <button
-            aria-label={isCollapsed ? 'Expandir barra lateral' : 'Colapsar barra lateral'}
+            type="button"
+            aria-label={isCollapsed ? 'Expandir menú' : 'Colapsar menú'}
+            aria-expanded={!isCollapsed}
             onClick={onToggleCollapse}
-            className="p-1.5 rounded-lg text-neutral-400 hover:text-white hover:bg-neutral-850 border border-transparent hover:border-neutral-800 transition shrink-0"
-            title={isCollapsed ? 'Expandir Menú' : 'Colapsar Menú'}
+            className="p-1.5 rounded-lg text-neutral-400 hover:text-white hover:bg-neutral-850 transition shrink-0"
           >
             {isCollapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
           </button>
         </div>
 
-        {/* Operational Pulse Strip */}
-        {!isCollapsed && (
-          <div className="mx-3 mt-3 px-3 py-2 rounded-xl bg-neutral-900/90 border border-neutral-800/90 flex items-center justify-between text-[11px]">
-            <span className="flex items-center gap-1.5 text-neutral-300 font-medium">
-              <Radio className="w-3.5 h-3.5 text-emerald-400" />
-              <span>Matriz RTSP / LAN</span>
-            </span>
-            <span className="font-mono tabular-nums text-emerald-400 font-semibold">
-              {onlineCount}/{camerasCount} ON
-            </span>
-          </div>
-        )}
+        {/* Secciones */}
+        <nav className="p-2 space-y-1">
+          {NAV_SECTIONS.map((section) => {
+            const isActiveSection = section.id === activeSectionId;
+            const Icon = section.Icon;
+            const meta = metaOf(section.id);
+            const showChildren = isActiveSection && !isCollapsed && section.items.length > 1;
 
-        {/* Scrollable Navigation Groups */}
-        <nav aria-label="Navegación Principal" className="p-3 space-y-5 overflow-y-auto max-h-[calc(100dvh-14.5rem)]">
-          {menuGroups.map((group, gIdx) => (
-            <div key={gIdx} className="space-y-1">
-              {!isCollapsed && (
-                <div className="px-2.5 text-[10px] font-mono font-semibold uppercase tracking-wider text-neutral-500 mb-1.5">
-                  {group.label}
-                </div>
-              )}
+            return (
+              <div key={section.id}>
+                <button
+                  type="button"
+                  onClick={() => onSelectTab(defaultTabOfSection(section))}
+                  aria-current={isActiveSection ? 'page' : undefined}
+                  aria-expanded={section.items.length > 1 ? isActiveSection : undefined}
+                  title={isCollapsed ? section.label : undefined}
+                  className={`w-full flex items-center gap-2.5 px-2.5 py-2.5 rounded-lg text-xs transition whitespace-nowrap ${
+                    isActiveSection
+                      ? 'bg-sky-500/15 text-white font-semibold border border-sky-500/30'
+                      : 'text-neutral-400 hover:text-neutral-100 hover:bg-neutral-900/70 border border-transparent font-medium'
+                  }`}
+                >
+                  <Icon
+                    className={`w-4 h-4 shrink-0 ${isActiveSection ? 'text-sky-400' : 'text-neutral-500'}`}
+                  />
+                  {!isCollapsed && (
+                    <span className="flex items-center justify-between w-full min-w-0 gap-2">
+                      <span className="truncate">{section.label}</span>
+                      {meta && (
+                        <span
+                          className={`text-[11px] font-mono tabular-nums shrink-0 ${
+                            isActiveSection ? 'text-sky-300' : 'text-neutral-500'
+                          }`}
+                        >
+                          {meta}
+                        </span>
+                      )}
+                    </span>
+                  )}
+                </button>
 
-              {group.items.map((item) => {
-                const Icon = item.icon;
-                const isActive = currentTab === item.id;
-                return (
-                  <button
-                    key={item.id}
-                    onClick={() => onSelectTab(item.id)}
-                    className={`relative w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-xs transition whitespace-nowrap ${
-                      isActive
-                        ? 'bg-gradient-to-r from-sky-500/20 via-blue-600/10 to-transparent text-white font-semibold border border-sky-500/35 shadow-xs'
-                        : 'text-neutral-400 hover:text-neutral-100 hover:bg-neutral-900/80 border border-transparent font-medium'
-                    }`}
-                    title={isCollapsed ? item.label : undefined}
-                  >
-                    {isActive && (
-                      <span className="absolute left-0 top-1.5 bottom-1.5 w-0.5 rounded-r bg-sky-400" />
-                    )}
-                    <Icon className={`w-4 h-4 shrink-0 ${isActive ? 'text-sky-400' : 'text-neutral-500'}`} />
-                    {!isCollapsed && (
-                      <div className="flex items-center justify-between w-full min-w-0 gap-2">
-                        <span className="truncate">{item.label}</span>
-                        {item.meta && (
-                          <span
-                            className={`text-[11px] font-mono tabular-nums shrink-0 ${
-                              isActive ? 'text-sky-300 font-semibold' : 'text-neutral-500'
+                {/* Pantallas de la sección activa */}
+                {showChildren && (
+                  <ul className="mt-0.5 mb-1 ml-4 pl-2 border-l border-neutral-800 space-y-0.5">
+                    {section.items.map((item) => {
+                      const isCurrent = item.id === currentTab;
+                      return (
+                        <li key={item.id}>
+                          <button
+                            type="button"
+                            onClick={() => onSelectTab(item.id)}
+                            aria-current={isCurrent ? 'page' : undefined}
+                            title={item.hint}
+                            className={`w-full text-left px-2.5 py-1.5 rounded-md text-[11px] transition truncate ${
+                              isCurrent
+                                ? 'text-sky-300 bg-sky-500/10 font-semibold'
+                                : 'text-neutral-400 hover:text-neutral-100 hover:bg-neutral-900/70'
                             }`}
                           >
-                            {item.meta}
-                          </span>
-                        )}
-                      </div>
-                    )}
-                  </button>
-                );
-              })}
-            </div>
-          ))}
+                            {item.label}
+                          </button>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+              </div>
+            );
+          })}
         </nav>
       </div>
 
-      {/* Bottom Utility Actions */}
-      <div className="p-3 border-t border-neutral-800/90 bg-neutral-900/30 space-y-1.5">
-        {!isCollapsed ? (
+      {/* Acciones secundarias */}
+      <div className="p-2 border-t border-neutral-800/90 space-y-1">
+        {isCollapsed ? (
           <>
             <button
+              type="button"
+              aria-label="Instalar programa para PC"
               onClick={onOpenDesktopProgram}
-              className="w-full py-2 px-3 bg-gradient-to-r from-blue-600/20 to-sky-500/10 hover:from-blue-600/30 hover:to-sky-500/20 text-white border border-sky-500/30 rounded-lg text-xs font-semibold flex items-center justify-between transition whitespace-nowrap"
-            >
-              <span className="flex items-center gap-2">
-                <Monitor className="w-3.5 h-3.5 text-sky-400 shrink-0" />
-                <span>Instalar Programa PC</span>
-              </span>
-              <span className="text-[10px] text-emerald-400 font-mono">.BAT / Web</span>
-            </button>
-
-            <button
-              onClick={onOpenMobilePreview}
-              className="w-full py-2 px-3 bg-neutral-900 hover:bg-neutral-850 text-neutral-200 border border-neutral-800 rounded-lg text-xs font-medium flex items-center justify-between transition whitespace-nowrap"
-            >
-              <span className="flex items-center gap-2">
-                <Smartphone className="w-3.5 h-3.5 text-neutral-400 shrink-0" />
-                <span>Simulador Móvil</span>
-              </span>
-              <span className="text-[10px] text-neutral-400 font-mono">Comprador</span>
-            </button>
-          </>
-        ) : (
-          <div className="flex flex-col items-center gap-2">
-            <button
-              aria-label="Instalar o descargar Programa para PC"
-              onClick={onOpenDesktopProgram}
-              className="p-2 rounded-lg bg-sky-500/15 hover:bg-sky-500/25 text-sky-400 border border-sky-500/30"
-              title="Instalar Programa para PC Windows"
+              className="w-10 h-10 mx-auto rounded-lg bg-sky-500/15 hover:bg-sky-500/25 text-sky-400 border border-sky-500/30 flex items-center justify-center"
+              title="Instalar programa para PC"
             >
               <Monitor className="w-4 h-4" />
             </button>
             <button
-              aria-label="Abrir simulador de vista móvil"
+              type="button"
+              aria-label="Simulador móvil"
               onClick={onOpenMobilePreview}
-              className="p-2 rounded-lg bg-neutral-900 hover:bg-neutral-850 text-neutral-300 border border-neutral-800"
-              title="Simulador de Vista Móvil"
+              className="w-10 h-10 mx-auto rounded-lg bg-neutral-900 hover:bg-neutral-850 text-neutral-300 border border-neutral-800 flex items-center justify-center"
+              title="Simulador móvil"
             >
-              <Smartphone className="w-4 h-4 text-neutral-400" />
+              <Smartphone className="w-4 h-4" />
             </button>
-          </div>
+          </>
+        ) : (
+          <>
+            <button
+              type="button"
+              onClick={onOpenDesktopProgram}
+              className="w-full py-2 px-2.5 text-neutral-300 hover:text-white hover:bg-neutral-900 rounded-lg text-[11px] font-medium flex items-center gap-2 transition"
+            >
+              <Monitor className="w-3.5 h-3.5 text-sky-400 shrink-0" />
+              <span className="truncate">Instalar programa PC</span>
+            </button>
+            <button
+              type="button"
+              onClick={onOpenMobilePreview}
+              className="w-full py-2 px-2.5 text-neutral-300 hover:text-white hover:bg-neutral-900 rounded-lg text-[11px] font-medium flex items-center gap-2 transition"
+            >
+              <Smartphone className="w-3.5 h-3.5 text-neutral-400 shrink-0" />
+              <span className="truncate">Ver como cliente</span>
+            </button>
+          </>
         )}
       </div>
     </aside>
-    </>
   );
 };

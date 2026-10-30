@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { NavigationTab, AccessLog, ShareLink } from '../lib/types';
+import { sectionOfTab, labelOfTab } from '../lib/navigation';
 import { AdminAccount } from '../lib/adminAuth';
 import {
   Plus,
@@ -176,36 +177,10 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
     titanium: 'Titanio',
   };
 
-  const getTabTitle = (tab: NavigationTab) => {
-    switch (tab) {
-      case 'videowall':
-        return { section: 'Monitoreo en Vivo', title: 'Muro de Video Multicámara' };
-      case 'share_links':
-        return { section: 'Accesos de Clientes', title: 'Enlaces Privados para Clientes' };
-      case 'client_onboarding':
-        return { section: 'Equipos y Red Local', title: 'Asistente Rápido: Agregar Cámaras y DVRs al Servidor' };
-      case 'dvr_registry':
-        return { section: 'Equipos y Red Local', title: 'Registro de DVRs por el Cliente' };
-      case 'clients_projects':
-        return { section: 'Accesos de Clientes', title: 'Cartera de Clientes y Demos de Cámaras' };
-      case 'access_audit':
-        return { section: 'Accesos de Clientes', title: 'Auditoría de Conexiones' };
-      case 'devices_catalog':
-        return { section: 'Equipos y Red Local', title: 'Catálogo de Cámaras y DVRs' };
-      case 'sadp_scanner':
-        return { section: 'Equipos y Red Local', title: 'Escáner SADP Tool (LAN)' };
-      case 'windows_server':
-        return { section: 'Servidor Gateway', title: 'Gateway MediaMTX para Windows' };
-      case 'zero_storage':
-        return { section: 'Servidor Gateway', title: 'Retransmisión Cero Nube' };
-      case 'mediamtx_config':
-        return { section: 'Servidor Gateway', title: 'Archivo mediamtx.yml' };
-      default:
-        return { section: 'Consola VMS', title: 'Centro de Operaciones' };
-    }
-  };
-
-  const { section, title } = getTabTitle(currentTab);
+  // Título y sección salen de la navegación única (src/lib/navigation.tsx),
+  // así la barra superior no puede desincronizarse del menú.
+  const section = sectionOfTab(currentTab).label;
+  const title = labelOfTab(currentTab);
 
   return (
     <>
