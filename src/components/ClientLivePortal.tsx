@@ -13,11 +13,7 @@ import {
   AlertCircle, 
   Grid2X2, 
   Square, 
-  CheckCircle2, 
-  Wifi, 
-  Smartphone, 
   KeyRound, 
-  Cloud, 
   RefreshCw, 
   Clock, 
   PauseCircle,
@@ -27,13 +23,13 @@ type FailureReason = 'expired' | 'inactive' | 'invalid_pin' | 'pin_required' | '
 
 const FAILURE_COPY: Record<
   FailureReason,
-  { eyebrow: string; title: string; hint?: string; tone: 'red' | 'amber' | 'blue' }
+  { eyebrow: string; title: string; hint?: string; tone: 'red' | 'amber' | 'sky' }
 > = {
   not_found: {
     eyebrow: 'Enlace no disponible',
     title: 'No encontramos este acceso',
     hint: 'Puede que el enlace esté incompleto o que aún no se haya sincronizado. Si acabas de recibirlo, espera unos segundos y vuelve a intentarlo.',
-    tone: 'blue',
+    tone: 'sky',
   },
   expired: {
     eyebrow: 'Enlace caducado',
@@ -56,14 +52,14 @@ const FAILURE_COPY: Record<
   pin_required: {
     eyebrow: 'Acceso protegido',
     title: 'Este canal requiere PIN',
-    tone: 'blue',
+    tone: 'sky',
   },
 };
 
-const TONE_CLASSES: Record<'red' | 'amber' | 'blue', { box: string; text: string; eyebrow: string }> = {
+const TONE_CLASSES: Record<'red' | 'amber' | 'sky', { box: string; text: string; eyebrow: string }> = {
   red: { box: 'bg-red-950/80 border-red-800/80', text: 'text-red-400', eyebrow: 'text-red-400' },
   amber: { box: 'bg-amber-950/80 border-amber-800/80', text: 'text-amber-400', eyebrow: 'text-amber-400' },
-  blue: { box: 'bg-blue-950/80 border-blue-800/80', text: 'text-blue-400', eyebrow: 'text-blue-400' },
+  sky: { box: 'bg-sky-950/80 border-sky-800/80', text: 'text-sky-400', eyebrow: 'text-sky-400' },
 };
 
 interface ClientLivePortalProps {
@@ -174,7 +170,7 @@ export const ClientLivePortal: React.FC<ClientLivePortalProps> = ({
     return (
       <div className="min-h-dvh bg-neutral-950 text-neutral-100 flex flex-col items-center justify-center p-6">
         <div className="flex flex-col items-center gap-4">
-          <div className="w-12 h-12 rounded-xl border-2 border-neutral-700 border-t-blue-500 animate-spin" />
+          <div className="w-12 h-12 rounded-xl border-2 border-neutral-700 border-t-sky-500 animate-spin" />
           <div className="text-center">
             <h2 className="text-base font-semibold text-white">Conectando con cámara en vivo...</h2>
             <p className="text-xs text-neutral-400 mt-1">Sintonizando señal segura SIDESEGUATE</p>
@@ -203,7 +199,7 @@ export const ClientLivePortal: React.FC<ClientLivePortalProps> = ({
 
           <button
             onClick={() => window.location.reload()}
-            className="w-full py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-medium rounded-xl text-sm transition flex items-center justify-center gap-2 shadow-lg shadow-blue-600/20"
+            className="w-full py-2.5 bg-sky-600 hover:bg-sky-500 text-white font-medium rounded-xl text-sm transition flex items-center justify-center gap-2 shadow-lg shadow-sky-600/20"
           >
             <RefreshCw className="w-4 h-4" />
             Reintentar
@@ -250,10 +246,17 @@ export const ClientLivePortal: React.FC<ClientLivePortalProps> = ({
     return (
       <div className="min-h-dvh bg-neutral-950 text-neutral-100 flex flex-col items-center justify-center p-6">
         <div className="max-w-md w-full bg-neutral-900 border border-neutral-800 rounded-2xl p-8 shadow-2xl">
-          <div className="w-16 h-16 bg-blue-950/80 border border-blue-800/80 text-blue-400 rounded-2xl flex items-center justify-center mx-auto mb-4">
-            <KeyRound className="w-8 h-8" />
+          <div className="relative w-16 h-16 rounded-2xl bg-white mx-auto mb-4 flex items-center justify-center shadow-xl">
+            <img 
+              src={LOGO_URL} 
+              alt="SIDESEGUATE" 
+              className="w-full h-full rounded-2xl object-cover"
+            />
+            <div className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-sky-600 border-2 border-neutral-900 flex items-center justify-center text-white">
+              <KeyRound className="w-3.5 h-3.5" />
+            </div>
           </div>
-          <div className="text-xs font-mono font-semibold text-blue-400 mb-2 uppercase text-center">
+          <div className="text-xs font-mono font-semibold text-sky-400 mb-2 uppercase text-center">
             Acceso Protegido
           </div>
           <h2 className="text-xl font-bold text-white mb-2 text-center">
@@ -275,7 +278,7 @@ export const ClientLivePortal: React.FC<ClientLivePortalProps> = ({
                 onChange={(e) => setPinInput(e.target.value)}
                 placeholder="PIN"
                 autoFocus
-                className="w-full text-center text-2xl tracking-[0.5em] font-mono bg-neutral-950 border border-neutral-700 rounded-xl py-3 px-4 text-white focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                className="w-full text-center text-2xl tracking-[0.5em] font-mono bg-neutral-950 border border-neutral-700 rounded-xl py-3 px-4 text-white focus:outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500"
               />
             </div>
 
@@ -287,7 +290,7 @@ export const ClientLivePortal: React.FC<ClientLivePortalProps> = ({
 
             <button
               type="submit"
-              className="w-full py-3 bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white font-semibold rounded-xl text-sm transition shadow-lg shadow-blue-600/20"
+              className="w-full py-3 bg-sky-600 hover:bg-sky-500 active:bg-sky-700 text-white font-semibold rounded-xl text-sm transition shadow-lg shadow-sky-600/20"
             >
               Ver Cámara en Vivo
             </button>
@@ -490,8 +493,8 @@ export const ClientLivePortal: React.FC<ClientLivePortalProps> = ({
                       onClick={() => setSelectedCameraId(cam.id)}
                       className={`w-full text-left p-3 rounded-xl border transition flex flex-col gap-1.5 ${
                         isSelected
-                          ? 'bg-blue-950/50 border-blue-600 text-white ring-1 ring-blue-600'
-                          : 'bg-neutral-900 border-neutral-800 text-neutral-300 hover:bg-neutral-800 hover:border-neutral-700'
+                          ? 'bg-sky-950/50 border-sky-600 text-white ring-1 ring-sky-600'
+                          : 'bg-neutral-900 border-neutral-800 text-neutral-300 hover:bg-neutral-850 hover:border-neutral-700'
                       }`}
                     >
                       <div className="flex items-center justify-between w-full">

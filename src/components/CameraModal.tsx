@@ -185,7 +185,7 @@ export const CameraModal: React.FC<CameraModalProps> = ({
         {/* Modal Header */}
         <div className="px-6 py-4 border-b border-neutral-800 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl bg-blue-600/20 text-blue-400 border border-blue-500/30 flex items-center justify-center">
+            <div className="w-9 h-9 rounded-xl bg-sky-600/20 text-sky-400 border border-sky-500/30 flex items-center justify-center">
               <Cctv className="w-5 h-5" />
             </div>
             <div>
@@ -256,7 +256,7 @@ export const CameraModal: React.FC<CameraModalProps> = ({
               <select
                 value={projectId}
                 onChange={(e) => setProjectId(e.target.value)}
-                className="w-full bg-neutral-950 border border-neutral-700 rounded-xl px-3 py-2 text-white focus:border-blue-500 focus:outline-none"
+                className="w-full bg-neutral-950 border border-neutral-700 rounded-xl px-3 py-2 text-white focus:border-sky-500 focus:outline-none"
               >
                 {projects.map((p) => (
                   <option key={p.id} value={p.id}>
@@ -282,7 +282,7 @@ export const CameraModal: React.FC<CameraModalProps> = ({
                     setPtzSupported(true);
                   }
                 }}
-                className="w-full bg-neutral-950 border border-neutral-700 rounded-xl px-3 py-2 text-white focus:border-blue-500 focus:outline-none"
+                className="w-full bg-neutral-950 border border-neutral-700 rounded-xl px-3 py-2 text-white focus:border-sky-500 focus:outline-none"
               >
                 <option value="hikvision_dvr">Hikvision DVR / NVR TurboHD (Recomendado)</option>
                 <option value="hikvision_ip">Cámara IP Hikvision (Conexión Directa Router)</option>
@@ -303,7 +303,7 @@ export const CameraModal: React.FC<CameraModalProps> = ({
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="Ej. CAM 01: Entrada Principal"
-                className="w-full bg-neutral-950 border border-neutral-700 rounded-xl px-3 py-2 text-white focus:border-blue-500 focus:outline-none"
+                className="w-full bg-neutral-950 border border-neutral-700 rounded-xl px-3 py-2 text-white focus:border-sky-500 focus:outline-none"
               />
             </div>
 
@@ -316,7 +316,7 @@ export const CameraModal: React.FC<CameraModalProps> = ({
                 value={locationDesc}
                 onChange={(e) => setLocationDesc(e.target.value)}
                 placeholder="Ej. Garita de acceso vehicular y peatonal"
-                className="w-full bg-neutral-950 border border-neutral-700 rounded-xl px-3 py-2 text-white focus:border-blue-500 focus:outline-none"
+                className="w-full bg-neutral-950 border border-neutral-700 rounded-xl px-3 py-2 text-white focus:border-sky-500 focus:outline-none"
               />
             </div>
           </div>
@@ -324,7 +324,7 @@ export const CameraModal: React.FC<CameraModalProps> = ({
           {/* Network & Auth */}
           <div className="p-4 bg-neutral-950 border border-neutral-800 rounded-xl space-y-3">
             <h4 className="text-neutral-300 font-semibold flex items-center gap-1.5">
-              <Server className="w-3.5 h-3.5 text-blue-400" />
+              <Server className="w-3.5 h-3.5 text-sky-400" />
               Parámetros de Red y Credenciales RTSP/ONVIF
             </h4>
 
@@ -337,7 +337,7 @@ export const CameraModal: React.FC<CameraModalProps> = ({
                   value={host}
                   onChange={(e) => setHost(e.target.value)}
                   placeholder="190.86.12.34 o dvr.sideseguate.com"
-                  className="w-full bg-neutral-900 border border-neutral-700 rounded-lg px-3 py-1.5 text-white font-mono focus:border-blue-500 focus:outline-none"
+                  className="w-full bg-neutral-900 border border-neutral-700 rounded-lg px-3 py-1.5 text-white font-mono focus:border-sky-500 focus:outline-none"
                 />
               </div>
 
@@ -348,7 +348,7 @@ export const CameraModal: React.FC<CameraModalProps> = ({
                   value={port}
                   onChange={(e) => setPort(Number(e.target.value))}
                   placeholder="554"
-                  className="w-full bg-neutral-900 border border-neutral-700 rounded-lg px-3 py-1.5 text-white font-mono focus:border-blue-500 focus:outline-none"
+                  className="w-full bg-neutral-900 border border-neutral-700 rounded-lg px-3 py-1.5 text-white font-mono focus:border-sky-500 focus:outline-none"
                 />
               </div>
             </div>
@@ -362,7 +362,7 @@ export const CameraModal: React.FC<CameraModalProps> = ({
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
                   placeholder="Usuario del equipo"
-                  className="w-full bg-neutral-900 border border-neutral-700 rounded-lg px-3 py-1.5 text-white font-mono focus:border-blue-500 focus:outline-none"
+                  className="w-full bg-neutral-900 border border-neutral-700 rounded-lg px-3 py-1.5 text-white font-mono focus:border-sky-500 focus:outline-none"
                 />
               </div>
 
@@ -373,7 +373,7 @@ export const CameraModal: React.FC<CameraModalProps> = ({
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="Contraseña del equipo"
-                  className="w-full bg-neutral-900 border border-neutral-700 rounded-lg px-3 py-1.5 text-white font-mono focus:border-blue-500 focus:outline-none"
+                  className="w-full bg-neutral-900 border border-neutral-700 rounded-lg px-3 py-1.5 text-white font-mono focus:border-sky-500 focus:outline-none"
                 />
               </div>
 
@@ -401,7 +401,7 @@ export const CameraModal: React.FC<CameraModalProps> = ({
                   max={32}
                   value={channel}
                   onChange={(e) => setChannel(Number(e.target.value))}
-                  className="w-full bg-neutral-900 border border-neutral-700 rounded-lg px-3 py-1.5 text-white font-mono focus:border-blue-500 focus:outline-none"
+                  className="w-full bg-neutral-900 border border-neutral-700 rounded-lg px-3 py-1.5 text-white font-mono focus:border-sky-500 focus:outline-none"
                 />
               </div>
 
@@ -410,7 +410,7 @@ export const CameraModal: React.FC<CameraModalProps> = ({
                 <select
                   value={streamType}
                   onChange={(e) => setStreamType(e.target.value as 'main' | 'sub')}
-                  className="w-full bg-neutral-900 border border-neutral-700 rounded-lg px-3 py-1.5 text-white focus:border-blue-500 focus:outline-none"
+                  className="w-full bg-neutral-900 border border-neutral-700 rounded-lg px-3 py-1.5 text-white focus:border-sky-500 focus:outline-none"
                 >
                   <option value="main">Flujo Principal (Main Stream 1080p / 2K)</option>
                   <option value="sub">Subflujo (Sub Stream 720p / Ahorro Datos Móviles)</option>
@@ -428,7 +428,7 @@ export const CameraModal: React.FC<CameraModalProps> = ({
               <button
                 type="button"
                 onClick={() => setIsManualRtsp(!isManualRtsp)}
-                className="text-[11px] text-blue-400 hover:text-blue-300 underline"
+                className="text-[11px] text-sky-400 hover:text-sky-300 underline"
               >
                 {isManualRtsp ? 'Auto-generar URL' : 'Editar manualmente'}
               </button>
@@ -448,7 +448,7 @@ export const CameraModal: React.FC<CameraModalProps> = ({
                 disabled={testStatus === 'testing'}
                 className="px-3 py-2 bg-neutral-800 hover:bg-neutral-700 active:bg-neutral-600 text-neutral-200 font-medium rounded-xl text-xs transition flex items-center gap-1.5 shrink-0"
               >
-                <Activity className="w-3.5 h-3.5 text-blue-400" />
+                <Activity className="w-3.5 h-3.5 text-sky-400" />
                 {testStatus === 'testing' ? 'Verificando...' : 'Probar RTSP'}
               </button>
             </div>
@@ -479,7 +479,7 @@ export const CameraModal: React.FC<CameraModalProps> = ({
                 type="checkbox"
                 checked={ptzSupported}
                 onChange={(e) => setPtzSupported(e.target.checked)}
-                className="rounded text-blue-600 bg-neutral-900 border-neutral-700"
+                className="rounded text-sky-600 bg-neutral-900 border-neutral-700"
               />
               <span className="text-neutral-300">Cámara Soporta PTZ (Giro / Zoom)</span>
             </label>
@@ -489,7 +489,7 @@ export const CameraModal: React.FC<CameraModalProps> = ({
                 type="checkbox"
                 checked={nightVision}
                 onChange={(e) => setNightVision(e.target.checked)}
-                className="rounded text-blue-600 bg-neutral-900 border-neutral-700"
+                className="rounded text-sky-600 bg-neutral-900 border-neutral-700"
               />
               <span className="text-neutral-300">Soporta Visión Nocturna Infrarroja (IR)</span>
             </label>
@@ -506,7 +506,7 @@ export const CameraModal: React.FC<CameraModalProps> = ({
             </button>
             <button
               type="submit"
-              className="px-5 py-2 bg-blue-600 hover:bg-blue-500 text-white font-semibold rounded-xl transition shadow-lg shadow-blue-600/25 flex items-center gap-1.5"
+              className="px-5 py-2 bg-sky-600 hover:bg-sky-500 text-white font-semibold rounded-xl transition shadow-lg shadow-sky-600/25 flex items-center gap-1.5"
             >
               <Check className="w-4 h-4" />
               {initialCamera ? 'Guardar Cambios' : 'Registrar en Gateway'}
