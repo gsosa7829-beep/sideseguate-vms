@@ -6,17 +6,21 @@ $hilookDir = "C:\Program Files\HiLookVision Station\HiLookVision\HiLookVision Cl
 $cloudBinDir = Join-Path $scriptRoot "cloud-p2p-runtime\bin"
 $cloudZipPath = Join-Path $scriptRoot "cloud-p2p-runtime\hik-sdk-x64.zip"
 
-if (Test-Path (Join-Path $hilookDir "NetStream.dll")) {
-    $clientDir = $hilookDir
-} elseif (($env:FORCE_CLOUD_SDK -ne "1") -and (Test-Path (Join-Path $ivmsDir "NetStream.dll"))) {
-    $clientDir = $ivmsDir
-} else {
+if ([IntPtr]::Size -eq 8) {
     if (-not (Test-Path (Join-Path $cloudBinDir "NetStream.dll"))) {
         Write-Output "[HikP2PServer] Extracting cloud P2P SDK runtime from $cloudZipPath ..."
         New-Item -ItemType Directory -Force -Path $cloudBinDir | Out-Null
         Expand-Archive -Path $cloudZipPath -DestinationPath $cloudBinDir -Force
     }
     $clientDir = $cloudBinDir
+} else {
+    if (Test-Path (Join-Path $hilookDir "NetStream.dll")) {
+        $clientDir = $hilookDir
+    } elseif (Test-Path (Join-Path $ivmsDir "NetStream.dll")) {
+        $clientDir = $ivmsDir
+    } else {
+        $clientDir = $cloudBinDir
+    }
 }
 
 $env:PATH = "$clientDir;$env:PATH"

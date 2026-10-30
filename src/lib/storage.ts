@@ -2,9 +2,9 @@ import { Project, Camera, ShareLink, AccessLog } from './types';
 import { INITIAL_PROJECTS, INITIAL_CAMERAS, INITIAL_SHARE_LINKS, INITIAL_ACCESS_LOGS } from './initialData';
 
 const STORAGE_KEYS = {
-  PROJECTS: 'sideseguate_projects_v6',
-  CAMERAS: 'sideseguate_cameras_v6_ivms_helgdm',
-  SHARE_LINKS: 'sideseguate_share_links_v8_purged',
+  PROJECTS: 'sideseguate_projects_v7_calle_cementerio',
+  CAMERAS: 'sideseguate_cameras_v7_calle_cementerio',
+  SHARE_LINKS: 'sideseguate_share_links_v9_calle_cementerio',
   ACCESS_LOGS: 'sideseguate_access_logs_v5',
 };
 

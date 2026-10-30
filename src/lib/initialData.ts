@@ -61,6 +61,16 @@ export const CLIENT_HIKVISION_HARDWARE = [
 
 export const INITIAL_PROJECTS: Project[] = [
   {
+    id: 'proj-calle-cementerio',
+    name: 'Proyecto Calle del Cementerio',
+    clientName: 'Comité de Vecinos Calle del Cementerio',
+    clientPhone: '+502 5555-0199',
+    location: 'Calle del Cementerio, Guatemala',
+    status: 'instalado_activo',
+    equipmentNotes: 'DVR HiLook TurboHD (SN: F31700438) - Monitoreo Portón y Calle del Cementerio en vivo 24/7.',
+    createdAt: '2026-10-30T12:00:00.000Z'
+  },
+  {
     id: 'proj-sideseguate-01',
     name: 'Demo & Exhibición Kits Hikvision AcuSense',
     clientName: 'Lic. Fernando Morales',
@@ -86,8 +96,8 @@ export const INITIAL_CAMERAS: Camera[] = [
   // HiLookVision Client (F31700438 - Canales activos con video)
   {
     id: 'cam-hilook-ch1',
-    projectId: 'proj-sideseguate-01',
-    name: 'Cámara 1 · HiLook Client (F31700438 - CH1)',
+    projectId: 'proj-calle-cementerio',
+    name: 'Cámara 1 · Portón Calle del Cementerio (F31700438 - CH1)',
     deviceType: 'hikvision_dvr',
     host: '127.0.0.1',
     port: 554,
@@ -113,8 +123,8 @@ export const INITIAL_CAMERAS: Camera[] = [
   },
   {
     id: 'cam-hilook-ch2',
-    projectId: 'proj-sideseguate-01',
-    name: 'Cámara 2 · HiLook Client (F31700438 - CH2)',
+    projectId: 'proj-calle-cementerio',
+    name: 'Cámara 2 · Calle del Cementerio (F31700438 - CH2)',
     deviceType: 'hikvision_dvr',
     host: '127.0.0.1',
     port: 554,
