@@ -32,7 +32,23 @@ const LOCAL_PROXY_FRAME_BASE = '/p2p/frame';
 const LOCAL_PROXY_ENDPOINT_URL = '/p2p/endpoint.json';
 const LOCAL_PROXY_FULL_STATE_URL = '/p2p/live-frames.json';
 
-// CDNs with NO API rate limits (raw CDN + jsDelivr mirror)
+// Canal de descubrimiento del túnel del DVR.
+//
+// El runner (`cloud-p2p-runner.ps1`) corre en GitHub Actions, obtiene un nombre
+// de túnel Cloudflare ALEATORIO en cada arranque y lo publica en la rama
+// `cloud-state` vía API de GitHub. Estas tres URLs son la única forma de que el
+// navegador se entere de la dirección actual; van por triplicado para que un
+// límite de una CDN no deje el video sin descubrimiento.
+//
+// NO BORRAR aunque parezcan restos del despliegue antiguo de GitHub Pages:
+//   · nunca aparecen en el enlace del cliente ni en la interfaz (sólo en la
+//     pestaña Red del navegador);
+//   · Surge es estático y no puede regenerar `endpoint.json` cuando el túnel
+//     cambia, así que no hay sustituto;
+//   · sin ellas sólo quedan los túneles fijos de `KNOWN_TUNNELS`, que mueren al
+//     reiniciarse el runner → los enlaces abren pero las cámaras no cargan.
+//
+// Ver `DOMINIO-PUBLICO.md` → «Qué NO se puede borrar».
 const RAW_ENDPOINT_URLS = [
   'https://raw.githubusercontent.com/gsosa7829-beep/sideseguate-vms/cloud-state/endpoint.json',
   'https://cdn.jsdelivr.net/gh/gsosa7829-beep/sideseguate-vms@cloud-state/endpoint.json',
