@@ -18,3 +18,6 @@ live-ch*.jpg
 
 # Copias de seguridad del script de limpieza
 backups/
+
+# Binarios del SDK de Hikvision
+cloud-p2p-runtime/*.zip
