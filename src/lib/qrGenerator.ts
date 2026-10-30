@@ -1,5 +1,6 @@
 import { ShareLink } from './types';
 import { formatExpirationText } from './tokenSecurity';
+import { getPublicBaseUrl } from './publicUrl';
 
 export interface BandwidthReport {
   perCameraKbps: number;
@@ -39,7 +40,9 @@ export function generateRealQrCode(
   payload: string,
   options: RealQrOptions = {}
 ): RealQrCode {
-  const text = payload && payload.trim() ? payload : 'https://sideseguate.com';
+  // Si llega vacío, el QR apunta al dominio público real en vez de a un
+  // dominio fijo que puede no existir.
+  const text = payload && payload.trim() ? payload : getPublicBaseUrl() || 'SIDESEGUATE';
   const qr = QRCode.create(text, {
     errorCorrectionLevel: options.errorCorrectionLevel || 'H',
   });
@@ -99,7 +102,7 @@ export async function generateRealQrPngDataUrl(
   payload: string,
   options: RealQrOptions & { width?: number; margin?: number } = {}
 ): Promise<string> {
-  return QRCode.toDataURL(payload && payload.trim() ? payload : 'https://sideseguate.com', {
+  return QRCode.toDataURL(payload && payload.trim() ? payload : getPublicBaseUrl() || 'SIDESEGUATE', {
     errorCorrectionLevel: options.errorCorrectionLevel || 'H',
     width: options.width ?? 512,
     margin: options.margin ?? 2,

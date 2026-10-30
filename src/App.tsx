@@ -40,6 +40,7 @@ import { ProjectModal } from './components/ProjectModal';
 import { Sidebar } from './components/Sidebar';
 import { BottomNav } from './components/BottomNav';
 import { SectionSubNav } from './components/SectionSubNav';
+import { CloudRepairCard } from './components/CloudRepairCard';
 import { TopNavbar, UiThemePreset } from './components/TopNavbar';
 import { VideoWall } from './components/VideoWall';
 const DvrRegistryView = lazy(() =>
@@ -235,6 +236,8 @@ function AppShell() {
   const latestLogIdRef = useRef<string | null>(null);
   /** Evita republicar cámaras en cada snapshot vacío de Firestore. */
   const cloudRepairAttemptedRef = useRef(false);
+  /** Cámaras que hay en Firestore ahora mismo (0 si la colección está vacía). */
+  const [cloudCameraCount, setCloudCameraCount] = useState<number | null>(null);
   const toastTimerRef = useRef<number | null>(null);
   const shareLinksRef = useRef<ShareLink[]>([]);
   const audioAlertsRef = useRef<boolean>(true);
@@ -383,6 +386,7 @@ function AppShell() {
         storage.saveProjects(cloudProjects);
       },
       onCameras: (cloudCameras) => {
+        setCloudCameraCount(cloudCameras.length);
         // Una nube vacía NO debe vaciar el equipo. Antes, si `cloud_cameras`
         // llegaba vacía, se hacía setCameras([]) y saveCameras([]): el panel se
         // quedaba sin cámaras y se perdían también los datos locales.
@@ -729,6 +733,34 @@ function AppShell() {
       shareLinks,
     });
     showToast('Catálogo completo sincronizado en Cloud Firestore');
+  };
+
+  /**
+   * Vuelve a publicar en Firestore las cámaras guardadas en este equipo.
+   *
+   * Pensado para recuperar la colección `cloud_cameras` si se vacía por error:
+   * los datos siguen en el navegador, sólo hay que subirlos otra vez. Nunca
+   * borra nada: sólo hace upsert de lo que hay localmente.
+   */
+  const handleRepublishLocalCameras = async (): Promise<{ ok: number; failed: number }> => {
+    const locales = storage.getCameras();
+    let ok = 0;
+    let failed = 0;
+    for (const cam of locales) {
+      try {
+        await upsertCloudCamera(cam);
+        ok += 1;
+      } catch (err) {
+        failed += 1;
+        console.warn('No se pudo republicar la cámara', cam.id, err);
+      }
+    }
+    showToast(
+      failed === 0
+        ? `${ok} cámara${ok === 1 ? '' : 's'} republicada${ok === 1 ? '' : 's'} en la nube`
+        : `${ok} publicadas, ${failed} con error`
+    );
+    return { ok, failed };
   };
 
   const handleApplyRemoteTunnel = (tunnelBaseUrl: string) => {
@@ -1387,6 +1419,18 @@ function AppShell() {
           {/* VIEW 7: Catálogo de Cámaras & DVRs */}
           {activeTab === 'devices_catalog' && (
             <div className="space-y-4">
+              {/* Recuperación: la nube tiene menos cámaras que este equipo.
+                  Sólo se evalúa cuando ya llegó el primer snapshot de Firestore
+                  (cloudCameraCount !== null); antes no sabemos nada y avisar
+                  sería una falsa alarma. */}
+              {cloudCameraCount !== null && (
+                <CloudRepairCard
+                  localCount={storage.getCameras().length}
+                  cloudCount={cloudCameraCount}
+                  onRepublish={handleRepublishLocalCameras}
+                />
+              )}
+
               {/* Filter & Add Bar */}
               <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-neutral-900/60 border border-neutral-800/80 p-3 rounded-xl">
                 <div className="flex items-center gap-2 flex-1 max-w-md bg-neutral-950/60 px-3 py-1.5 rounded-lg border border-neutral-850">

@@ -3,7 +3,7 @@ import { cloudP2pClient } from '../lib/cloudP2pClient';
 import { currentTenantId, ownerIdForTenant } from '../lib/tenant';
 import { loadGateway, isPublicGateway, isLocalGateway } from '../lib/streamGateway';
 import { deviceLabel } from '../lib/deviceRegistry';
-import { GOOGLE_CLOUD_PROJECT_ID } from '../lib/firebase';
+import { GOOGLE_CLOUD_PROJECT_ID, FIRESTORE_DATABASE_ID } from '../lib/firebase';
 import {
   Activity,
   CheckCircle2,
@@ -153,7 +153,7 @@ export const SystemDiagnosticsCard: React.FC = () => {
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), 6000);
       const res = await fetch(
-        `https://firestore.googleapis.com/v1/projects/${GOOGLE_CLOUD_PROJECT_ID}/databases/(default)/documents/cloud_share_links?pageSize=1`,
+        `https://firestore.googleapis.com/v1/projects/${GOOGLE_CLOUD_PROJECT_ID}/databases/${encodeURIComponent(FIRESTORE_DATABASE_ID)}/documents/cloud_share_links?pageSize=1`,
         { signal: controller.signal, cache: 'no-store' }
       );
       clearTimeout(timer);
