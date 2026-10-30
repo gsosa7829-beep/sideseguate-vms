@@ -6,6 +6,7 @@ import {
   createDeviceRequest,
   reviewDeviceRequest,
 } from '../lib/clientDevices';
+import { getPublicUrlInfo } from '../lib/publicUrl';
 import { buildWhatsAppUrl } from '../lib/whatsapp';
 import {
   Cctv,
@@ -117,7 +118,7 @@ export const DvrRegistryView: React.FC<DvrRegistryViewProps> = ({
 
   const approvalWhatsApp = (device: ClientDeviceRequest) =>
     buildWhatsAppUrl({
-      text: buildApprovalMessage(device, accessUrl || window.location.origin),
+      text: buildApprovalMessage(device, accessUrl || getPublicUrlInfo().baseUrl || window.location.origin),
       phone: device.clientPhone,
     });
 

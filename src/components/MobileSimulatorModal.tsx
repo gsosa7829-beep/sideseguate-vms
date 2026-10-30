@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Camera, ShareLink, Project } from '../lib/types';
 import { ClientLivePortal } from './ClientLivePortal';
 import { toPublicCameras } from '../lib/publicCamera';
+import { buildPublicShareUrl } from '../lib/publicUrl';
 import { X, Smartphone, ExternalLink, RefreshCw, Copy, Check, Link2 } from 'lucide-react';
 
 interface MobileSimulatorModalProps {
@@ -32,7 +33,9 @@ export const MobileSimulatorModal: React.FC<MobileSimulatorModalProps> = ({
 
   const handleCopy = () => {
     if (!currentLink) return;
-    const fullUrl = `${window.location.origin}${window.location.pathname}?token=${currentLink.token}`;
+    // Mismo dominio que el resto de enlaces (WhatsApp/QR): no el origen
+    // crudo, que en GitHub Pages delataría el usuario personal.
+    const fullUrl = buildPublicShareUrl(currentLink.token);
     navigator.clipboard.writeText(fullUrl);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);

@@ -8,6 +8,7 @@ import {
   resolveStreamUrls,
   maskGatewayForDisplay,
 } from '../lib/streamGateway';
+import { describeShareUrlWarning, getPublicUrlInfo, getBuildPublicAppUrl } from '../lib/publicUrl';
 import { Camera } from '../lib/types';
 import {
   RadioTower,
@@ -44,7 +45,11 @@ export const StreamGatewayCard: React.FC<StreamGatewayCardProps> = ({
 }) => {
   const [baseUrl, setBaseUrl] = useState(gateway.baseUrl);
   const [webrtcBaseUrl, setWebrtcBaseUrl] = useState(gateway.webrtcBaseUrl || '');
-  const [publicAppUrl, setPublicAppUrl] = useState(gateway.publicAppUrl || '');
+  // Si el despliegue ya trae un dominio de marca (VITE_PUBLIC_APP_URL), se
+  // muestra precargado: así el operador no tiene que escribirlo en cada equipo.
+  const [publicAppUrl, setPublicAppUrl] = useState(
+    gateway.publicAppUrl || getBuildPublicAppUrl()
+  );
   const [error, setError] = useState<string | null>(null);
 
   const draft: StreamGateway = {
@@ -183,8 +188,29 @@ export const StreamGatewayCard: React.FC<StreamGatewayCardProps> = ({
               />
             </div>
             <p className="text-[10.5px] text-neutral-500 mt-1">
-              Se usa al enviar enlaces por WhatsApp para que abran el dominio real.
+              Dominio que llevarán los enlaces que recibe el cliente (WhatsApp, QR y
+              “copiar enlace”). Si lo dejas vacío se usa el dominio desde el que estás
+              abriendo el panel, que puede mostrar tu usuario personal.
             </p>
+            {(() => {
+              const info = getPublicUrlInfo();
+              const warning = describeShareUrlWarning(info);
+              return (
+                <div className="mt-2 text-[10.5px] leading-relaxed">
+                  <p className="text-neutral-500">
+                    Enlaces apuntando a:{' '}
+                    <span className="font-mono break-all text-neutral-300">
+                      {info.baseUrl || '(sin dominio)'}
+                    </span>
+                  </p>
+                  {warning && (
+                    <p className="mt-1 text-amber-300 bg-amber-950/40 border border-amber-800/50 rounded-lg p-2">
+                      {warning}
+                    </p>
+                  )}
+                </div>
+              );
+            })()}
           </div>
 
           {error && (

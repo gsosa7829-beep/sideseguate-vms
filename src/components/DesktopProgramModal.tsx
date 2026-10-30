@@ -6,6 +6,7 @@ import {
   buildCameraTunnelStreamUrl,
 } from '../lib/pcLauncherGenerator';
 import { generateMediaMtxYaml } from '../lib/mediaMtxGenerator';
+import { getPublicUrlInfo } from '../lib/publicUrl';
 import { usePWAInstall } from '../lib/usePWAInstall';
 import {
   Monitor,
@@ -72,7 +73,10 @@ export const DesktopProgramModal: React.FC<DesktopProgramModalProps> = ({
 
   if (!isOpen) return null;
 
-  const appUrl = window.location.origin + window.location.pathname;
+  // El acceso directo del programa de PC debe abrir el dominio de la marca,
+  // no el origen crudo (en GitHub Pages mostraría el usuario personal).
+  const appUrl =
+    getPublicUrlInfo().baseUrl || `${window.location.origin}${window.location.pathname}`;
 
   const unifiedBatchContent = generateWindowsProgramBatch({
     appUrl,

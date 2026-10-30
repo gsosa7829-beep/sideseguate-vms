@@ -44,15 +44,25 @@ jobs:
         run: npx tsc --noEmit
 
       - name: Build Production Bundle
+        env:
+          # Dominio de marca de los enlaces de cliente (Settings → Variables).
+          VITE_PUBLIC_APP_URL: ${{ vars.PUBLIC_APP_URL }}
         run: npm run build
 
       - name: Publish to Surge
         env:
           SURGE_TOKEN: ${{ secrets.SURGE_TOKEN }}
+          # Dominio de Surge. Se puede cambiar sin tocar el código creando la
+          # variable SURGE_DOMAIN (Settings → Variables), por ejemplo
+          # "sideseguate.surge.sh" para que el enlace muestre la marca y no
+          # "sideseguate-cloud".
+          SURGE_DOMAIN: ${{ vars.SURGE_DOMAIN }}
         run: |
           if [ -z "$SURGE_TOKEN" ]; then
             echo "::warning::SURGE_TOKEN no está configurado. Se omite el despliegue a Surge."
             echo "Añádelo en Settings → Secrets and variables → Actions para publicar automáticamente."
             exit 0
           fi
-          npx --yes surge ./dist sideseguate-cloud.surge.sh --token "$SURGE_TOKEN"
+          TARGET="${SURGE_DOMAIN:-sideseguate-cloud.surge.sh}"
+          echo "Publicando en https://$TARGET"
+          npx --yes surge ./dist "$TARGET" --token "$SURGE_TOKEN"
