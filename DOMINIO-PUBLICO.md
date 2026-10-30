@@ -70,3 +70,43 @@ escribirlo otra vez. Para eso está la variable del paso 2.
 - Si cambias de alojamiento, actualiza `PUBLIC_APP_URL` y vuelve a desplegar.
 - El QR y el mensaje de WhatsApp usan la misma base, así que se corrigen a la
   vez.
+
+## Desplegar en Surge (el dominio `sideseguate-cloud.surge.sh`)
+
+El dominio **solo se actualiza si el workflow tiene el secreto `SURGE_TOKEN`**.
+Si falta, el run ahora **falla en rojo** con el mensaje *«Falta el secreto
+SURGE_TOKEN»* (antes terminaba en verde sin publicar nada, y así se quedó
+semanas atrás).
+
+### Una sola vez
+
+```bash
+npx --yes surge login     # tu correo y contraseña de Surge
+npx --yes surge token     # copia el token completo que imprime
+```
+
+Repo → **Settings → Secrets and variables → Actions → New repository secret**
+
+- Nombre: `SURGE_TOKEN`
+- Valor: el token del paso anterior
+
+Después: **Actions → Deploy to Surge → Run workflow**. A partir de ahí, cada
+fusión a `main` publica sola.
+
+### O inmediato, desde tu PC
+
+```bash
+git pull && npm ci && npm run deploy:surge
+```
+
+### Comprobar que de verdad se publicó
+
+El estado del run no basta: un run verde no garantiza nada si el token falta.
+
+```bash
+npm run build && npm run verify:deploy
+```
+
+Compara el asset que sirve el dominio con el que acabas de compilar. También lo
+hace el propio workflow en el paso *«Verificar que el dominio sirve el build
+nuevo»*: si el sitio queda viejo, el run falla.
