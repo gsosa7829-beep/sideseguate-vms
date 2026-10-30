@@ -1326,3 +1326,16 @@ test('sectionOfTab devuelve la sección correcta y defaultTabOfSection su entrad
     );
   }
 });
+
+test('el QR nunca cae en un dominio fijo que no sea el de la plataforma', async () => {
+  const { generateRealQrCode } = await import('./qrGenerator.ts');
+  const { getPublicBaseUrl } = await import('./publicUrl.ts');
+
+  const matrixOf = (payload: string) => JSON.stringify(generateRealQrCode(payload).matrix);
+
+  // Sin payload (o vacío) el QR debe codificar el dominio público de la
+  // plataforma, no un dominio fijo heredado que puede no existir.
+  const expected = matrixOf(getPublicBaseUrl() || 'SIDESEGUATE');
+  assert.equal(matrixOf('   '), expected);
+  assert.notEqual(matrixOf('https://sideseguate.com'), expected);
+});

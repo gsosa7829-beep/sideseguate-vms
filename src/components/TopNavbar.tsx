@@ -38,6 +38,7 @@ import { currentTenantId } from '../lib/tenant';
 import { formatBuyerAccessNotification } from '../lib/pcLauncherGenerator';
 import { usePWAInstall } from '../lib/usePWAInstall';
 import { MenuItem } from './MenuItem';
+import { getPublicUrlInfo, describeShareUrlWarning } from '../lib/publicUrl';
 import type { User } from 'firebase/auth';
 
 export type UiThemePreset = 'tactical' | 'sapphire' | 'titanium';
@@ -103,11 +104,9 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
   const [showAlertsPopover, setShowAlertsPopover] = useState(false);
   const [showMoreMenu, setShowMoreMenu] = useState(false);
   const [showMobileSearch, setShowMobileSearch] = useState(false);
+  const [copiedPublicUrl, setCopiedPublicUrl] = useState(false);
   const [syncStatus, setSyncStatus] = useState<'idle' | 'syncing' | 'synced' | 'error'>('idle');
   const [authError, setAuthError] = useState<string | null>(null);
-  const [copiedDeployCmd, setCopiedDeployCmd] = useState(false);
-
-  const cloudShellCommand = `rm -rf sideseguate-vms && git clone https://github.com/gsosa7829-beep/sideseguate-vms.git && cd sideseguate-vms && npm install && npm run build && firebase deploy --only hosting --project ${GOOGLE_CLOUD_PROJECT_ID}`;
 
   useEffect(() => {
     const unsub = subscribeToAuth((u) => {
@@ -186,12 +185,6 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
     }
   };
 
-  const handleCopyDeployCmd = () => {
-    navigator.clipboard.writeText(cloudShellCommand);
-    setCopiedDeployCmd(true);
-    setTimeout(() => setCopiedDeployCmd(false), 2500);
-  };
-
   const cycleTheme = () => {
     if (!onChangeUiTheme) return;
     const order: UiThemePreset[] = ['sapphire', 'tactical', 'titanium'];
@@ -209,6 +202,10 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
   // así la barra superior no puede desincronizarse del menú.
   const section = sectionOfTab(currentTab).label;
   const title = labelOfTab(currentTab);
+
+  // Dominio que llevan los enlaces que recibe el cliente.
+  const publicUrlInfo = getPublicUrlInfo();
+  const publicUrlWarning = describeShareUrlWarning(publicUrlInfo);
 
   return (
     <>
@@ -558,8 +555,8 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
                   <h3 className="text-sm font-bold text-white">
                     Sincronización Cloud Firestore y Publicación Web
                   </h3>
-                  <p className="text-[11px] text-neutral-400 font-mono">
-                    Proyecto: {GOOGLE_CLOUD_PROJECT_ID} · DB: {FIRESTORE_DATABASE_ID.slice(0, 22)}...
+                  <p className="text-[11px] text-neutral-400">
+                    Cámaras, enlaces y accesos sincronizados en tiempo real
                   </p>
                 </div>
               </div>
@@ -650,70 +647,121 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
                 )}
               </div>
 
-              {/* Public Hosting Deploy Box */}
+              {/* Dominio público: lo que el cliente ve en la barra de direcciones.
+                  Antes esta caja mostraba https://<id-del-proyecto>.web.app, que
+                  es el nombre interno de la infraestructura y además no es el
+                  dominio donde vive la app. */}
               <div className="bg-neutral-950 border border-neutral-800 rounded-xl p-4 space-y-3">
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between gap-2">
                   <span className="font-semibold text-white">
-                    2. Publicar Enlace Web Oficial (.web.app) en Google Cloud
+                    2. Dominio de tus enlaces
                   </span>
-                  <span className="text-[11px] font-mono text-emerald-400 flex items-center gap-1">
-                    <CheckCircle2 className="w-3.5 h-3.5" /> Configurado
-                  </span>
+                  {publicUrlInfo.isReachableByClient && !publicUrlInfo.looksPersonal && (
+                    <span className="text-[11px] font-mono text-emerald-400 flex items-center gap-1 shrink-0">
+                      <CheckCircle2 className="w-3.5 h-3.5" aria-hidden="true" /> Listo
+                    </span>
+                  )}
                 </div>
+
                 <p className="text-neutral-400 leading-relaxed">
-                  Publica esta plataforma en el dominio gratuito <code className="text-sky-400 font-mono">https://{GOOGLE_CLOUD_PROJECT_ID}.web.app</code> directamente desde Google Cloud Shell:
+                  Es la dirección que aparece cuando tu cliente abre el enlace
+                  (WhatsApp, QR o «copiar enlace»).
                 </p>
 
-                <div className="bg-neutral-900 border border-neutral-800 rounded-lg p-3 space-y-2">
-                  <div className="flex items-center justify-between text-[11px] text-neutral-400">
-                    <span className="flex items-center gap-1.5 font-mono text-neutral-300">
-                      <Terminal className="w-3.5 h-3.5 text-sky-400" />
-                      Comando de Despliegue Automático
-                    </span>
-                    <button
-                      onClick={handleCopyDeployCmd}
-                      className="px-2.5 py-1 bg-neutral-800 hover:bg-neutral-750 text-white rounded-md font-medium flex items-center gap-1 transition"
-                    >
-                      {copiedDeployCmd ? (
-                        <>
-                          <Check className="w-3 h-3 text-emerald-400" />
-                          <span className="text-emerald-400">Copiado</span>
-                        </>
-                      ) : (
-                        <>
-                          <Copy className="w-3 h-3 text-neutral-400" />
-                          <span>Copiar Comando</span>
-                        </>
-                      )}
-                    </button>
-                  </div>
-                  <pre className="text-[11px] font-mono text-sky-300 overflow-x-auto py-1 select-all">
-                    {cloudShellCommand}
-                  </pre>
+                <div className="flex items-center gap-2 bg-neutral-900 border border-neutral-800 rounded-lg px-3 py-2">
+                  <ExternalLink className="w-3.5 h-3.5 text-sky-400 shrink-0" aria-hidden="true" />
+                  <code className="text-[11.5px] font-mono text-white truncate flex-1">
+                    {publicUrlInfo.baseUrl || '(sin dominio configurado)'}
+                  </code>
+                  <button
+                    type="button"
+                    aria-label="Copiar dominio"
+                    onClick={() => {
+                      navigator.clipboard.writeText(publicUrlInfo.baseUrl).then(() => {
+                        setCopiedPublicUrl(true);
+                        setTimeout(() => setCopiedPublicUrl(false), 2000);
+                      });
+                    }}
+                    className="shrink-0 px-2 py-1 bg-neutral-800 hover:bg-neutral-750 text-white rounded-md text-[11px] font-medium flex items-center gap-1 transition"
+                  >
+                    {copiedPublicUrl ? (
+                      <>
+                        <Check className="w-3 h-3 text-emerald-400" aria-hidden="true" />
+                        <span className="text-emerald-400">Copiado</span>
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="w-3 h-3 text-neutral-400" aria-hidden="true" />
+                        <span>Copiar</span>
+                      </>
+                    )}
+                  </button>
                 </div>
 
-                <div className="flex flex-wrap items-center gap-2 pt-1">
-                  <a
-                    href={`https://console.cloud.google.com/cloudshell/editor?project=${GOOGLE_CLOUD_PROJECT_ID}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="px-3 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-semibold inline-flex items-center gap-1.5 transition"
-                  >
-                    <Terminal className="w-3.5 h-3.5" />
-                    <span>Abrir Google Cloud Shell</span>
-                    <ExternalLink className="w-3 h-3" />
-                  </a>
-                  <a
-                    href={`https://console.firebase.google.com/project/${GOOGLE_CLOUD_PROJECT_ID}/overview`}
-                    target="_blank"
-                    rel="noopener noreferrer"
+                {publicUrlWarning ? (
+                  <p className="text-[11.5px] leading-relaxed text-amber-300 bg-amber-950/40 border border-amber-800/50 rounded-lg p-2.5">
+                    {publicUrlWarning}
+                  </p>
+                ) : (
+                  <p className="text-[11.5px] leading-relaxed text-neutral-500">
+                    Tus clientes ven tu marca, no datos personales ni el nombre interno
+                    de la infraestructura.
+                  </p>
+                )}
+
+                {onSelectTab && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onSelectTab('windows_server');
+                      setShowCloudModal(false);
+                    }}
                     className="px-3 py-2 bg-neutral-900 hover:bg-neutral-850 text-neutral-200 border border-neutral-800 rounded-lg font-medium inline-flex items-center gap-1.5 transition"
                   >
-                    <span>Consola Firebase</span>
-                    <ExternalLink className="w-3 h-3" />
-                  </a>
-                </div>
+                    <span>Cambiar el dominio</span>
+                    <ExternalLink className="w-3 h-3" aria-hidden="true" />
+                  </button>
+                )}
               </div>
+
+              {/* Detalles técnicos: plegados. El operador no los necesita a la
+                  vista, y mostraban el nombre interno del proyecto. */}
+              <details className="bg-neutral-950 border border-neutral-800 rounded-xl p-4">
+                <summary className="cursor-pointer text-neutral-300 font-medium select-none">
+                  Detalles técnicos e infraestructura
+                </summary>
+                <div className="mt-3 space-y-2">
+                  <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1.5 font-mono text-[11px] text-neutral-400">
+                    <dt>Proyecto</dt>
+                    <dd className="text-neutral-300 break-all">{GOOGLE_CLOUD_PROJECT_ID}</dd>
+                    <dt>Base de datos</dt>
+                    <dd className="text-neutral-300 break-all">{FIRESTORE_DATABASE_ID}</dd>
+                    <dt>Espacio</dt>
+                    <dd className="text-neutral-300 break-all">{activeTenantId}</dd>
+                  </dl>
+                  <div className="flex flex-wrap items-center gap-2 pt-1">
+                    <a
+                      href={`https://console.firebase.google.com/project/${GOOGLE_CLOUD_PROJECT_ID}/firestore/rules`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="px-3 py-2 bg-neutral-900 hover:bg-neutral-850 text-neutral-200 border border-neutral-800 rounded-lg font-medium inline-flex items-center gap-1.5 transition"
+                    >
+                      <span>Consola Firebase</span>
+                      <ExternalLink className="w-3 h-3" aria-hidden="true" />
+                    </a>
+                    <a
+                      href={`https://console.cloud.google.com/cloudshell/editor?project=${GOOGLE_CLOUD_PROJECT_ID}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="px-3 py-2 bg-neutral-900 hover:bg-neutral-850 text-neutral-200 border border-neutral-800 rounded-lg font-medium inline-flex items-center gap-1.5 transition"
+                    >
+                      <Terminal className="w-3.5 h-3.5 text-sky-400" aria-hidden="true" />
+                      <span>Cloud Shell</span>
+                      <ExternalLink className="w-3 h-3" aria-hidden="true" />
+                    </a>
+                  </div>
+                </div>
+              </details>
             </div>
           </div>
         </div>
