@@ -2,10 +2,13 @@ $ErrorActionPreference = "Continue"
 $ProgressPreference = "SilentlyContinue"
 $scriptRoot = if ($PSScriptRoot) { $PSScriptRoot } else { (Get-Location).Path }
 $ivmsDir = "C:\Program Files (x86)\iVMS-4200 Site\iVMS-4200 Client\Client"
+$hilookDir = "C:\Program Files\HiLookVision Station\HiLookVision\HiLookVision Client"
 $cloudBinDir = Join-Path $scriptRoot "cloud-p2p-runtime\bin"
 $cloudZipPath = Join-Path $scriptRoot "cloud-p2p-runtime\hik-sdk-x64.zip"
 
-if (($env:FORCE_CLOUD_SDK -ne "1") -and (Test-Path (Join-Path $ivmsDir "NetStream.dll"))) {
+if (Test-Path (Join-Path $hilookDir "NetStream.dll")) {
+    $clientDir = $hilookDir
+} elseif (($env:FORCE_CLOUD_SDK -ne "1") -and (Test-Path (Join-Path $ivmsDir "NetStream.dll"))) {
     $clientDir = $ivmsDir
 } else {
     if (-not (Test-Path (Join-Path $cloudBinDir "NetStream.dll"))) {
@@ -122,14 +125,14 @@ public class HikNativeP2PServer {
     public static string BuildDevInfo(int ch) {
         int streamType = (ch == 1) ? 2 : 2; // Sub-stream for low-latency multi-channel P2P
         return "{\"Channel\":" + ch +
-            ",\"ChannelSerial\":\"FB2200254\",\"ChannelType\":1,\"ClientType\":19,\"CloseKeyAuth\":0," +
+            ",\"ChannelSerial\":\"F31700438\",\"ChannelType\":1,\"ClientType\":19,\"CloseKeyAuth\":0," +
             "\"DirectPlayback_EndFlag\":true,\"FastStream\":0,\"Finterval\":0,\"ISP\":0," +
-            "\"InnerCmdPort\":9010,\"InnerIP\":\"192.168.1.81\",\"InnerStreamPort\":9020," +
+            "\"InnerCmdPort\":9010,\"InnerIP\":\"192.168.1.115\",\"InnerStreamPort\":9020," +
             "\"InternetCmdPort\":45570,\"InternetIP\":\"" + DevPublicIp + "\",\"InternetStreamPort\":24545," +
             "\"IsEncrypt\":true,\"P2PCheckInterval\":0,\"P2PKeyVer\":101," +
             "\"P2PLinkKey\":\"" + P2PLinkKey + "\",\"P2PSwitch\":1,\"P2PVer\":3," +
             "\"PermanentKey\":\"HELGDM\",\"PermanentKeyMd5\":\"94671257757cac13654a2a7d308a1453\"," +
-            "\"RcType\":0,\"RecordType\":255,\"Serial\":\"FB2200254\",\"StrChannelNo\":\"\"," +
+            "\"RcType\":0,\"RecordType\":255,\"Serial\":\"F31700438\",\"StrChannelNo\":\"\"," +
             "\"StreamAuthType\":0,\"StreamType\":" + streamType + ",\"SuperSerial\":\"\",\"SupportECDH\":\"\"," +
             "\"SupportSeek2Playback\":0,\"Token\":\"\",\"TransProto\":\"TCP\",\"UserName\":\"somebody\"," +
             "\"V3Playback\":true,\"VTDUProtoType\":1,\"VtduTimeLimit\":0,\"devNATType\":3," +
@@ -153,7 +156,7 @@ public class HikNativeP2PServer {
         NS_SetP2PV3ConfigInfo(p2pCfg);
 
         int idxPre = NS_AllocSession();
-        string preDev = "{\"Channel\":3,\"MaxChannel\":12,\"P2PKeyVer\":101,\"P2PLinkKey\":\"" + linkKey + "\",\"P2PSwitch\":1,\"P2PVer\":3,\"Serial\":\"FB2200254\",\"StreamType\":2,\"SupportNat34\":0,\"devNATType\":3}";
+        string preDev = "{\"Channel\":3,\"MaxChannel\":12,\"P2PKeyVer\":101,\"P2PLinkKey\":\"" + linkKey + "\",\"P2PSwitch\":1,\"P2PVer\":3,\"Serial\":\"F31700438\",\"StreamType\":2,\"SupportNat34\":0,\"devNATType\":3}";
         string preSrv = "{\"casIP\":\"23.23.215.158\",\"casPort\":6500,\"stunIP\":\"43.130.155.63\",\"stunPort\":6002,\"userid\":\"" + userId + "\",\"vtmIP\":\"vtmusmia.ezvizlife.com\",\"vtmPort\":8554}";
         string p2pSrv = "{\"ServerInfo\":[{\"ip\":\"148.153.246.88\",\"port\":6404},{\"ip\":\"148.153.75.244\",\"port\":6404}]}";
         int rPre = NS_StartPreConnection(idxPre, userId, preDev, preSrv, p2pSrv);
@@ -322,7 +325,7 @@ public class HikNativeP2PServer {
 
                 if (path == "/bundle") {
                     StringBuilder bsb = new StringBuilder();
-                    bsb.Append("{\"online\":true,\"serial\":\"FB2200254\",\"updatedAt\":\"" + DateTime.UtcNow.ToString("o") + "\",\"frames\":{");
+                    bsb.Append("{\"online\":true,\"serial\":\"F31700438\",\"updatedAt\":\"" + DateTime.UtcNow.ToString("o") + "\",\"frames\":{");
                     for (int ch = 1; ch <= 4; ch++) {
                         byte[] jpg = null;
                         lock (_lock) { jpg = _frames[ch]; }
@@ -352,7 +355,7 @@ public class HikNativeP2PServer {
 
                 // Default: /status JSON
                 StringBuilder sb = new StringBuilder();
-                sb.Append("{\"online\":true,\"serial\":\"FB2200254\",\"model\":\"iDS-7204HUHI-M1/S\",\"encryption\":\"HELGDM\",\"transport\":\"Hikvision P2P V3 Native (NetStream.dll)\",\"channels\":{");
+                sb.Append("{\"online\":true,\"serial\":\"F31700438\",\"model\":\"iDS-7204HUHI-M1/S\",\"encryption\":\"HELGDM\",\"transport\":\"Hikvision P2P V3 Native (NetStream.dll)\",\"channels\":{");
                 for (int ch = 1; ch <= 4; ch++) {
                     byte[] jpg = null;
                     long cnt = 0;

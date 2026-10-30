@@ -11,7 +11,7 @@ Set-Location $scriptRoot
 
 Write-Host "=========================================================="
 Write-Host " SIDESEGUATE 24/7 CLOUD P2P SERVER (ZERO-PC ARCHITECTURE)"
-Write-Host " DVR: EQUIPO DE PRUEBA (SN: FB2200254 | Code: HELGDM)"
+Write-Host " DVR: HILOOK CLIENT (SN: F31700438 | Code: HELGDM)"
 Write-Host "=========================================================="
 
 # 1. Start Hikvision Native P2P Server (hik-p2p-server.ps1) on port 8890
@@ -174,7 +174,7 @@ while (((Get-Date) - $startTime).TotalMinutes -lt $MaxRunMinutes) {
         $endpointPayload = [ordered]@{
             online      = $true
             mode        = if ($env:GITHUB_ACTIONS -eq "true") { "github-cloud-runner-24-7" } else { "hybrid-cloud-bridge" }
-            serial      = "FB2200254"
+            serial      = "F31700438"
             model       = "iDS-7204HUHI-M1/S"
             encryption  = "HELGDM"
             tunnelUrl   = $tunnelUrl
@@ -185,7 +185,7 @@ while (((Get-Date) - $startTime).TotalMinutes -lt $MaxRunMinutes) {
         $livePayload = [ordered]@{
             online      = $true
             mode        = if ($env:GITHUB_ACTIONS -eq "true") { "github-cloud-runner-24-7" } else { "hybrid-cloud-bridge" }
-            serial      = "FB2200254"
+            serial      = "F31700438"
             model       = "iDS-7204HUHI-M1/S"
             encryption  = "HELGDM"
             tunnelUrl   = $tunnelUrl

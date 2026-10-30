@@ -2,6 +2,21 @@ import { Project, Camera, ShareLink, AccessLog } from './types';
 
 export const CLIENT_HIKVISION_HARDWARE = [
   {
+    model: 'HiLook DVR TurboHD',
+    name: 'HiLookVision Desktop Client (F31700438)',
+    serial: 'F31700438',
+    shortSerial: 'F31700438',
+    verificationCode: 'HELGDM',
+    lanIp: '192.168.1.115',
+    publicIp: '186.151.10.187',
+    serverPort: 9010,
+    httpPort: 80,
+    rtspPort: 554,
+    totalChannels: 9,
+    recommendedStream: '1080p / Sub-stream P2P Cloud',
+    rtspSyntaxExample: 'rtsp://admin:HELGDM@192.168.1.115:554/Streaming/Channels/101'
+  },
+  {
     model: 'iDS-7204HUHI-M1/S',
     name: 'EQUIPO DE PRUEBA (FB2200254) · Hikvision AcuSense DVR (iVMS-4200)',
     serial: '0420240307CCWRFB2200254WCVU',
@@ -68,6 +83,61 @@ export const INITIAL_PROJECTS: Project[] = [
 ];
 
 export const INITIAL_CAMERAS: Camera[] = [
+  // HiLookVision Client (F31700438 - Canales activos con video)
+  {
+    id: 'cam-hilook-ch1',
+    projectId: 'proj-sideseguate-01',
+    name: 'Cámara 1 · HiLook Client (F31700438 - CH1)',
+    deviceType: 'hikvision_dvr',
+    host: '127.0.0.1',
+    port: 554,
+    onvifPort: 80,
+    username: 'admin',
+    password: '',
+    verificationCode: 'HELGDM',
+    channel: 1,
+    streamType: 'sub',
+    rtspUrl: 'rtsp://admin:HELGDM@192.168.1.115:554/Streaming/Channels/102',
+    hlsStreamUrl: 'http://localhost:8890/mjpeg/1',
+    webrtcUrl: 'http://localhost:8890/mjpeg/1',
+    status: 'online',
+    fps: 25,
+    resolution: '1920x1080 (1080p FHD)',
+    bitrateKbps: 2048,
+    codec: 'H.264',
+    locationDesc: 'Canal 1 HiLookVision · Entrada (F31700438)',
+    ptzSupported: true,
+    nightVision: true,
+    deviceSerial: 'F31700438',
+    notes: 'DVR HiLook F31700438 | P2P Ezviz / Hik-Connect | Canal 1 Activo en vivo'
+  },
+  {
+    id: 'cam-hilook-ch2',
+    projectId: 'proj-sideseguate-01',
+    name: 'Cámara 2 · HiLook Client (F31700438 - CH2)',
+    deviceType: 'hikvision_dvr',
+    host: '127.0.0.1',
+    port: 554,
+    onvifPort: 80,
+    username: 'admin',
+    password: '',
+    verificationCode: 'HELGDM',
+    channel: 2,
+    streamType: 'sub',
+    rtspUrl: 'rtsp://admin:HELGDM@192.168.1.115:554/Streaming/Channels/202',
+    hlsStreamUrl: 'http://localhost:8890/mjpeg/2',
+    webrtcUrl: 'http://localhost:8890/mjpeg/2',
+    status: 'online',
+    fps: 25,
+    resolution: '1920x1080 (1080p FHD)',
+    bitrateKbps: 2048,
+    codec: 'H.264',
+    locationDesc: 'Canal 2 HiLookVision · Interior (F31700438)',
+    ptzSupported: true,
+    nightVision: true,
+    deviceSerial: 'F31700438',
+    notes: 'DVR HiLook F31700438 | P2P Ezviz / Hik-Connect | Canal 2 Activo en vivo'
+  },
   // DVR Principal en iVMS-4200: EQUIPO DE PRUEBA (FB2200254 · IP 192.168.1.81)
   {
     id: 'cam-ids-ch1',
