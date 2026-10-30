@@ -4,24 +4,11 @@ import {
   normalizeGatewayUrl,
   isPublicGateway,
   isLocalGateway,
-  describeStreamMode,
-  resolveStreamUrls,
   maskGatewayForDisplay,
 } from '../lib/streamGateway';
 import { describeShareUrlWarning, getPublicUrlInfo, getBuildPublicAppUrl } from '../lib/publicUrl';
 import { Camera } from '../lib/types';
-import {
-  RadioTower,
-  Video,
-  Image as ImageIcon,
-  CheckCircle2,
-  AlertTriangle,
-  Globe,
-  Save,
-  ExternalLink,
-  Copy,
-  Server,
-} from 'lucide-react';
+import { RadioTower, Globe, Save, ExternalLink, Copy, Server, AlertTriangle } from 'lucide-react';
 
 interface StreamGatewayCardProps {
   gateway: StreamGateway;
@@ -62,10 +49,6 @@ export const StreamGatewayCard: React.FC<StreamGatewayCardProps> = ({
   const publicOk = isPublicGateway(baseUrl);
   const localOk = isLocalGateway(baseUrl);
   const normalized = normalizeGatewayUrl(baseUrl);
-
-  // Previsualización real con la primera cámara disponible.
-  const sample = cameras[0];
-  const preview = sample ? resolveStreamUrls(sample, draft) : null;
 
   const handleSave = () => {
     setError(null);
@@ -242,72 +225,42 @@ export const StreamGatewayCard: React.FC<StreamGatewayCardProps> = ({
           </div>
         </div>
 
-        {/* Previsualización honesta del modo resultante */}
-        <div className="bg-neutral-950 border border-neutral-800 rounded-xl p-4 space-y-3">
-          <div className="flex items-center gap-2">
-            {preview?.mode === 'hls-public' ? (
-              <Video className="w-4 h-4 text-emerald-400" />
-            ) : (
-              <ImageIcon className="w-4 h-4 text-amber-400" />
+        {/*
+          Antes aquí había una vista previa del servidor con la primera cámara,
+          más la URL del stream y la de WebRTC. Al operador no le dicen nada y
+          confunden: lo único que necesita saber es si el servidor está
+          activo. Los detalles técnicos quedan en el menú de Google Cloud.
+        */}
+        <div
+          className={`rounded-xl border px-3.5 py-2.5 flex items-center gap-2.5 ${
+            publicOk
+              ? 'border-emerald-500/30 bg-emerald-500/[0.06]'
+              : 'border-neutral-800 bg-neutral-950'
+          }`}
+          role="status"
+        >
+          <span className="relative flex h-2 w-2 shrink-0" aria-hidden="true">
+            {publicOk && (
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-70" />
             )}
-            <span className="text-xs font-bold text-white">
-              Así se verán tus cámaras
-            </span>
-          </div>
-
-          <div className="space-y-2 text-[11px]">
-            <div className="flex items-start gap-2">
-              <span className="text-neutral-500 shrink-0 w-24">Modo</span>
-              <span
-                className={
-                  preview?.mode === 'hls-public'
-                    ? 'text-emerald-300 font-semibold'
-                    : preview?.mode === 'hls-local'
-                      ? 'text-amber-300 font-semibold'
-                      : 'text-neutral-300 font-semibold'
-                }
-              >
-                {describeStreamMode(preview?.mode || 'snapshot')}
-              </span>
-            </div>
-            <div className="flex items-start gap-2">
-              <span className="text-neutral-500 shrink-0 w-24">URL del stream</span>
-              <span className="font-mono text-neutral-400 break-all">
-                {preview?.hlsUrl || '—'}
-              </span>
-            </div>
-            <div className="flex items-start gap-2">
-              <span className="text-neutral-500 shrink-0 w-24">WebRTC</span>
-              <span className="font-mono text-neutral-400 break-all">
-                {preview?.webrtcUrl || '—'}
-              </span>
-            </div>
-            <div className="flex items-start gap-2">
-              <span className="text-neutral-500 shrink-0 w-24">Cámaras</span>
-              <span className="text-neutral-400">{cameras.length} configuradas</span>
-            </div>
-          </div>
-
-          <div
-            className={`text-[11px] rounded-lg p-2.5 flex items-start gap-1.5 border ${
-              publicOk
-                ? 'bg-emerald-950/40 border-emerald-800/50 text-emerald-200'
-                : 'bg-amber-950/40 border-amber-800/50 text-amber-200'
+            <span
+              className={`relative inline-flex h-2 w-2 rounded-full ${
+                publicOk ? 'bg-emerald-400' : 'bg-neutral-600'
+              }`}
+            />
+          </span>
+          <span
+            className={`text-sm font-semibold ${
+              publicOk ? 'text-emerald-300' : 'text-neutral-400'
             }`}
           >
-            {publicOk ? (
-              <CheckCircle2 className="w-3.5 h-3.5 shrink-0 mt-0.5" />
-            ) : (
-              <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
-            )}
-            <span>
-              {publicOk
-                ? 'Video continuo activo: los clientes verán las cámaras en vivo desde cualquier red.'
-                : localOk
-                  ? 'Estas apuntando a localhost: el video continuo solo se verá en este PC, no en el celular del cliente.'
-                  : 'Sin dominio público, la app usa el modo imagen (una foto por segundo). Funciona, pero no es video continuo.'}
-            </span>
-          </div>
+            {publicOk ? 'Servidor activo' : 'Servidor inactivo'}
+          </span>
+          <span className="text-xs text-neutral-500">
+            {publicOk
+              ? 'Las cámaras se ven en video continuo desde cualquier red.'
+              : 'Sin dominio público las cámaras se ven como imagen fija.'}
+          </span>
         </div>
       </div>
     </section>

@@ -138,7 +138,7 @@ export const AccessAuditView: React.FC<AccessAuditViewProps> = ({
                         </span>
                       )}
                       {log.action === 'snapshot_taken' && (
-                        <span className="inline-flex items-center gap-1.5 text-blue-400 font-medium">
+                        <span className="inline-flex items-center gap-1.5 text-sky-400 font-medium">
                           <CameraIcon className="w-3.5 h-3.5" />
                           Captura Guardada
                         </span>
@@ -207,7 +207,7 @@ export const AccessAuditView: React.FC<AccessAuditViewProps> = ({
                 </span>
               )}
               {log.action === 'snapshot_taken' && (
-                <span className="inline-flex items-center gap-1.5 text-blue-400 font-medium">
+                <span className="inline-flex items-center gap-1.5 text-sky-400 font-medium">
                   <CameraIcon className="w-3.5 h-3.5" />
                   Captura Guardada
                 </span>

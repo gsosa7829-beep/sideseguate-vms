@@ -1,28 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { Camera } from '../lib/types';
 import { LiveCameraPlayer } from './LiveCameraPlayer';
-import {
-  ivmsLiveBridge,
-  DETECTED_IVMS_DEVICE,
-  IvmsLayoutMode,
-} from '../lib/ivmsLiveBridge';
 import { cloudP2pClient } from '../lib/cloudP2pClient';
-import { 
-  LayoutGrid, 
-  Square, 
-  Plus, 
-  Eye, 
-  Link2,
-  Grid3X3,
-  Radio,
-  Activity,
-  Gauge,
-  HardDrive,
-  MonitorPlay,
-  ShieldCheck,
-  Crop,
-  PowerOff
-} from 'lucide-react';
+import { LayoutGrid, Square, Plus, Eye, Link2, Grid3X3 } from 'lucide-react';
 
 interface VideoWallProps {
   cameras: Camera[];
@@ -40,81 +20,15 @@ export const VideoWall: React.FC<VideoWallProps> = ({
   const [gridSize, setGridSize] = useState<'1' | '2' | '3'>('2');
   const [filterType, setFilterType] = useState<string>('all');
   /**
-   * En móvil los cuatro indicadores ocupan media pantalla antes de llegar a
-   * las cámaras. Se muestra una línea de resumen y el detalle queda a un toque.
+   * Estado del servidor, sin detalles técnicos: el operador sólo necesita
+   * saber si está activo o no. Arranca en `false` para no mostrar una
+   * falsa sensación de "todo bien" antes de la primera respuesta real.
    */
-  const [showMobileKpis, setShowMobileKpis] = useState(false);
-  const [ivmsBridgeActive, setIvmsBridgeActive] = useState(() => ivmsLiveBridge.isActive());
-  const [ivmsCropConfig, setIvmsCropConfig] = useState(() => ivmsLiveBridge.getCropConfig());
-  const [bridgeFeedback, setBridgeFeedback] = useState<string | null>(null);
-  const [nativeP2pStatus, setNativeP2pStatus] = useState<{
-    online: boolean;
-    source: string;
-    tunnelUrl: string;
-    totalFramesCh1: number;
-    latencyMs: number;
-    updatedAt: string;
-    proxy: boolean;
-  }>({
-    online: true,
-    source: 'local-p2p',
-    tunnelUrl: '',
-    totalFramesCh1: 0,
-    latencyMs: 82,
-    updatedAt: '',
-    proxy: false,
-  });
+  const [serverOnline, setServerOnline] = useState(false);
 
   useEffect(() => {
-    return cloudP2pClient.subscribe((state) => {
-      setNativeP2pStatus({
-        online: state.online,
-        source: state.source,
-        tunnelUrl: state.tunnelUrl,
-        totalFramesCh1: state.channels?.['1']?.totalFrames || 0,
-        latencyMs: state.channels?.['1']?.lastFrameAgeMs || 80,
-        updatedAt: state.updatedAt,
-        proxy: cloudP2pClient.isProxyReachable(),
-      });
-    });
+    return cloudP2pClient.subscribe((state) => setServerOnline(Boolean(state.online)));
   }, []);
-
-  useEffect(() => {
-    return ivmsLiveBridge.subscribe(() => {
-      setIvmsBridgeActive(ivmsLiveBridge.isActive());
-      setIvmsCropConfig({ ...ivmsLiveBridge.getCropConfig() });
-    });
-  }, []);
-
-  const handleToggleIvmsBridge = async () => {
-    if (ivmsBridgeActive) {
-      ivmsLiveBridge.stopCapture();
-      setBridgeFeedback('Puente en vivo iVMS-4200 desconectado.');
-      setTimeout(() => setBridgeFeedback(null), 3500);
-      return;
-    }
-
-    const res = await ivmsLiveBridge.startCapture();
-    if (res.ok) {
-      setBridgeFeedback(
-        '¡Ventana iVMS-4200 vinculada en vivo! Mostrando cámaras reales del DVR.'
-      );
-      setTimeout(() => setBridgeFeedback(null), 5000);
-    } else if (res.error) {
-      setBridgeFeedback(`Aviso: ${res.error}. Selecciona la ventana de iVMS-4200 al abrirse el selector.`);
-      setTimeout(() => setBridgeFeedback(null), 5000);
-    }
-  };
-
-  const handleSetIvmsLayout = (layoutMode: IvmsLayoutMode) => {
-    ivmsLiveBridge.updateCropConfig({ layoutMode });
-  };
-
-  const handleToggleTrimChrome = () => {
-    ivmsLiveBridge.updateCropConfig({
-      trimIvmsUiChrome: !ivmsCropConfig.trimIvmsUiChrome,
-    });
-  };
 
   const filteredCameras = cameras.filter((cam) => {
     if (filterType === 'all') return true;
@@ -122,7 +36,6 @@ export const VideoWall: React.FC<VideoWallProps> = ({
   });
 
   const onlineCameras = cameras.filter((c) => c.status === 'online');
-  const totalBitrateKbps = cameras.reduce((acc, c) => acc + (c.bitrateKbps || 2048), 0);
 
   const filterTabs = [
     { id: 'all', label: `Todas (${cameras.length})` },
@@ -133,197 +46,51 @@ export const VideoWall: React.FC<VideoWallProps> = ({
 
   return (
     <div className="space-y-5">
-      {/* Resumen de una línea para móvil: cuatro tarjetas no caben sin empujar
-          las cámaras fuera de la primera pantalla. */}
-      <div className="md:hidden flex items-center justify-between gap-2 bg-neutral-900/90 border border-neutral-800 rounded-xl px-3 py-2">
-        <div className="flex items-center gap-2 min-w-0 text-[11px]">
-          <span className="flex items-center gap-1 text-emerald-400 font-semibold tabular-nums shrink-0">
-            <Radio className="w-3.5 h-3.5" aria-hidden="true" />
-            <span aria-label={`${onlineCameras.length} de ${cameras.length} cámaras en línea`}>
-              {onlineCameras.length}/{cameras.length}
-            </span>
-          </span>
-          <span className="text-neutral-600" aria-hidden="true">·</span>
-          <span className="text-sky-300 font-mono tabular-nums shrink-0">
-            {(totalBitrateKbps / 1000).toFixed(1)} Mbps
-          </span>
-          <span className="text-neutral-600" aria-hidden="true">·</span>
-          <span className="text-neutral-400 truncate">0 MB en nube</span>
-        </div>
-        <button
-          type="button"
-          aria-expanded={showMobileKpis}
-          onClick={() => setShowMobileKpis((prev) => !prev)}
-          className="shrink-0 text-[11px] font-semibold text-sky-400 hover:text-sky-300 px-2 py-1 rounded-md"
-        >
-          {showMobileKpis ? 'Ocultar' : 'Detalles'}
-        </button>
-      </div>
-
-      {/* Indicadores completos (siempre en PC, bajo demanda en móvil) */}
-      <div className={`${showMobileKpis ? 'grid' : 'hidden'} md:grid bg-neutral-900/90 border border-neutral-800 rounded-xl grid-cols-2 lg:grid-cols-4 divide-y sm:divide-y-0 divide-x divide-neutral-800 overflow-hidden`}>
-        <div className="p-4 relative">
-          <div className="absolute top-0 inset-x-0 h-0.5 bg-gradient-to-r from-emerald-500/80 to-transparent" />
-          <div className="flex items-center justify-between text-xs font-medium text-neutral-400 mb-1.5">
-            <span>Canales en Línea</span>
-            <Radio className="w-3.5 h-3.5 text-emerald-400" />
-          </div>
-          <div className="flex items-baseline gap-2">
-            <span className="font-display text-2xl font-bold text-white tabular-nums tracking-tight">
-              {onlineCameras.length} / {cameras.length}
-            </span>
-            <span className="text-xs text-emerald-400 font-medium">
-              Activos
-            </span>
-          </div>
-          <div className="text-[11px] font-mono text-neutral-500 mt-1">
-            Sincronizados · Cloud Firestore
-          </div>
-        </div>
-
-        <div className="p-4 relative">
-          <div className="absolute top-0 inset-x-0 h-0.5 bg-gradient-to-r from-sky-500/80 to-transparent" />
-          <div className="flex items-center justify-between text-xs font-medium text-neutral-400 mb-1.5">
-            <span>Tráfico de Video Local</span>
-            <Activity className="w-3.5 h-3.5 text-sky-400" />
-          </div>
-          <div className="flex items-baseline gap-2">
-            <span className="font-display text-2xl font-bold text-white tabular-nums tracking-tight">
-              {(totalBitrateKbps / 1000).toFixed(1)} Mbps
-            </span>
-            <span className="text-xs text-sky-400 font-mono tabular-nums">
-              H.264 / AAC
-            </span>
-          </div>
-          <div className="text-[11px] font-mono text-neutral-500 mt-1">
-            1 sola lectura RTSP por DVR
-          </div>
-        </div>
-
-        <div className="p-4 relative">
-          <div className="absolute top-0 inset-x-0 h-0.5 bg-gradient-to-r from-blue-500/80 to-transparent" />
-          <div className="flex items-center justify-between text-xs font-medium text-neutral-400 mb-1.5">
-            <span>Latencia Web MediaMTX</span>
-            <Gauge className="w-3.5 h-3.5 text-blue-400" />
-          </div>
-          <div className="flex items-baseline gap-2">
-            <span className="font-display text-2xl font-bold text-white tabular-nums tracking-tight">
-              185 ms
-            </span>
-            <span className="text-xs text-emerald-400 font-medium">
-              Tiempo Real
-            </span>
-          </div>
-          <div className="text-[11px] font-mono text-neutral-500 mt-1">
-            Web / Celulares 4G & Wi-Fi
-          </div>
-        </div>
-
-        <div className="p-4 relative">
-          <div className="absolute top-0 inset-x-0 h-0.5 bg-gradient-to-r from-indigo-500/80 to-transparent" />
-          <div className="flex items-center justify-between text-xs font-medium text-neutral-400 mb-1.5">
-            <span>Almacenamiento en Nube</span>
-            <HardDrive className="w-3.5 h-3.5 text-indigo-400" />
-          </div>
-          <div className="flex items-baseline gap-2">
-            <span className="font-display text-2xl font-bold text-white tabular-nums tracking-tight">
-              0 MB
-            </span>
-            <span className="text-xs text-neutral-300 font-medium">
-              Sin Costo Mensual
-            </span>
-          </div>
-          <div className="text-[11px] font-mono text-neutral-500 mt-1">
-            Grabación directa en disco DVR
-          </div>
-        </div>
-      </div>
-
-      {/* Motor Nativo Hikvision P2P V3 Directo (DVR FB2200254 · Sin Compartir Pantalla) */}
+      {/*
+        Estado del servidor: UNA línea.
+        Antes había cuatro tarjetas de métricas (varias con valores fijos) y un
+        panel técnico enorme con serie del DVR, IP, latencia y cifrado. No
+        aportaban nada al trabajo diario y empujaban las cámaras fuera de la
+        primera pantalla en el móvil. Tampoco se muestra ninguna vista previa
+        del servidor: basta con saber si está activo o no.
+      */}
       <div
-        className={`rounded-xl border p-3.5 transition ${
-          nativeP2pStatus.online || ivmsBridgeActive
-            ? 'bg-emerald-950/35 border-emerald-500/45'
-            : 'bg-neutral-900/90 border-sky-500/30'
+        className={`flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-xl border px-3.5 py-2.5 ${
+          serverOnline
+            ? 'border-emerald-500/30 bg-emerald-500/[0.06]'
+            : 'border-neutral-800 bg-neutral-900/80'
         }`}
+        role="status"
+        aria-live="polite"
       >
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
-          <div className="flex items-start sm:items-center gap-3 min-w-0">
-            <div
-              className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 border ${
-                nativeP2pStatus.online || ivmsBridgeActive
-                  ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-300'
-                  : 'bg-sky-500/15 border-sky-500/35 text-sky-300'
+        <span className="flex items-center gap-2 min-w-0">
+          <span className="relative flex h-2 w-2 shrink-0" aria-hidden="true">
+            {serverOnline && (
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-70" />
+            )}
+            <span
+              className={`relative inline-flex h-2 w-2 rounded-full ${
+                serverOnline ? 'bg-emerald-400' : 'bg-neutral-600'
               }`}
-            >
-              <MonitorPlay className="w-5 h-5" />
-            </div>
+            />
+          </span>
+          <span
+            className={`text-sm font-semibold ${
+              serverOnline ? 'text-emerald-300' : 'text-neutral-400'
+            }`}
+          >
+            {serverOnline ? 'Servidor activo' : 'Servidor inactivo'}
+          </span>
+        </span>
 
-            <div className="min-w-0">
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="text-xs font-bold uppercase tracking-wider text-white">
-                  {nativeP2pStatus.online
-                    ? nativeP2pStatus.source === 'local-p2p'
-                      ? '🟢 Servidor P2P V3 Activo (Local + Nube 24/7 · Sin Compartir Pantalla)'
-                      : '🟢 Servidor P2P V3 en la Nube 24/7 Activo (Modo Cero-PC · GitHub Cloud Runner)'
-                    : ivmsBridgeActive
-                    ? '🟢 Puente iVMS-4200 Transmitiendo en Vivo'
-                    : 'Motor Directo Hikvision P2P V3 + Cloud 24/7'}
-                </span>
-                <span className="px-2 py-0.5 rounded-md bg-neutral-950 border border-neutral-800 text-[11px] font-mono text-sky-300">
-                  SN: {DETECTED_IVMS_DEVICE.deviceSerial} ({DETECTED_IVMS_DEVICE.deviceModel})
-                </span>
-                {(() => {
-                  const ageSeconds = nativeP2pStatus.updatedAt
-                    ? Math.max(0, Math.round((Date.now() - new Date(nativeP2pStatus.updatedAt).getTime()) / 1000))
-                    : null;
-                  const stale = ageSeconds === null || ageSeconds > 30;
-                  return (
-                    <span
-                      className={`px-2 py-0.5 rounded-md border text-[11px] font-mono font-semibold flex items-center gap-1 ${
-                        stale
-                          ? 'bg-amber-950/80 border-amber-500/40 text-amber-300'
-                          : 'bg-sky-950/80 border-sky-500/40 text-sky-300'
-                      }`}
-                      title="El servidor publica una imagen nueva cada pocos segundos (modo imagen), no es video continuo."
-                    >
-                      <Radio className="w-3 h-3" />
-                      {stale
-                        ? 'Sin actualizar'
-                        : `Modo imagen · hace ${ageSeconds}s`}
-                    </span>
-                  );
-                })()}
-                <span className="px-2 py-0.5 rounded-md bg-emerald-950/80 border border-emerald-500/40 text-[11px] font-mono font-semibold text-emerald-300 flex items-center gap-1">
-                  <ShieldCheck className="w-3 h-3" />
-                  Cifrado: ••••••
-                </span>
-                <span className="px-2 py-0.5 rounded-md bg-neutral-950 border border-neutral-800 text-[11px] font-mono text-neutral-300">
-                  DVR: {DETECTED_IVMS_DEVICE.lanIp} · WAN P2P: {DETECTED_IVMS_DEVICE.publicIp}
-                </span>
-              </div>
-              <p className="text-xs text-neutral-300 mt-1">
-                {nativeP2pStatus.online
-                  ? `Conectado directamente a los 4 canales del DVR FB2200254 mediante el motor nativo de Hikvision (NetStream.dll x64) en modo ${
-                      nativeP2pStatus.source === 'local-p2p'
-                        ? 'Híbrido (Local :8890 + Nube 24/7)'
-                        : '100% Nube 24/7 (Sin necesidad de tener la PC encendida)'
-                    }. Cuadros recibidos: ${nativeP2pStatus.totalFramesCh1} · Latencia P2P: ${nativeP2pStatus.latencyMs} ms.`
-                  : 'Conectando al servidor P2P 24/7 en la nube...'}
-              </p>
-              {bridgeFeedback && (
-                <p className="text-xs font-medium text-emerald-300 mt-1">{bridgeFeedback}</p>
-              )}
-            </div>
-          </div>
+        <span className="text-neutral-700" aria-hidden="true">
+          ·
+        </span>
 
-          <div className="flex flex-wrap items-center gap-2 shrink-0">
-            <div className="px-3 py-1.5 rounded-lg bg-emerald-950/80 border border-emerald-500/40 text-xs font-mono text-emerald-300 flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-              <span>CH01–CH04 · Directo P2P</span>
-            </div>
-          </div>
-        </div>
+        <span className="text-xs text-neutral-400 tabular-nums">
+          {onlineCameras.length} de {cameras.length}{' '}
+          {cameras.length === 1 ? 'canal en línea' : 'canales en línea'}
+        </span>
       </div>
 
       {/* Matrix Toolbar: Segmented Hardware Filter & Grid Layout Switcher */}
@@ -338,7 +105,7 @@ export const VideoWall: React.FC<VideoWallProps> = ({
                 onClick={() => setFilterType(tab.id)}
                 className={`px-3 py-1.5 text-xs font-medium rounded-md transition whitespace-nowrap shrink-0 ${
                   active
-                    ? 'bg-gradient-to-r from-blue-600/30 to-sky-500/20 text-white border border-sky-500/40 font-semibold shadow-xs'
+                    ? 'bg-gradient-to-r from-sky-600/30 to-sky-500/20 text-white border border-sky-500/40 font-semibold shadow-xs'
                     : 'text-neutral-400 hover:text-neutral-200 border border-transparent'
                 }`}
               >
@@ -407,7 +174,7 @@ export const VideoWall: React.FC<VideoWallProps> = ({
           </p>
           <button
             onClick={onOpenNewCamera}
-            className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white font-semibold rounded-lg text-xs inline-flex items-center gap-1.5 transition"
+            className="px-4 py-2 bg-sky-600 hover:bg-sky-500 text-white font-semibold rounded-lg text-xs inline-flex items-center gap-1.5 transition"
           >
             <Plus className="w-3.5 h-3.5" />
             <span>Añadir Cámara</span>
@@ -483,7 +250,7 @@ export const VideoWall: React.FC<VideoWallProps> = ({
                   </button>
                   <button
                     onClick={() => onGenerateLink(cam)}
-                    className="h-8 px-3 bg-gradient-to-r from-blue-600/20 to-sky-500/15 hover:from-blue-600/35 hover:to-sky-500/25 text-sky-300 border border-sky-500/35 rounded-lg transition flex items-center gap-1.5 text-xs font-semibold whitespace-nowrap"
+                    className="h-8 px-3 bg-gradient-to-r from-sky-600/20 to-sky-500/15 hover:from-sky-600/35 hover:to-sky-500/25 text-sky-300 border border-sky-500/35 rounded-lg transition flex items-center gap-1.5 text-xs font-semibold whitespace-nowrap"
                     title="Generar enlace privado para cliente"
                   >
                     <Link2 className="w-3.5 h-3.5 text-sky-400 shrink-0" />

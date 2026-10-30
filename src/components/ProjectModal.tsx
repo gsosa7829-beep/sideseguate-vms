@@ -60,7 +60,7 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
       <div className="bg-neutral-900 border border-neutral-800 rounded-2xl w-full max-w-lg shadow-2xl text-neutral-100 my-6">
         <div className="px-6 py-4 border-b border-neutral-800 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl bg-blue-600/20 text-blue-400 border border-blue-500/30 flex items-center justify-center">
+            <div className="w-9 h-9 rounded-xl bg-sky-600/20 text-sky-400 border border-sky-500/30 flex items-center justify-center">
               <Users className="w-5 h-5" />
             </div>
             <div>
@@ -92,7 +92,7 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
                 value={clientName}
                 onChange={(e) => setClientName(e.target.value)}
                 placeholder="Ej. Lic. Fernando Morales"
-                className="w-full bg-neutral-950 border border-neutral-700 rounded-xl px-3 py-2 text-white focus:border-blue-500 focus:outline-none"
+                className="w-full bg-neutral-950 border border-neutral-700 rounded-xl px-3 py-2 text-white focus:border-sky-500 focus:outline-none"
               />
             </div>
 
@@ -105,7 +105,7 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
                 value={clientPhone}
                 onChange={(e) => setClientPhone(e.target.value)}
                 placeholder="+502 5521-8840"
-                className="w-full bg-neutral-950 border border-neutral-700 rounded-xl px-3 py-2 text-white focus:border-blue-500 focus:outline-none"
+                className="w-full bg-neutral-950 border border-neutral-700 rounded-xl px-3 py-2 text-white focus:border-sky-500 focus:outline-none"
               />
             </div>
           </div>
@@ -120,7 +120,7 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="Ej. Demo Kit 8 Cámaras Hikvision AcuSense / Bodega Mixco"
-              className="w-full bg-neutral-950 border border-neutral-700 rounded-xl px-3 py-2 text-white focus:border-blue-500 focus:outline-none"
+              className="w-full bg-neutral-950 border border-neutral-700 rounded-xl px-3 py-2 text-white focus:border-sky-500 focus:outline-none"
             />
           </div>
 
@@ -134,7 +134,7 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
                 value={location}
                 onChange={(e) => setLocation(e.target.value)}
                 placeholder="Ej. Zona 10, Ciudad de Guatemala"
-                className="w-full bg-neutral-950 border border-neutral-700 rounded-xl px-3 py-2 text-white focus:border-blue-500 focus:outline-none"
+                className="w-full bg-neutral-950 border border-neutral-700 rounded-xl px-3 py-2 text-white focus:border-sky-500 focus:outline-none"
               />
             </div>
 
@@ -145,7 +145,7 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
               <select
                 value={status}
                 onChange={(e) => setStatus(e.target.value as Project['status'])}
-                className="w-full bg-neutral-950 border border-neutral-700 rounded-xl px-3 py-2 text-white focus:border-blue-500 focus:outline-none"
+                className="w-full bg-neutral-950 border border-neutral-700 rounded-xl px-3 py-2 text-white focus:border-sky-500 focus:outline-none"
               >
                 <option value="demo_venta">Demo de Venta (Mostrar Cámaras)</option>
                 <option value="instalado_activo">Cliente con Equipos Instalados</option>
@@ -163,7 +163,7 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
               value={equipmentNotes}
               onChange={(e) => setEquipmentNotes(e.target.value)}
               placeholder="Ej. Kit DVR Hikvision 8CH AcuSense 1080p, Cámaras IP PoE ColorVu, Cámara Solar 4G."
-              className="w-full bg-neutral-950 border border-neutral-700 rounded-xl px-3 py-2 text-white focus:border-blue-500 focus:outline-none resize-none"
+              className="w-full bg-neutral-950 border border-neutral-700 rounded-xl px-3 py-2 text-white focus:border-sky-500 focus:outline-none resize-none"
             />
           </div>
 
@@ -177,7 +177,7 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
             </button>
             <button
               type="submit"
-              className="px-5 py-2 bg-blue-600 hover:bg-blue-500 text-white font-semibold rounded-xl transition flex items-center gap-1.5"
+              className="px-5 py-2 bg-sky-600 hover:bg-sky-500 text-white font-semibold rounded-xl transition flex items-center gap-1.5"
             >
               <Check className="w-4 h-4" />
               Guardar Cliente

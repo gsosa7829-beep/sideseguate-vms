@@ -165,7 +165,7 @@ export const DesktopProgramModal: React.FC<DesktopProgramModalProps> = ({
         {/* Modal Header */}
         <div className="px-6 py-4 border-b border-neutral-800 flex items-center justify-between bg-neutral-950 shrink-0">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-blue-600/15 border border-blue-500/30 flex items-center justify-center text-blue-400">
+            <div className="w-10 h-10 rounded-xl bg-sky-600/15 border border-sky-500/30 flex items-center justify-center text-sky-400">
               <Monitor className="w-5 h-5" />
             </div>
             <div>
@@ -195,14 +195,14 @@ export const DesktopProgramModal: React.FC<DesktopProgramModalProps> = ({
         {/* Scrollable Unified Body */}
         <div className="p-5 space-y-4 overflow-y-auto text-xs">
           {/* SECTION 1: Primary 1-Click All-in-One Installer Card */}
-          <div className="bg-neutral-950 border border-blue-500/30 rounded-xl p-4 space-y-4">
+          <div className="bg-neutral-950 border border-sky-500/30 rounded-xl p-4 space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div>
-                <div className="text-[11px] font-mono uppercase tracking-wider text-blue-400 font-bold">
+                <div className="text-[11px] font-mono uppercase tracking-wider text-sky-400 font-bold">
                   PASO 1 · INSTALADOR ÚNICO TODO-EN-UNO PARA WINDOWS 10 / 11
                 </div>
                 <h3 className="text-sm font-bold text-white mt-0.5">
-                  Un solo archivo <code className="text-blue-300 font-mono">.BAT</code> que instala, detecta el Túnel 4G y sincroniza la nube solo
+                  Un solo archivo <code className="text-sky-300 font-mono">.BAT</code> que instala, detecta el Túnel 4G y sincroniza la nube solo
                 </h3>
                 <p className="text-xs text-neutral-400 mt-0.5 leading-relaxed">
                   Este instalador único crea la carpeta <code className="text-sky-300 font-mono">C:\Usuarios\TuUsuario\SIDESEGUATE-VMS</code>, autogenera tus {cameras.length} cámaras Hikvision, lee automáticamente la URL de <code className="text-emerald-300 font-mono">cloudflared.exe</code> sin que tengas que copiar ni pegar nada, y la sube directo a Google Cloud Firestore.
@@ -217,7 +217,7 @@ export const DesktopProgramModal: React.FC<DesktopProgramModalProps> = ({
                 onClick={() =>
                   triggerDownload('SIDESEGUATE-Instalador-Unico-PC.bat', unifiedBatchContent)
                 }
-                className="py-3 px-4 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-bold flex items-center justify-center gap-2 transition shadow-lg text-xs sm:text-sm cursor-pointer"
+                className="py-3 px-4 bg-sky-600 hover:bg-sky-500 text-white rounded-xl font-bold flex items-center justify-center gap-2 transition shadow-lg text-xs sm:text-sm cursor-pointer"
               >
                 <Download className="w-4 h-4 shrink-0" />
                 <span>Descargar Instalador Único Todo-en-Uno (.BAT)</span>
@@ -270,7 +270,7 @@ export const DesktopProgramModal: React.FC<DesktopProgramModalProps> = ({
                     type="checkbox"
                     checked={createDesktopShortcut}
                     onChange={(e) => setCreateDesktopShortcut(e.target.checked)}
-                    className="mt-0.5 rounded border-neutral-700 text-blue-600 focus:ring-blue-500"
+                    className="mt-0.5 rounded border-neutral-700 text-sky-600 focus:ring-sky-500"
                   />
                   <div>
                     <span className="font-semibold text-white block">
@@ -287,7 +287,7 @@ export const DesktopProgramModal: React.FC<DesktopProgramModalProps> = ({
                     type="checkbox"
                     checked={enableWindowsAutoStart}
                     onChange={(e) => setEnableWindowsAutoStart(e.target.checked)}
-                    className="mt-0.5 rounded border-neutral-700 text-blue-600 focus:ring-blue-500"
+                    className="mt-0.5 rounded border-neutral-700 text-sky-600 focus:ring-sky-500"
                   />
                   <div>
                     <span className="font-semibold text-amber-300 block">
@@ -304,7 +304,7 @@ export const DesktopProgramModal: React.FC<DesktopProgramModalProps> = ({
                     type="checkbox"
                     checked={includeMediaMtx}
                     onChange={(e) => setIncludeMediaMtx(e.target.checked)}
-                    className="mt-0.5 rounded border-neutral-700 text-blue-600 focus:ring-blue-500"
+                    className="mt-0.5 rounded border-neutral-700 text-sky-600 focus:ring-sky-500"
                   />
                   <div>
                     <span className="font-semibold text-white block">
@@ -324,7 +324,7 @@ export const DesktopProgramModal: React.FC<DesktopProgramModalProps> = ({
                       setEnableCloudflareTunnel(e.target.checked);
                       setEnableWatchdog24x7(e.target.checked);
                     }}
-                    className="mt-0.5 rounded border-neutral-700 text-blue-600 focus:ring-blue-500"
+                    className="mt-0.5 rounded border-neutral-700 text-sky-600 focus:ring-sky-500"
                   />
                   <div>
                     <span className="font-semibold text-emerald-300 block">
@@ -368,7 +368,7 @@ export const DesktopProgramModal: React.FC<DesktopProgramModalProps> = ({
                     value={tunnelUrlInput}
                     onChange={(e) => setTunnelUrlInput(e.target.value)}
                     placeholder="Ej: https://sideseguate-camaras.trycloudflare.com"
-                    className="w-full bg-neutral-900 border border-neutral-800 focus:border-blue-500 rounded-xl px-3.5 py-2 text-xs font-mono text-white placeholder-neutral-500 focus:outline-none"
+                    className="w-full bg-neutral-900 border border-neutral-800 focus:border-sky-500 rounded-xl px-3.5 py-2 text-xs font-mono text-white placeholder-neutral-500 focus:outline-none"
                   />
                 </div>
 
@@ -382,7 +382,7 @@ export const DesktopProgramModal: React.FC<DesktopProgramModalProps> = ({
                     value={cloudflareTunnelToken}
                     onChange={(e) => setCloudflareTunnelToken(e.target.value)}
                     placeholder="Opcional: eyJhIjoi... (nunca cambia aunque se corte la luz)"
-                    className="w-full bg-neutral-900 border border-neutral-800 focus:border-blue-500 rounded-xl px-3.5 py-2 text-xs font-mono text-white placeholder-neutral-500 focus:outline-none"
+                    className="w-full bg-neutral-900 border border-neutral-800 focus:border-sky-500 rounded-xl px-3.5 py-2 text-xs font-mono text-white placeholder-neutral-500 focus:outline-none"
                   />
                 </div>
               </div>
@@ -453,7 +453,7 @@ export const DesktopProgramModal: React.FC<DesktopProgramModalProps> = ({
               className="w-full px-4 py-2.5 flex items-center justify-between text-left text-xs text-neutral-300 hover:bg-neutral-900/60 transition cursor-pointer"
             >
               <span className="font-mono flex items-center gap-2">
-                <FileCode className="w-3.5 h-3.5 text-blue-400" />
+                <FileCode className="w-3.5 h-3.5 text-sky-400" />
                 Inspeccionar código del Instalador Único (`SIDESEGUATE-Instalador-Unico-PC.bat`)
               </span>
               <span className="flex items-center gap-1 text-neutral-400">

@@ -52,13 +52,13 @@ export const ZeroStorageView: React.FC = () => {
           {/* Step 2 */}
           <div className="bg-neutral-950/80 p-4 rounded-xl border border-neutral-850 flex flex-col justify-between">
             <div>
-              <div className="text-[10px] font-mono font-bold text-blue-400 mb-1">FASE 2 · ENLACE ABIERTO</div>
+              <div className="text-[10px] font-mono font-bold text-sky-400 mb-1">FASE 2 · ENLACE ABIERTO</div>
               <h5 className="font-semibold text-white mb-2">Cliente abre enlace web</h5>
               <p className="text-neutral-400 leading-relaxed text-[11px]">
                 En ese instante MediaMTX abre la sesión RTSP (:554), convierte la señal a formato web (HLS) en la memoria RAM y se la muestra al cliente en su navegador.
               </p>
             </div>
-            <div className="mt-3 pt-3 border-t border-neutral-850 font-mono text-[10px] text-blue-400">
+            <div className="mt-3 pt-3 border-t border-neutral-850 font-mono text-[10px] text-sky-400">
               Video en vivo directo (RAM)
             </div>
           </div>

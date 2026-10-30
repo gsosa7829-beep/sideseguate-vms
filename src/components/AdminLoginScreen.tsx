@@ -73,7 +73,7 @@ export const AdminLoginScreen: React.FC<AdminLoginScreenProps> = ({
         {/* Brand Header */}
         <div className="text-center space-y-2.5">
           <div className="inline-flex relative">
-            <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-sky-600 to-blue-500 p-0.5 shadow-lg shadow-sky-500/20">
+            <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-sky-600 to-sky-500 p-0.5 shadow-lg shadow-sky-500/20">
               <div className="w-full h-full bg-neutral-950 rounded-[14px] flex items-center justify-center">
                 <ShieldCheck className="w-7 h-7 text-sky-400" />
               </div>
@@ -175,7 +175,7 @@ export const AdminLoginScreen: React.FC<AdminLoginScreenProps> = ({
           <button
             type="submit"
             disabled={isSubmitting || lock.locked}
-            className="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-400 hover:to-blue-500 text-white font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 transition shadow-lg shadow-sky-500/25 active:scale-[0.99] disabled:opacity-50"
+            className="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-sky-500 to-sky-600 hover:from-sky-400 hover:to-sky-500 text-white font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 transition shadow-lg shadow-sky-500/25 active:scale-[0.99] disabled:opacity-50"
           >
             {isSubmitting ? (
               <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />

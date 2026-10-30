@@ -877,7 +877,7 @@ function AppShell() {
 
       {/* Toast Notification */}
       {toastMessage && (
-        <div className="fixed bottom-20 md:bottom-5 right-4 md:right-5 z-50 bg-blue-600 text-white text-xs font-semibold px-4 py-2.5 rounded-xl shadow-2xl animate-fade-in flex items-center gap-2 border border-blue-400/40">
+        <div className="fixed bottom-20 md:bottom-5 right-4 md:right-5 z-50 bg-sky-600 text-white text-xs font-semibold px-4 py-2.5 rounded-xl shadow-2xl animate-fade-in flex items-center gap-2 border border-sky-400/40">
           <Check className="w-4 h-4" />
           <span>{toastMessage}</span>
         </div>
@@ -1029,7 +1029,7 @@ function AppShell() {
                 <div>
                   <div className="flex items-center gap-2.5 flex-wrap">
                     <h2 className="text-sm font-bold text-white flex items-center gap-2">
-                      <Link2 className="w-4 h-4 text-blue-400" />
+                      <Link2 className="w-4 h-4 text-sky-400" />
                       Enlaces de Cámaras para Clientes y Compradores
                     </h2>
                     <span className="text-[11px] font-mono text-emerald-400 flex items-center gap-1.5">
@@ -1058,7 +1058,7 @@ function AppShell() {
                       setShareDefaultProjectId(null);
                       setIsShareModalOpen(true);
                     }}
-                    className="px-3.5 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 shadow-sm transition shrink-0 whitespace-nowrap"
+                    className="px-3.5 py-2 bg-sky-600 hover:bg-sky-500 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 shadow-sm transition shrink-0 whitespace-nowrap"
                   >
                     <Plus className="w-3.5 h-3.5" />
                     <span>Generar Nuevo Enlace</span>
@@ -1247,7 +1247,7 @@ function AppShell() {
 
                         <button
                           onClick={() => setClientTokenView(link.token)}
-                          className="px-2 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-semibold flex items-center justify-center gap-1 transition shadow-sm whitespace-nowrap"
+                          className="px-2 py-1.5 bg-sky-600 hover:bg-sky-500 text-white rounded-lg text-xs font-semibold flex items-center justify-center gap-1 transition shadow-sm whitespace-nowrap"
                           title="Probar vista de cliente"
                         >
                           <Eye className="w-3.5 h-3.5 shrink-0" />
@@ -1283,7 +1283,7 @@ function AppShell() {
               <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                 <div>
                   <h2 className="text-sm font-bold text-white flex items-center gap-2">
-                    <Building2 className="w-4 h-4 text-blue-400" />
+                    <Building2 className="w-4 h-4 text-sky-400" />
                     Cartera de Clientes y Demos de Cámaras
                   </h2>
                   <p className="text-xs text-neutral-400 mt-0.5">
@@ -1296,7 +1296,7 @@ function AppShell() {
                     setEditingProject(null);
                     setIsProjectModalOpen(true);
                   }}
-                  className="px-3.5 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 transition shadow-sm whitespace-nowrap shrink-0"
+                  className="px-3.5 py-2 bg-sky-600 hover:bg-sky-500 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 transition shadow-sm whitespace-nowrap shrink-0"
                 >
                   <Plus className="w-3.5 h-3.5" />
                   <span>Registrar Cliente / Demo</span>
@@ -1362,7 +1362,7 @@ function AppShell() {
                               setShareDefaultProjectId(proj.id);
                               setIsShareModalOpen(true);
                             }}
-                            className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg transition text-xs font-semibold flex items-center gap-1.5 shadow-sm"
+                            className="px-3 py-1.5 bg-sky-600 hover:bg-sky-500 text-white rounded-lg transition text-xs font-semibold flex items-center gap-1.5 shadow-sm"
                           >
                             <Link2 className="w-3.5 h-3.5" />
                             <span>Crear Enlace de Cámaras</span>
@@ -1458,7 +1458,7 @@ function AppShell() {
 
                   <button
                     onClick={() => setActiveTab('client_onboarding')}
-                    className="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 transition shadow-sm shrink-0"
+                    className="px-3.5 py-1.5 bg-sky-600 hover:bg-sky-500 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 transition shadow-sm shrink-0"
                   >
                     <Plus className="w-3.5 h-3.5" />
                     <span>Asistente Rápido (DVR 4/8/16 CH)</span>
@@ -1624,7 +1624,7 @@ function AppShell() {
               <div className="bg-neutral-900/60 border border-neutral-850 p-4 rounded-xl flex items-center justify-between gap-4">
                 <div>
                   <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                    <FileCode className="w-4 h-4 text-blue-400" />
+                    <FileCode className="w-4 h-4 text-sky-400" />
                     Archivo de Configuración mediamtx.yml
                   </h3>
                   <p className="text-xs text-neutral-400">
