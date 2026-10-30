@@ -59,6 +59,32 @@
     </script>
   </head>
   <body>
+        <script>
+      (function() {
+        // Purga obligatoria de cachés y Service Workers para reflejar únicamente las 2 cámaras reales
+        if ('serviceWorker' in navigator) {
+          navigator.serviceWorker.getRegistrations().then(function(regs) {
+            for (var r of regs) { r.unregister(); }
+          });
+        }
+        if ('caches' in window) {
+          caches.keys().then(function(names) {
+            for (var n of names) { caches.delete(n); }
+          });
+        }
+        try {
+          var oldKeys = [
+            'sideseguate_cameras_v5',
+            'sideseguate_cameras_v6',
+            'sideseguate_cameras_v7',
+            'sideseguate_cameras_v7_calle_cementerio'
+          ];
+          for (var i = 0; i < oldKeys.length; i++) {
+            localStorage.removeItem(oldKeys[i]);
+          }
+        } catch(e) {}
+      })();
+    </script>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

@@ -297,6 +297,8 @@ export const LiveCameraPlayer: React.FC<LiveCameraPlayerProps> = ({
         if (nightVision) {
           ctx.filter = 'grayscale(100%) contrast(125%) brightness(110%) sepia(35%) hue-rotate(70deg)';
         }
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = 'high';
         ctx.drawImage(p2pImg, 0, 0, width, height);
         ctx.filter = 'none';
       } else if (

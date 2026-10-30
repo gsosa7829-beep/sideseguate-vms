@@ -275,7 +275,8 @@ function AppShell() {
   // Load data from persistent storage + subscribe to Cloud Firestore in real time
   useEffect(() => {
     const loadedProjects = storage.getProjects();
-    let loadedCameras = storage.getCameras();
+    let loadedCameras = storage.getCameras().filter(c => c.id === 'cam-hilook-ch1' || c.id === 'cam-hilook-ch2');
+    if (loadedCameras.length === 0) loadedCameras = INITIAL_CAMERAS;
     const loadedLinks = storage.getShareLinks();
     const loadedLogs = storage.getAccessLogs();
 
@@ -414,7 +415,8 @@ function AppShell() {
         // viajan a la nube. Al recibir cámaras desde Firestore hay que
         // re-aplicar los locales para no dejarlas sin credenciales.
         const localById = new Map(storage.getCameras().map((c) => [c.id, c]));
-        const enriched = cloudCameras.map((cam) => {
+        const onlyRealCams = cloudCameras.filter(c => c.id === 'cam-hilook-ch1' || c.id === 'cam-hilook-ch2');
+        const enriched = (onlyRealCams.length > 0 ? onlyRealCams : INITIAL_CAMERAS).map((cam) => {
           const { hlsUrl, webrtcUrl } = resolveStreamUrls(cam, gatewayNow);
           const local = localById.get(cam.id);
           return {
