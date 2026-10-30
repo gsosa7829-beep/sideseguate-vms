@@ -32,9 +32,9 @@ jobs:
       - name: Install Dependencies & Build Production Bundle
         env:
           # Dominio de marca de los enlaces de cliente.
-          # Por omisión usa el dominio de producción sideseguate-cloud.surge.sh
+          # Por omisión usa el dominio de producción sideseguate-streaming.surge.sh
           # evitando que los enlaces muestren el usuario personal de GitHub.
-          VITE_PUBLIC_APP_URL: ${{ vars.PUBLIC_APP_URL || 'https://sideseguate-cloud.surge.sh' }}
+          VITE_PUBLIC_APP_URL: ${{ vars.PUBLIC_APP_URL || 'https://sideseguate-streaming.surge.sh' }}
         run: |
           npm ci
           npm run build

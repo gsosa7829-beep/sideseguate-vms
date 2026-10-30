@@ -18,7 +18,7 @@ import { fileURLToPath } from 'node:url';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(__dirname, '..');
 
-const target = (process.argv[2] || 'https://sideseguate-cloud.surge.sh').replace(/\/+$/, '');
+const target = (process.argv[2] || 'https://sideseguate-streaming.surge.sh').replace(/\/+$/, '');
 
 function assetFrom(html) {
   const match = html.match(/assets\/index-[A-Za-z0-9_-]+\.js/);

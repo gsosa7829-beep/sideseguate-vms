@@ -1,4 +1,4 @@
-name: Deploy to Surge (sideseguate-cloud.surge.sh)
+name: Deploy to Surge (sideseguate-streaming.surge.sh)
 
 # Despliegue automático del panel al dominio de Surge.
 #
@@ -52,7 +52,7 @@ jobs:
       - name: Build Production Bundle
         env:
           # Dominio de marca de los enlaces de cliente (Settings → Variables).
-          VITE_PUBLIC_APP_URL: ${{ vars.PUBLIC_APP_URL || 'https://sideseguate-cloud.surge.sh' }}
+          VITE_PUBLIC_APP_URL: ${{ vars.PUBLIC_APP_URL || 'https://sideseguate-streaming.surge.sh' }}
         run: npm run build
 
       # El token es imprescindible. Si falta, el job FALLA con mensaje claro.
@@ -77,7 +77,7 @@ jobs:
           SURGE_TOKEN: ${{ secrets.SURGE_TOKEN || inputs.surge_token }}
           SURGE_DOMAIN: ${{ vars.SURGE_DOMAIN }}
         run: |
-          TARGET="${SURGE_DOMAIN:-sideseguate-cloud.surge.sh}"
+          TARGET="${SURGE_DOMAIN:-sideseguate-streaming.surge.sh}"
           echo "TARGET=$TARGET" >> "$GITHUB_ENV"
           echo "Publicando en https://$TARGET"
           npx --yes surge ./dist "$TARGET" --token "$SURGE_TOKEN"
