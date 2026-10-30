@@ -39,6 +39,11 @@ export const VideoWall: React.FC<VideoWallProps> = ({
 }) => {
   const [gridSize, setGridSize] = useState<'1' | '2' | '3'>('2');
   const [filterType, setFilterType] = useState<string>('all');
+  /**
+   * En móvil los cuatro indicadores ocupan media pantalla antes de llegar a
+   * las cámaras. Se muestra una línea de resumen y el detalle queda a un toque.
+   */
+  const [showMobileKpis, setShowMobileKpis] = useState(false);
   const [ivmsBridgeActive, setIvmsBridgeActive] = useState(() => ivmsLiveBridge.isActive());
   const [ivmsCropConfig, setIvmsCropConfig] = useState(() => ivmsLiveBridge.getCropConfig());
   const [bridgeFeedback, setBridgeFeedback] = useState<string | null>(null);
@@ -128,8 +133,35 @@ export const VideoWall: React.FC<VideoWallProps> = ({
 
   return (
     <div className="space-y-5">
-      {/* Executive Operational Telemetry Strip (Single-Elevation, Hairline Divided) */}
-      <div className="bg-neutral-900/90 border border-neutral-800 rounded-xl grid grid-cols-2 lg:grid-cols-4 divide-y sm:divide-y-0 divide-x divide-neutral-800 overflow-hidden">
+      {/* Resumen de una línea para móvil: cuatro tarjetas no caben sin empujar
+          las cámaras fuera de la primera pantalla. */}
+      <div className="md:hidden flex items-center justify-between gap-2 bg-neutral-900/90 border border-neutral-800 rounded-xl px-3 py-2">
+        <div className="flex items-center gap-2 min-w-0 text-[11px]">
+          <span className="flex items-center gap-1 text-emerald-400 font-semibold tabular-nums shrink-0">
+            <Radio className="w-3.5 h-3.5" aria-hidden="true" />
+            <span aria-label={`${onlineCameras.length} de ${cameras.length} cámaras en línea`}>
+              {onlineCameras.length}/{cameras.length}
+            </span>
+          </span>
+          <span className="text-neutral-600" aria-hidden="true">·</span>
+          <span className="text-sky-300 font-mono tabular-nums shrink-0">
+            {(totalBitrateKbps / 1000).toFixed(1)} Mbps
+          </span>
+          <span className="text-neutral-600" aria-hidden="true">·</span>
+          <span className="text-neutral-400 truncate">0 MB en nube</span>
+        </div>
+        <button
+          type="button"
+          aria-expanded={showMobileKpis}
+          onClick={() => setShowMobileKpis((prev) => !prev)}
+          className="shrink-0 text-[11px] font-semibold text-sky-400 hover:text-sky-300 px-2 py-1 rounded-md"
+        >
+          {showMobileKpis ? 'Ocultar' : 'Detalles'}
+        </button>
+      </div>
+
+      {/* Indicadores completos (siempre en PC, bajo demanda en móvil) */}
+      <div className={`${showMobileKpis ? 'grid' : 'hidden'} md:grid bg-neutral-900/90 border border-neutral-800 rounded-xl grid-cols-2 lg:grid-cols-4 divide-y sm:divide-y-0 divide-x divide-neutral-800 overflow-hidden`}>
         <div className="p-4 relative">
           <div className="absolute top-0 inset-x-0 h-0.5 bg-gradient-to-r from-emerald-500/80 to-transparent" />
           <div className="flex items-center justify-between text-xs font-medium text-neutral-400 mb-1.5">
@@ -316,8 +348,9 @@ export const VideoWall: React.FC<VideoWallProps> = ({
           })}
         </div>
 
-        {/* Layout Selector */}
-        <div className="flex items-center justify-end gap-2">
+        {/* Selector de matriz: sólo en PC. En el móvil todas las opciones dan
+            una sola columna, así que el control no haría nada. */}
+        <div className="hidden md:flex items-center justify-end gap-2">
           <span className="text-[11px] font-mono uppercase tracking-wider text-neutral-400 hidden md:inline">
             Matriz:
           </span>

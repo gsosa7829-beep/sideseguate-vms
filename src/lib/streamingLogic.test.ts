@@ -1268,3 +1268,61 @@ test('buildPublicShareUrl arma el enlace con token y nunca con doble signo', () 
   assert.ok(!url.includes('undefined'));
   assert.ok(url.includes('?token=sdg_live_abc123') || url === 'sdg_live_abc123');
 });
+
+// ---------------------------------------------------------------------------
+// Navegación de la consola (4 secciones en vez de 11 pestañas sueltas)
+// ---------------------------------------------------------------------------
+
+test('todas las pantallas están en una sección y ninguna se repite', async () => {
+  const { NAV_SECTIONS } = await import('./navigation.ts');
+
+  const allTabs: string[] = NAV_SECTIONS.flatMap((s) => s.items.map((i) => i.id));
+
+  // Las 11 pantallas del panel deben seguir accesibles: simplificar el menú
+  // no puede dejar ninguna vista huérfana.
+  const expected = [
+    'videowall',
+    'share_links',
+    'client_onboarding',
+    'dvr_registry',
+    'clients_projects',
+    'access_audit',
+    'devices_catalog',
+    'sadp_scanner',
+    'windows_server',
+    'zero_storage',
+    'mediamtx_config',
+  ];
+  for (const tab of expected) {
+    assert.ok(allTabs.includes(tab), `la pantalla ${tab} no está en ninguna sección`);
+  }
+
+  assert.equal(new Set(allTabs).size, allTabs.length, 'hay pantallas duplicadas entre secciones');
+  assert.equal(NAV_SECTIONS.length, 4, 'la navegación debe tener 4 secciones');
+});
+
+test('sectionOfTab devuelve la sección correcta y defaultTabOfSection su entrada', async () => {
+  const { NAV_SECTIONS, sectionOfTab, defaultTabOfSection, labelOfTab } = await import('./navigation.ts');
+
+  assert.equal(sectionOfTab('videowall').id, 'monitor');
+  assert.equal(sectionOfTab('share_links').id, 'clients');
+  assert.equal(sectionOfTab('access_audit').id, 'clients');
+  assert.equal(sectionOfTab('sadp_scanner').id, 'devices');
+  assert.equal(sectionOfTab('mediamtx_config').id, 'settings');
+
+  // Al pulsar una sección se abre su primera pantalla.
+  for (const section of NAV_SECTIONS) {
+    assert.equal(defaultTabOfSection(section), section.items[0].id);
+  }
+
+  assert.equal(labelOfTab('share_links'), 'Enlaces');
+  assert.equal(labelOfTab('videowall'), 'Muro de video');
+
+  // Las etiquetas cortas del móvil no deben desbordar la barra inferior.
+  for (const section of NAV_SECTIONS) {
+    assert.ok(
+      section.shortLabel.length <= 9,
+      `la etiqueta móvil "${section.shortLabel}" es demasiado larga`
+    );
+  }
+});

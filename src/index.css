@@ -125,3 +125,56 @@
     overflow-x: hidden;
   }
 }
+
+/* ==========================================================================
+   Accesibilidad
+   ========================================================================== */
+
+/* Enlace "saltar al contenido": invisible hasta que se enfoca con Tab. */
+.skip-link {
+  position: fixed;
+  top: -100px;
+  left: 12px;
+  z-index: 100;
+  padding: 10px 16px;
+  border-radius: 12px;
+  background: #0ea5e9;
+  color: #06090f;
+  font-weight: 700;
+  font-size: 13px;
+  transition: top 150ms ease;
+}
+
+.skip-link:focus-visible {
+  top: 12px;
+}
+
+/* Foco visible y consistente en todo el panel (teclado y lectores de pantalla).
+   Sólo :focus-visible, para no dibujar el anillo al hacer clic con el ratón. */
+:where(button, a, input, select, textarea, [tabindex]):focus-visible {
+  outline: 2px solid #38bdf8;
+  outline-offset: 2px;
+  border-radius: 8px;
+}
+
+/* Oculta la barra de scroll en filas de pestañas deslizantes. */
+.scrollbar-none {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
+
+/* Respeta a quien pide menos animaciones en su sistema operativo. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

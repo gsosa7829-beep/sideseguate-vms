@@ -38,6 +38,8 @@ import { ShareLinkModal } from './components/ShareLinkModal';
 import { CameraModal } from './components/CameraModal';
 import { ProjectModal } from './components/ProjectModal';
 import { Sidebar } from './components/Sidebar';
+import { BottomNav } from './components/BottomNav';
+import { SectionSubNav } from './components/SectionSubNav';
 import { TopNavbar, UiThemePreset } from './components/TopNavbar';
 import { VideoWall } from './components/VideoWall';
 const DvrRegistryView = lazy(() =>
@@ -83,8 +85,7 @@ import { toPublicCameras } from './lib/publicCamera';
 
 import { 
   QrCode,
-  Shield, 
-  Cctv, 
+  Shield,  
   Link2, 
   Building2, 
   Workflow, 
@@ -116,7 +117,6 @@ import {
   Server,
   Play,
   RotateCw,
-  LayoutGrid,
   Cloud
 } from 'lucide-react';
 
@@ -838,9 +838,14 @@ function AppShell() {
 
   return (
     <div className="flex h-dvh w-full bg-neutral-950 text-neutral-100 overflow-hidden font-sans">
+      {/* Salto directo al contenido para navegación con teclado */}
+      <a href="#contenido" className="skip-link">
+        Saltar al contenido
+      </a>
+
       {/* Toast Notification */}
       {toastMessage && (
-        <div className="fixed bottom-5 right-5 z-50 bg-blue-600 text-white text-xs font-semibold px-4 py-2.5 rounded-xl shadow-2xl animate-fade-in flex items-center gap-2 border border-blue-400/40">
+        <div className="fixed bottom-20 md:bottom-5 right-4 md:right-5 z-50 bg-blue-600 text-white text-xs font-semibold px-4 py-2.5 rounded-xl shadow-2xl animate-fade-in flex items-center gap-2 border border-blue-400/40">
           <Check className="w-4 h-4" />
           <span>{toastMessage}</span>
         </div>
@@ -848,7 +853,7 @@ function AppShell() {
 
       {/* Offline Connectivity Banner */}
       {!isOnline && (
-        <div className="fixed bottom-5 left-5 z-50 flex items-center gap-2 rounded-xl bg-amber-600 px-3.5 py-2 text-xs font-semibold text-white shadow-2xl">
+        <div className="fixed bottom-20 md:bottom-5 left-4 md:left-5 z-50 flex items-center gap-2 rounded-xl bg-amber-600 px-3.5 py-2 text-xs font-semibold text-white shadow-2xl">
           <span className="h-2 w-2 rounded-full bg-white animate-pulse" />
           <span>Modo Sin Conexión — Usando catálogo en caché local</span>
         </div>
@@ -876,7 +881,6 @@ function AppShell() {
         {/* 2. Top Header Bar with Breadcrumbs, Search & KPIs */}
         <TopNavbar
           currentTab={activeTab}
-          onToggleMobileSidebar={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
           onOpenNewLink={() => {
             setEditingShareLink(null);
             setShareDefaultProjectId(null);
@@ -958,7 +962,15 @@ function AppShell() {
         )}
 
         {/* 3. Main Scrollable Canvas for Active Tab View */}
-        <main className="flex-1 overflow-y-auto p-3.5 sm:p-6 pb-20 md:pb-6 space-y-5 sm:space-y-6">
+        <main
+          id="contenido"
+          tabIndex={-1}
+          className="flex-1 overflow-y-auto p-3.5 sm:p-6 pb-24 md:pb-6 focus:outline-none"
+        >
+          {/* Submenú de la sección (sólo si tiene varias pantallas) */}
+          <SectionSubNav currentTab={activeTab} onSelectTab={(tab) => setActiveTab(tab)} />
+
+          <div className="space-y-5 sm:space-y-6">
           {/* VIEW 1: Muro de Video (Matrix Multicámara) */}
           {activeTab === 'videowall' && (
             <VideoWall
@@ -1594,6 +1606,7 @@ function AppShell() {
               </pre>
             </div>
           )}
+          </div>
         </main>
       </div>
 
@@ -1691,65 +1704,8 @@ function AppShell() {
           }}
         />
       )}
-      {/* Mobile Quick-Navigation Bottom Dock (Spacious Touch Targets for Smartphones) */}
-      <nav
-        aria-label="Navegación rápida móvil"
-        className="md:hidden fixed bottom-0 inset-x-0 z-30 bg-neutral-950/95 border-t border-neutral-800 backdrop-blur-md px-2 pt-1.5 pb-[max(0.375rem,env(safe-area-inset-bottom))] grid grid-cols-4 gap-1"
-      >
-        <button
-          type="button"
-          onClick={() => setActiveTab('videowall')}
-          className={`flex flex-col items-center justify-center py-1.5 rounded-xl text-[10px] font-medium transition ${
-            activeTab === 'videowall'
-              ? 'text-sky-400 bg-sky-950/50 font-semibold'
-              : 'text-neutral-400 hover:text-white'
-          }`}
-        >
-          <LayoutGrid className="w-4 h-4 mb-0.5" />
-          <span>Muro</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setActiveTab('devices_catalog')}
-          className={`flex flex-col items-center justify-center py-1.5 rounded-xl text-[10px] font-medium transition ${
-            activeTab === 'devices_catalog'
-              ? 'text-sky-400 bg-sky-950/50 font-semibold'
-              : 'text-neutral-400 hover:text-white'
-          }`}
-        >
-          <Cctv className="w-4 h-4 mb-0.5" />
-          <span>Cámaras</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setActiveTab('client_onboarding')}
-          className={`flex flex-col items-center justify-center py-1.5 rounded-xl text-[10px] font-medium transition ${
-            activeTab === 'client_onboarding'
-              ? 'text-emerald-400 bg-emerald-950/50 font-semibold'
-              : 'text-neutral-400 hover:text-white'
-          }`}
-        >
-          <Plus className="w-4 h-4 mb-0.5 text-emerald-400" />
-          <span>+Cámara</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setActiveTab('share_links')}
-          className={`flex flex-col items-center justify-center py-1.5 rounded-xl text-[10px] font-medium transition ${
-            activeTab === 'share_links'
-              ? 'text-sky-400 bg-sky-950/50 font-semibold'
-              : 'text-neutral-400 hover:text-white'
-          }`}
-        >
-          <Link2 className="w-4 h-4 mb-0.5" />
-          <span>Enlaces</span>
-        </button>
-
-
-      </nav>
+      {/* Barra inferior móvil: 4 secciones, todo al alcance del pulgar */}
+      <BottomNav currentTab={activeTab} onSelectTab={(tab) => setActiveTab(tab)} />
     </div>
   );
 }
