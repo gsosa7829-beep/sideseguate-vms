@@ -15,3 +15,6 @@ cloudflared.exe
 cloud-p2p-runtime/bin/
 test_ch*.jpg
 live-ch*.jpg
+
+# Copias de seguridad del script de limpieza
+backups/

@@ -233,6 +233,8 @@ function AppShell() {
     timestamp: string;
   } | null>(null);
   const latestLogIdRef = useRef<string | null>(null);
+  /** Evita republicar cámaras en cada snapshot vacío de Firestore. */
+  const cloudRepairAttemptedRef = useRef(false);
   const toastTimerRef = useRef<number | null>(null);
   const shareLinksRef = useRef<ShareLink[]>([]);
   const audioAlertsRef = useRef<boolean>(true);
@@ -381,6 +383,28 @@ function AppShell() {
         storage.saveProjects(cloudProjects);
       },
       onCameras: (cloudCameras) => {
+        // Una nube vacía NO debe vaciar el equipo. Antes, si `cloud_cameras`
+        // llegaba vacía, se hacía setCameras([]) y saveCameras([]): el panel se
+        // quedaba sin cámaras y se perdían también los datos locales.
+        // Ahora se conservan las locales y se vuelven a publicar (autorreparación).
+        if (cloudCameras.length === 0) {
+          const locales = storage.getCameras();
+          if (locales.length > 0 && !cloudRepairAttemptedRef.current) {
+            cloudRepairAttemptedRef.current = true;
+            console.warn(
+              `La nube no tiene cámaras; se conservan las ${locales.length} locales y se vuelven a publicar.`
+            );
+            locales.forEach((cam) => {
+              upsertCloudCamera(cam).catch((err) =>
+                console.warn('No se pudo republicar la cámara en la nube:', err)
+              );
+            });
+            return;
+          }
+          setCameras(locales);
+          return;
+        }
+
         const gatewayNow = loadGateway();
         // Los secretos (usuario, contraseña, RTSP, código de verificación) NO
         // viajan a la nube. Al recibir cámaras desde Firestore hay que

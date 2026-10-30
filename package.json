@@ -11,7 +11,9 @@
     "clean": "rm -rf dist server.js",
     "lint": "tsc --noEmit",
     "test": "tsx --test src/lib/streamingLogic.test.ts",
-    "deploy:surge": "npm run build && npx --yes surge ./dist sideseguate-cloud.surge.sh"
+    "deploy:surge": "npm run build && npx --yes surge ./dist sideseguate-cloud.surge.sh",
+    "cloud:verify": "node scripts/cleanup-cloud-secrets.mjs --verify",
+    "cloud:cleanup": "node scripts/cleanup-cloud-secrets.mjs"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",
