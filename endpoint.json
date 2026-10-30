@@ -1,0 +1,23 @@
+{
+  "online": true,
+  "mode": "hilook-ezviz-cloud-p2p",
+  "serial": "F31700438",
+  "model": "HiLook TurboHD (S04TURBOG2/A)",
+  "encryption": "HELGDM",
+  "tunnelUrl": "https://sideseguate-streaming.surge.sh",
+  "updatedAt": "2026-10-30T19:39:39.164Z",
+  "channels": {
+    "1": {
+      "connected": true,
+      "frameBytes": 80903,
+      "totalFrames": 1,
+      "lastFrameAgeMs": 50
+    },
+    "2": {
+      "connected": true,
+      "frameBytes": 80927,
+      "totalFrames": 1,
+      "lastFrameAgeMs": 50
+    }
+  }
+}
