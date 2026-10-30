@@ -29,6 +29,30 @@ interface LiveCameraPlayerProps {
   autoPlay?: boolean;
 }
 
+const EZVIZ_ACCESS_TOKEN = 'at.b1exbqau80l85aox2k6x3487cw0byh2s-51eyws3m7n-0ii5ze3-uuk9pufag';
+
+async function fetchEzvizLiveCapture(channel: number, serial: string): Promise<string | null> {
+  try {
+    const res = await fetch('https://iusopen.ezvizlife.com/api/lapp/device/capture', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        accessToken: EZVIZ_ACCESS_TOKEN,
+        deviceSerial: serial || 'F31700438',
+        channelNo: String(channel),
+      }),
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    if (data.code === '200' && data.data?.picUrl) {
+      return data.data.picUrl;
+    }
+  } catch {
+    // network or offline
+  }
+  return null;
+}
+
 export const LiveCameraPlayer: React.FC<LiveCameraPlayerProps> = ({
   camera,
   allowPtz = true,
@@ -101,37 +125,56 @@ export const LiveCameraPlayer: React.FC<LiveCameraPlayerProps> = ({
       fallbackImg.src = dataUrl;
     };
 
-    const fetchNextFrame = () => {
+    const fetchNextFrame = async () => {
       if (!active) return;
+
+      // 1. Si hay un túnel local o Cloudflare en vivo (:8890 o trycloudflare), se usa con alta tasa de cuadros
       const frameUrl = cloudP2pClient.getBestFrameUrl(ch, deviceSerial);
-      if (!frameUrl) {
-        timer = setTimeout(fetchNextFrame, 1000);
+      const isFastTunnel =
+        frameUrl &&
+        (frameUrl.startsWith('/p2p/frame') ||
+          frameUrl.startsWith('http://localhost:8890') ||
+          frameUrl.includes('.trycloudflare.com'));
+
+      if (isFastTunnel) {
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        img.onload = () => {
+          if (!active) return;
+          nativeP2pImgRef.current = img;
+          setNativeP2pReady(true);
+          timer = setTimeout(fetchNextFrame, 180);
+        };
+        img.onerror = () => {
+          if (!active) return;
+          timer = setTimeout(fetchNextFrame, 600);
+        };
+        img.src = `${frameUrl}&_t=${Date.now()}`;
         return;
       }
-      const isMobile =
-        typeof window !== 'undefined' &&
-        (window.innerWidth < 768 || 'ontouchstart' in window);
-      // El proxy del dev server (/p2p/frame) y el runner local (:8890) entregan frames casi en tiempo real.
-      const isLocal =
-        frameUrl.startsWith('/p2p/frame') || frameUrl.startsWith('http://localhost:8890');
-      const isDataUrl = frameUrl.startsWith('data:image/');
-      const frameDelay = isLocal ? 95 : isDataUrl ? 1800 : isMobile ? 380 : 260;
 
-      const img = new Image();
-      if (!isDataUrl) {
+      // 2. Transmisión directa continua desde Ezviz Cloud API (sin depender del PC del operador)
+      const livePicUrl = await fetchEzvizLiveCapture(ch, deviceSerial || 'F31700438');
+      if (livePicUrl && active) {
+        const img = new Image();
         img.crossOrigin = 'anonymous';
+        img.onload = () => {
+          if (!active) return;
+          nativeP2pImgRef.current = img;
+          setNativeP2pReady(true);
+          // 1200ms da una transmisión fluida continua en vivo en cualquier móvil/PC
+          timer = setTimeout(fetchNextFrame, 1200);
+        };
+        img.onerror = () => {
+          if (!active) return;
+          loadFallbackDataUrl();
+        };
+        img.src = `${livePicUrl}&_t=${Date.now()}`;
+        return;
       }
-      img.onload = () => {
-        if (!active) return;
-        nativeP2pImgRef.current = img;
-        setNativeP2pReady(true);
-        timer = setTimeout(fetchNextFrame, frameDelay);
-      };
-      img.onerror = () => {
-        if (!active) return;
-        loadFallbackDataUrl();
-      };
-      img.src = frameUrl;
+
+      // 3. Respaldo si no hay red
+      loadFallbackDataUrl();
     };
 
     fetchNextFrame();
