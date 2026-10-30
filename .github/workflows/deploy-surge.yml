@@ -44,15 +44,65 @@ jobs:
         run: npx tsc --noEmit
 
       - name: Build Production Bundle
+        env:
+          # Dominio de marca de los enlaces de cliente (Settings → Variables).
+          VITE_PUBLIC_APP_URL: ${{ vars.PUBLIC_APP_URL }}
         run: npm run build
 
-      - name: Publish to Surge
+      # El token es imprescindible. Si falta, el job FALLA (no "pasa" en verde):
+      # antes terminaba con exit 0 y el dominio se quedaba semanas atrás sin
+      # que nadie se enterara.
+      - name: Comprobar el secreto SURGE_TOKEN
         env:
           SURGE_TOKEN: ${{ secrets.SURGE_TOKEN }}
         run: |
           if [ -z "$SURGE_TOKEN" ]; then
-            echo "::warning::SURGE_TOKEN no está configurado. Se omite el despliegue a Surge."
-            echo "Añádelo en Settings → Secrets and variables → Actions para publicar automáticamente."
-            exit 0
+            echo "::error title=Despliegue no configurado::Falta el secreto SURGE_TOKEN."
+            echo ""
+            echo "El dominio NO se ha actualizado. Para arreglarlo:"
+            echo "  1) En tu PC:  npx --yes surge login  &&  npx --yes surge token"
+            echo "  2) Repo → Settings → Secrets and variables → Actions → New repository secret"
+            echo "     Nombre: SURGE_TOKEN   Valor: el token del paso 1"
+            echo "  3) Volver a lanzar este workflow (Run workflow)."
+            exit 1
           fi
-          npx --yes surge ./dist sideseguate-cloud.surge.sh --token "$SURGE_TOKEN"
+          echo "SURGE_TOKEN presente."
+
+      - name: Publish to Surge
+        env:
+          SURGE_TOKEN: ${{ secrets.SURGE_TOKEN }}
+          # Dominio de Surge. Se puede cambiar sin tocar el código creando la
+          # variable SURGE_DOMAIN (Settings → Variables), por ejemplo
+          # "sideseguate.surge.sh" para que el enlace muestre la marca y no
+          # "sideseguate-cloud".
+          SURGE_DOMAIN: ${{ vars.SURGE_DOMAIN }}
+        run: |
+          TARGET="${SURGE_DOMAIN:-sideseguate-cloud.surge.sh}"
+          echo "TARGET=$TARGET" >> "$GITHUB_ENV"
+          echo "Publicando en https://$TARGET"
+          npx --yes surge ./dist "$TARGET" --token "$SURGE_TOKEN"
+
+      # Un "Publish to Surge" en verde no garantiza que el sitio sirva el build
+      # nuevo. Este paso compara el asset de dist/index.html con el que publica
+      # el dominio y falla si no coinciden.
+      - name: Verificar que el dominio sirve el build nuevo
+        run: |
+          EXPECTED=$(grep -o 'assets/index-[A-Za-z0-9_-]*\.js' dist/index.html | head -1)
+          echo "Build local:  $EXPECTED"
+          if [ -z "$EXPECTED" ]; then
+            echo "::error::No se pudo leer el asset de dist/index.html"
+            exit 1
+          fi
+          LIVE=""
+          for i in $(seq 1 12); do
+            LIVE=$(curl -fsS "https://${TARGET}/?cachebust=$(date +%s)" \
+              | grep -o 'assets/index-[A-Za-z0-9_-]*\.js' | head -1 || true)
+            echo "Intento $i → $LIVE"
+            if [ "$LIVE" = "$EXPECTED" ]; then
+              echo "::notice title=Despliegue verificado::https://${TARGET} sirve $EXPECTED"
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "::error title=El sitio quedó viejo::https://${TARGET} sirve '${LIVE}' pero el build es '${EXPECTED}'"
+          exit 1

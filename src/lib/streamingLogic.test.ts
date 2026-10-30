@@ -1175,6 +1175,8 @@ import {
   getPublicUrlInfo,
   buildPublicShareUrl,
   describeShareUrlWarning,
+  resolvePublicUrl,
+  isPersonalLookingHost,
 } from './publicUrl.ts';
 
 test('sin window (SSR/Node) el enlace nunca se marca como accesible por el cliente', () => {
@@ -1188,6 +1190,7 @@ test('describeShareUrlWarning avisa solo cuando el cliente no podrá abrirlo', (
     baseUrl: 'http://localhost:3000/',
     source: 'preview',
     isReachableByClient: false,
+    looksPersonal: false,
   });
   assert.ok(warning && warning.includes('dirección local'));
 
@@ -1196,9 +1199,68 @@ test('describeShareUrlWarning avisa solo cuando el cliente no podrá abrirlo', (
       baseUrl: 'https://sideseguate.gt',
       source: 'configured',
       isReachableByClient: true,
+      looksPersonal: false,
     }),
     null
   );
+});
+
+test('el dominio configurado gana al de compilación y al origen', async () => {
+  const { resolvePublicUrl } = await import('./publicUrl.ts');
+
+  const info = resolvePublicUrl({
+    configuredUrl: 'sideseguate.gt',
+    buildUrl: 'https://sideseguate.surge.sh',
+    origin: 'https://gsosa7829-beep.github.io',
+    pathname: '/sideseguate-vms/',
+    protocol: 'https:',
+  });
+
+  assert.equal(info.source, 'configured');
+  assert.equal(info.baseUrl, 'https://sideseguate.gt', 'normaliza el esquema y quita la barra final');
+  assert.equal(info.looksPersonal, false);
+});
+
+test('el dominio horneado (VITE_PUBLIC_APP_URL) evita el usuario personal de GitHub', async () => {
+  const { resolvePublicUrl } = await import('./publicUrl.ts');
+
+  const info = resolvePublicUrl({
+    buildUrl: 'https://camaras.sideseguate.com',
+    origin: 'https://gsosa7829-beep.github.io',
+    pathname: '/sideseguate-vms/',
+    protocol: 'https:',
+  });
+
+  assert.equal(info.source, 'build');
+  assert.equal(info.baseUrl, 'https://camaras.sideseguate.com');
+  assert.equal(info.looksPersonal, false);
+});
+
+test('sin configuración, GitHub Pages se detecta como dominio personal (conserva el subdirectorio)', async () => {
+  const { resolvePublicUrl } = await import('./publicUrl.ts');
+
+  const info = resolvePublicUrl({
+    origin: 'https://gsosa7829-beep.github.io',
+    pathname: '/sideseguate-vms/',
+    protocol: 'https:',
+  });
+
+  assert.equal(info.source, 'origin');
+  assert.equal(info.isReachableByClient, true, 'el enlace funciona aunque no sea la marca');
+  assert.equal(info.baseUrl, 'https://gsosa7829-beep.github.io/sideseguate-vms');
+  assert.equal(info.looksPersonal, true);
+
+  // Y avisa en la interfaz.
+  const warning = describeShareUrlWarning(info);
+  assert.ok(warning && warning.toLowerCase().includes('usuario personal'));
+});
+
+test('isPersonalLookingHost distingue marca de hosting personal', () => {
+  assert.equal(isPersonalLookingHost('gsosa7829-beep.github.io'), true);
+  assert.equal(isPersonalLookingHost('mi-proyecto.vercel.app'), true);
+  assert.equal(isPersonalLookingHost('sideseguate.surge.sh'), false);
+  assert.equal(isPersonalLookingHost('camaras.sideseguate.com'), false);
+  assert.equal(isPersonalLookingHost('localhost'), false);
 });
 
 test('buildPublicShareUrl arma el enlace con token y nunca con doble signo', () => {

@@ -1022,20 +1022,29 @@ function AppShell() {
                 </div>
               </div>
 
-              {/* Aviso: el enlace solo funcionaría en este equipo */}
+              {/* Aviso: enlace local, o enlace que muestra el usuario personal */}
               {(() => {
                 const info = getPublicUrlInfo();
                 const warning = describeShareUrlWarning(info);
                 if (!warning) return null;
+                const isLocal = !info.isReachableByClient;
                 return (
                   <div className="bg-amber-950/50 border border-amber-700/60 rounded-xl p-3 flex items-start gap-2 text-[11px] sm:text-xs text-amber-200">
                     <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5 text-amber-400" />
                     <div className="min-w-0">
-                      <p className="font-semibold">Los enlaces todavía no saldrán de este equipo</p>
+                      <p className="font-semibold">
+                        {isLocal
+                          ? 'Los enlaces todavía no saldrán de este equipo'
+                          : 'Tus enlaces muestran tu usuario personal, no tu marca'}
+                      </p>
                       <p className="text-amber-200/80 leading-relaxed mt-0.5">
-                        Ahora mismo apuntan a <span className="font-mono break-all">{info.baseUrl || 'una dirección local'}</span>.
-                        Configura el <strong>dominio público de la plataforma</strong> en la pestaña
-                        "Archivo mediamtx.yml" para que tus clientes puedan abrirlos desde el celular.
+                        Ahora mismo apuntan a{' '}
+                        <span className="font-mono break-all">{info.baseUrl || 'una dirección local'}</span>.{' '}
+                        {isLocal
+                          ? 'Configura el '
+                          : 'Tus clientes verán ese nombre en la barra de direcciones. Configura '}
+                        <strong>dominio público de la plataforma</strong> en la pestaña
+                        "Archivo mediamtx.yml" y los enlaces pasarán a llevar tu propio dominio.
                       </p>
                     </div>
                   </div>

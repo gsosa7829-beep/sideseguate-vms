@@ -30,6 +30,12 @@ jobs:
           node-version: '20'
 
       - name: Install Dependencies & Build Production Bundle
+        env:
+          # Dominio de marca de los enlaces de cliente. Se define una vez en
+          # Settings → Secrets and variables → Actions → Variables
+          # (ej. https://camaras.sideseguate.com). Si falta, los enlaces usan
+          # el origen actual, que en GitHub Pages muestra el usuario personal.
+          VITE_PUBLIC_APP_URL: ${{ vars.PUBLIC_APP_URL }}
         run: |
           npm ci
           npm run build
