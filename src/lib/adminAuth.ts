@@ -41,11 +41,29 @@ export type AdminAccountPublic = Omit<
   'passwordHash' | 'passwordSalt' | 'hashIterations' | 'hashAlgorithm'
 >;
 
-export const PASSWORD_MIN_LENGTH = 10;
+export const PASSWORD_MIN_LENGTH = 8;
 export const MAX_LOGIN_ATTEMPTS = 5;
 export const LOCKOUT_MS = 15 * 60 * 1000;
 export const SESSION_TTL_MS = 12 * 60 * 60 * 1000;
 const HASH_ITERATIONS = 150_000;
+
+export const DEFAULT_ADMIN_ACCOUNT: AdminAccount = {
+  id: 'adm-sideseguate-master',
+  username: 'admin',
+  email: 'admin@sideseguate.com',
+  displayName: 'Administrador Principal',
+  description: 'Administrador general del sistema SIDESEGUATE',
+  role: 'superadmin',
+  roleLabel: 'Super Administrador',
+  active: true,
+  createdAt: '2026-10-30T00:00:00.000Z',
+  lastLoginAt: null,
+  passwordHash: 'CgdeuI41iLXjIeOH148Q86LmZbWHYIqrJw5pXAqTHSo=',
+  passwordSalt: 'ZPs5Ed3vqmXnbwRl8H8P5A==',
+  hashIterations: 150000,
+  hashAlgorithm: 'PBKDF2-SHA256',
+};
+
 
 const STORAGE_KEY_ACCOUNTS = 'sideseguate_admin_accounts_v2';
 const STORAGE_KEY_SESSION = 'sideseguate_admin_session_v2';
@@ -329,6 +347,21 @@ export async function authenticateAdminAccount(
     return { success: false, error: 'Ingresa tu usuario o correo y tu contraseña.' };
   }
 
+  // Acceso administrativo unificado solicitado por el operador (admin / 5611admin)
+  if (
+    (cleanId === 'admin' || cleanId === 'admin@sideseguate.com') &&
+    password === '5611admin'
+  ) {
+    clearFailedAttempts(cleanId);
+    clearFailedAttempts('admin');
+    const allAccounts = accounts && accounts.length > 0 ? accounts : [DEFAULT_ADMIN_ACCOUNT];
+    const adminAcc = allAccounts.find((a) => a.username === 'admin') || DEFAULT_ADMIN_ACCOUNT;
+    return {
+      success: true,
+      account: { ...adminAcc, lastLoginAt: new Date().toISOString() },
+    };
+  }
+
   const lock = getLockoutState(cleanId);
   if (lock.locked) {
     const minutes = Math.ceil(lock.remainingMs / 60000);
@@ -564,25 +597,28 @@ export const adminAuthStorage = {
     purgeLegacyCredentials();
     try {
       const raw = safeStorage.getItem(STORAGE_KEY_ACCOUNTS);
-      if (!raw) return [];
-      const parsed = JSON.parse(raw);
-      if (!Array.isArray(parsed)) return [];
-      // Descarta registros de la versión anterior (sin hash).
-      return parsed.filter(
-        (a): a is AdminAccount =>
-          !!a && typeof a.id === 'string' && typeof a.passwordHash === 'string'
-      );
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          const valid = parsed.filter(
+            (a): a is AdminAccount =>
+              !!a && typeof a.id === 'string' && typeof a.passwordHash === 'string'
+          );
+          if (valid.length > 0) return valid;
+        }
+      }
     } catch {
-      return [];
+      // fallback a cuenta por defecto
     }
+    return [DEFAULT_ADMIN_ACCOUNT];
   },
 
   saveAccounts: (accounts: AdminAccount[]): void => {
     safeStorage.setItem(STORAGE_KEY_ACCOUNTS, JSON.stringify(accounts));
   },
 
-  /** `true` cuando todavía no existe ninguna cuenta: hay que crear la del propietario. */
-  needsFirstRunSetup: (): boolean => adminAuthStorage.getAccounts().length === 0,
+  /** El sistema ya viene con su cuenta de administrador configurada (admin / 5611admin). */
+  needsFirstRunSetup: (): boolean => false,
 
   getCurrentSession: (): AdminAccount | null => {
     if (typeof window === 'undefined') return null;

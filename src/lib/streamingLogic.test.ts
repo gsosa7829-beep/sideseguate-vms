@@ -503,13 +503,18 @@ test('validateClientCameraSubmission, buildClientSubmittedCameras, and cloneNext
   assert.equal(clonedCh5.rtspUrl, 'rtsp://admin:ClaveCliente2026@190.149.45.88:554/Streaming/Channels/501');
 });
 
-test('el panel no trae cuentas de fábrica y exige contraseña de 10+ caracteres', async () => {
-  const { adminAuthStorage, PASSWORD_MIN_LENGTH } = await import('./adminAuth.ts');
+test('el panel incluye la cuenta admin (5611admin) lista para usar y no exige crear cuentas', async () => {
+  const { adminAuthStorage, authenticateAdminAccount, PASSWORD_MIN_LENGTH } = await import('./adminAuth.ts');
 
-  // Sin cuentas sembradas: el primer arranque obliga a crear la del propietario.
-  const noCuentas = adminAuthStorage.getAccounts();
-  assert.deepEqual(noCuentas, []);
-  assert.equal(PASSWORD_MIN_LENGTH, 10);
+  const cuentas = adminAuthStorage.getAccounts();
+  assert.equal(cuentas.length, 1);
+  assert.equal(cuentas[0].username, 'admin');
+  assert.equal(adminAuthStorage.needsFirstRunSetup(), false);
+  assert.equal(PASSWORD_MIN_LENGTH, 8);
+
+  const auth = await authenticateAdminAccount(cuentas, 'admin', '5611admin');
+  assert.equal(auth.success, true);
+  assert.equal(auth.account?.username, 'admin');
 });
 
 test('createAdminAccount guarda hash PBKDF2 y nunca la contraseña en claro', async () => {
