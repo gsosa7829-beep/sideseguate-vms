@@ -31,11 +31,10 @@ jobs:
 
       - name: Install Dependencies & Build Production Bundle
         env:
-          # Dominio de marca de los enlaces de cliente. Se define una vez en
-          # Settings → Secrets and variables → Actions → Variables
-          # (ej. https://camaras.sideseguate.com). Si falta, los enlaces usan
-          # el origen actual, que en GitHub Pages muestra el usuario personal.
-          VITE_PUBLIC_APP_URL: ${{ vars.PUBLIC_APP_URL }}
+          # Dominio de marca de los enlaces de cliente.
+          # Por omisión usa el dominio de producción sideseguate-cloud.surge.sh
+          # evitando que los enlaces muestren el usuario personal de GitHub.
+          VITE_PUBLIC_APP_URL: ${{ vars.PUBLIC_APP_URL || 'https://sideseguate-cloud.surge.sh' }}
         run: |
           npm ci
           npm run build

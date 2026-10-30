@@ -1,0 +1,39 @@
+name: Deploy Firestore Rules
+
+on:
+  workflow_dispatch:
+    inputs:
+      firebase_token:
+        description: 'Firebase Token CI (generado con `npx firebase login:ci`). Opcional si FIREBASE_TOKEN está en secrets.'
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  deploy-rules:
+    name: Publicar firestore.rules al proyecto
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Instalar dependencias
+        run: npm ci
+
+      - name: Desplegar reglas a Firestore
+        env:
+          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN || inputs.firebase_token }}
+        run: |
+          if [ -z "$FIREBASE_TOKEN" ]; then
+            echo "::error::Falta FIREBASE_TOKEN. Pásalo en inputs al ejecutar 'Run workflow' o agrégalo en Settings → Secrets → Actions → FIREBASE_TOKEN."
+            exit 1
+          fi
+          npx --yes firebase-tools deploy --only firestore:rules --project gen-lang-client-0437985763 --token "$FIREBASE_TOKEN"

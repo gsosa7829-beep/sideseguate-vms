@@ -6,15 +6,21 @@ name: Deploy to Surge (sideseguate-cloud.surge.sh)
 # GitHub no tenía ni idea de su existencia y se quedaba desactualizado en
 # silencio: la versión publicada llegó a estar un PR por detrás del código.
 #
-# Requisito único: añadir el secreto SURGE_TOKEN
+# Requisito: añadir el secreto SURGE_TOKEN
 #   Settings → Secrets and variables → Actions → New repository secret
 # Se obtiene una vez con:  npx surge token   (tras `npx surge login`)
+# También se puede ingresar manualmente al disparar el workflow (workflow_dispatch).
 
 on:
   push:
     branches:
       - main
   workflow_dispatch:
+    inputs:
+      surge_token:
+        description: 'SURGE_TOKEN manual (opcional si ya está configurado en Secrets)'
+        required: false
+        type: string
 
 permissions:
   contents: read
@@ -46,15 +52,13 @@ jobs:
       - name: Build Production Bundle
         env:
           # Dominio de marca de los enlaces de cliente (Settings → Variables).
-          VITE_PUBLIC_APP_URL: ${{ vars.PUBLIC_APP_URL }}
+          VITE_PUBLIC_APP_URL: ${{ vars.PUBLIC_APP_URL || 'https://sideseguate-cloud.surge.sh' }}
         run: npm run build
 
-      # El token es imprescindible. Si falta, el job FALLA (no "pasa" en verde):
-      # antes terminaba con exit 0 y el dominio se quedaba semanas atrás sin
-      # que nadie se enterara.
+      # El token es imprescindible. Si falta, el job FALLA con mensaje claro.
       - name: Comprobar el secreto SURGE_TOKEN
         env:
-          SURGE_TOKEN: ${{ secrets.SURGE_TOKEN }}
+          SURGE_TOKEN: ${{ secrets.SURGE_TOKEN || inputs.surge_token }}
         run: |
           if [ -z "$SURGE_TOKEN" ]; then
             echo "::error title=Despliegue no configurado::Falta el secreto SURGE_TOKEN."
@@ -63,18 +67,14 @@ jobs:
             echo "  1) En tu PC:  npx --yes surge login  &&  npx --yes surge token"
             echo "  2) Repo → Settings → Secrets and variables → Actions → New repository secret"
             echo "     Nombre: SURGE_TOKEN   Valor: el token del paso 1"
-            echo "  3) Volver a lanzar este workflow (Run workflow)."
+            echo "     (O pásalo en el input del workflow_dispatch al pulsar 'Run workflow')."
             exit 1
           fi
           echo "SURGE_TOKEN presente."
 
       - name: Publish to Surge
         env:
-          SURGE_TOKEN: ${{ secrets.SURGE_TOKEN }}
-          # Dominio de Surge. Se puede cambiar sin tocar el código creando la
-          # variable SURGE_DOMAIN (Settings → Variables), por ejemplo
-          # "sideseguate.surge.sh" para que el enlace muestre la marca y no
-          # "sideseguate-cloud".
+          SURGE_TOKEN: ${{ secrets.SURGE_TOKEN || inputs.surge_token }}
           SURGE_DOMAIN: ${{ vars.SURGE_DOMAIN }}
         run: |
           TARGET="${SURGE_DOMAIN:-sideseguate-cloud.surge.sh}"
@@ -82,9 +82,7 @@ jobs:
           echo "Publicando en https://$TARGET"
           npx --yes surge ./dist "$TARGET" --token "$SURGE_TOKEN"
 
-      # Un "Publish to Surge" en verde no garantiza que el sitio sirva el build
-      # nuevo. Este paso compara el asset de dist/index.html con el que publica
-      # el dominio y falla si no coinciden.
+      # Compara el asset de dist/index.html con el que publica el dominio
       - name: Verificar que el dominio sirve el build nuevo
         run: |
           EXPECTED=$(grep -o 'assets/index-[A-Za-z0-9_-]*\.js' dist/index.html | head -1)
