@@ -1337,5 +1337,6 @@ test('el QR nunca cae en un dominio fijo que no sea el de la plataforma', async 
   // plataforma, no un dominio fijo heredado que puede no existir.
   const expected = matrixOf(getPublicBaseUrl() || 'SIDESEGUATE');
   assert.equal(matrixOf('   '), expected);
+  // Y no debe coincidir con el dominio fijo que se usaba antes como relleno.
   assert.notEqual(matrixOf('https://sideseguate.com'), expected);
 });
