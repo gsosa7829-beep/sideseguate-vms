@@ -222,7 +222,7 @@ service cloud.firestore {
         data.ptzSupported is bool &&
         data.nightVision is bool &&
         data.cloudId is string && data.cloudId.size() >= 0 && data.cloudId.size() <= 128 &&
-        data.deviceSerial is string && data.deviceSerial.size() >= 0 && data.deviceSerial.size() <= 64 &&
+        (!data.keys().hasAny(['deviceSerial']) || (data.deviceSerial is string && data.deviceSerial.size() <= 64)) &&
         data.notes is string && data.notes.size() >= 0 && data.notes.size() <= 1000 &&
         data.createdAt is timestamp &&
         data.updatedAt is timestamp;
