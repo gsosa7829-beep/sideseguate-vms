@@ -117,7 +117,7 @@ export const INITIAL_CAMERAS: Camera[] = [
     codec: 'H.264',
     locationDesc: 'Canal 1 HiLookVision · Entrada (F31700438)',
     ptzSupported: true,
-    nightVision: true,
+    nightVision: false,
     deviceSerial: 'F31700438',
     notes: 'DVR HiLook F31700438 | P2P Ezviz / Hik-Connect | Canal 1 Activo en vivo'
   },
@@ -144,7 +144,7 @@ export const INITIAL_CAMERAS: Camera[] = [
     codec: 'H.264',
     locationDesc: 'Canal 2 HiLookVision · Interior (F31700438)',
     ptzSupported: true,
-    nightVision: true,
+    nightVision: false,
     deviceSerial: 'F31700438',
     notes: 'DVR HiLook F31700438 | P2P Ezviz / Hik-Connect | Canal 2 Activo en vivo'
   },

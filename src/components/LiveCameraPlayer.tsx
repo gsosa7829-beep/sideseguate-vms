@@ -116,7 +116,7 @@ export const LiveCameraPlayer: React.FC<LiveCameraPlayerProps> = ({
         if (!active) return;
         nativeP2pImgRef.current = fallbackImg;
         setNativeP2pReady(true);
-        timer = setTimeout(fetchNextFrame, 1200);
+        timer = setTimeout(fetchNextFrame, 120);
       };
       fallbackImg.onerror = () => {
         if (!active) return;

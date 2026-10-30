@@ -1,7 +1,4 @@
 import http from 'node:http';
-import { spawn } from 'node:child_process';
-import { existsSync, unlinkSync } from 'node:fs';
-import path from 'node:path';
 
 const PORT = 8890;
 const EZ_TOKEN = 'at.b1exbqau80l85aox2k6x3487cw0byh2s-51eyws3m7n-0ii5ze3-uuk9pufag';
@@ -11,6 +8,9 @@ let lastFrameCh1 = null;
 let lastFrameCh2 = null;
 let lastTimeCh1 = 0;
 let lastTimeCh2 = 0;
+
+const mjpegClientsCh1 = new Set();
+const mjpegClientsCh2 = new Set();
 
 async function fetchFrame(ch) {
   try {
@@ -30,26 +30,39 @@ async function fetchFrame(ch) {
       if (ch === 1) {
         lastFrameCh1 = buf;
         lastTimeCh1 = Date.now();
+        broadcastMjpeg(mjpegClientsCh1, buf);
       } else {
         lastFrameCh2 = buf;
         lastTimeCh2 = Date.now();
+        broadcastMjpeg(mjpegClientsCh2, buf);
       }
       return buf;
     }
   } catch (err) {
-    console.warn(`[Bridge] Error capturing ch ${ch}:`, err.message);
+    // transient network error
   }
   return ch === 1 ? lastFrameCh1 : lastFrameCh2;
 }
 
-// Background continuous capture loop
+function broadcastMjpeg(clientSet, buffer) {
+  for (const res of clientSet) {
+    try {
+      res.write(`--frame\r\nContent-Type: image/jpeg\r\nContent-Length: ${buffer.length}\r\n\r\n`);
+      res.write(buffer);
+      res.write('\r\n');
+    } catch {
+      clientSet.delete(res);
+    }
+  }
+}
+
 let active = true;
 async function captureLoop() {
   while (active) {
     await fetchFrame(1);
-    await new Promise((r) => setTimeout(r, 600));
+    await new Promise((r) => setTimeout(r, 200));
     await fetchFrame(2);
-    await new Promise((r) => setTimeout(r, 600));
+    await new Promise((r) => setTimeout(r, 200));
   }
 }
 captureLoop();
@@ -84,6 +97,28 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  // MJPEG continuous stream
+  const mjpegMatch = url.pathname.match(/\/mjpeg\/([12])/);
+  if (mjpegMatch) {
+    const ch = parseInt(mjpegMatch[1], 10);
+    res.writeHead(200, {
+      'Content-Type': 'multipart/x-mixed-replace; boundary=frame',
+      'Cache-Control': 'no-cache, no-store, must-revalidate',
+      'Connection': 'keep-alive',
+      'Pragma': 'no-cache',
+    });
+    const set = ch === 1 ? mjpegClientsCh1 : mjpegClientsCh2;
+    set.add(res);
+    const initialBuf = ch === 1 ? lastFrameCh1 : lastFrameCh2;
+    if (initialBuf) {
+      res.write(`--frame\r\nContent-Type: image/jpeg\r\nContent-Length: ${initialBuf.length}\r\n\r\n`);
+      res.write(initialBuf);
+      res.write('\r\n');
+    }
+    req.on('close', () => set.delete(res));
+    return;
+  }
+
   const match = url.pathname.match(/\/frame\/(?:[^/]+\/)?([12])/);
   if (match) {
     const ch = parseInt(match[1], 10);
@@ -97,7 +132,6 @@ const server = http.createServer(async (req, res) => {
       res.end(buf);
       return;
     }
-    // If not cached yet, fetch now
     const fresh = await fetchFrame(ch);
     if (fresh) {
       res.writeHead(200, {

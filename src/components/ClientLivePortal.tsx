@@ -121,6 +121,26 @@ export const ClientLivePortal: React.FC<ClientLivePortalProps> = ({
     return () => clearTimeout(timer);
   }, [activeShareLink]);
 
+  // Limpiar cachés viejas del Service Worker para garantizar video en vivo sin imágenes congeladas
+  useEffect(() => {
+    if (typeof window !== 'undefined' && 'caches' in window) {
+      caches.keys().then((names) => {
+        for (const name of names) {
+          if (name.includes('frames') || name.includes('workbox')) {
+            caches.delete(name);
+          }
+        }
+      });
+    }
+    if (typeof navigator !== 'undefined' && 'serviceWorker' in navigator) {
+      navigator.serviceWorker.getRegistrations().then((regs) => {
+        for (const reg of regs) {
+          reg.update().catch(() => {});
+        }
+      });
+    }
+  }, []);
+
   const [nowTick, setNowTick] = useState<number>(() => Date.now());
   useEffect(() => {
     const interval = setInterval(() => setNowTick(Date.now()), 1000);
