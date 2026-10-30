@@ -45,7 +45,21 @@ const RESERVED_SUBDOMAINS = new Set([
   'media',
   'preview',
   'localhost',
+  'sideseguate',
+  'sideseguate-streaming',
+  'sideseguate-cloud',
+  'sideseguate-vms',
 ]);
+
+const PUBLIC_HOSTING_SUFFIXES = [
+  '.surge.sh',
+  '.github.io',
+  '.vercel.app',
+  '.pages.dev',
+  '.web.app',
+  '.firebaseapp.com',
+  '.netlify.app',
+];
 
 export function slugifyTenant(raw: string | null | undefined): string {
   const slug = (raw || '')
@@ -110,10 +124,13 @@ export function extractTenantFromHostname(hostname: string): string {
   const host = (hostname || '').toLowerCase().trim();
   if (!host) return '';
   if (host === 'localhost' || /^\d+\.\d+\.\d+\.\d+$/.test(host)) return '';
+  for (const suffix of PUBLIC_HOSTING_SUFFIXES) {
+    if (host.endsWith(suffix)) return '';
+  }
   const labels = host.split('.');
   if (labels.length < 3) return '';
   const candidate = labels[0];
-  if (RESERVED_SUBDOMAINS.has(candidate)) return '';
+  if (RESERVED_SUBDOMAINS.has(candidate) || candidate.startsWith('sideseguate')) return '';
   return slugifyTenant(candidate);
 }
 

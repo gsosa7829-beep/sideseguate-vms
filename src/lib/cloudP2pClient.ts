@@ -55,6 +55,12 @@ const RAW_ENDPOINT_URLS = [
   'https://raw.githack.com/gsosa7829-beep/sideseguate-vms/cloud-state/endpoint.json',
 ];
 
+const RAW_LIVE_FRAMES_URLS = [
+  'https://raw.githubusercontent.com/gsosa7829-beep/sideseguate-vms/cloud-state/live-frames.json',
+  'https://cdn.jsdelivr.net/gh/gsosa7829-beep/sideseguate-vms@cloud-state/live-frames.json',
+  'https://raw.githack.com/gsosa7829-beep/sideseguate-vms/cloud-state/live-frames.json',
+];
+
 // Active public tunnel fallbacks
 const KNOWN_TUNNELS = [
   'https://plugins-control-joined-vista.trycloudflare.com',
@@ -69,7 +75,7 @@ class CloudP2PClient {
     serial: '',
     model: '',
     encryption: '',
-    tunnelUrl: 'https://plugins-control-joined-vista.trycloudflare.com',
+    tunnelUrl: '',
     updatedAt: new Date().toISOString(),
     // Sin equipos inventados: hasta que el runner reporte, no hay canales.
     channels: {},
@@ -164,23 +170,26 @@ class CloudP2PClient {
       return `http://localhost:8890/frame/${path}?t=${now}`;
     }
 
-    // 3. Current active public HTTPS Cloudflare Tunnel
-    if (this.state.tunnelUrl && this.state.tunnelUrl.startsWith('https://')) {
+    // 3. Current active public HTTPS Cloudflare Tunnel (only if real trycloudflare tunnel)
+    if (
+      this.state.tunnelUrl &&
+      this.state.tunnelUrl.startsWith('https://') &&
+      this.state.tunnelUrl.includes('.trycloudflare.com')
+    ) {
       return `${this.state.tunnelUrl}/frame/${path}?t=${now}`;
     }
 
-    // 4. Fallback known tunnels
-    for (const fallback of KNOWN_TUNNELS) {
-      if (fallback && fallback.startsWith('https://')) {
-        return `${fallback}/frame/${path}?t=${now}`;
-      }
-    }
-
-    // 5. Embedded data URL fallback
+    // 4. Embedded data URL fallback (captured live from Ezviz Cloud API / GitHub state)
     const fallbackDataUrl =
       this.state.frames?.[String(ch)] || this.state.frames?.[`${serial || ''}/${ch}`];
     if (fallbackDataUrl && fallbackDataUrl.startsWith('data:image/jpeg;base64,')) {
       return fallbackDataUrl;
+    }
+
+    // 5. Bundled static live frames in /frames/
+    if (typeof window !== 'undefined') {
+      const staticUrl = serial ? `/frames/${serial}/${ch}.jpg` : `/frames/${ch}.jpg`;
+      return `${staticUrl}?t=${Math.floor(now / 5000)}`;
     }
 
     return null;
@@ -190,7 +199,11 @@ class CloudP2PClient {
     const ch = Math.max(1, Math.min(64, Math.floor(channel) || 1));
     const dataUrl =
       this.state.frames?.[`${serial || ''}/${ch}`] || this.state.frames?.[String(ch)];
-    return dataUrl && dataUrl.startsWith('data:image/jpeg;base64,') ? dataUrl : null;
+    if (dataUrl && dataUrl.startsWith('data:image/jpeg;base64,')) return dataUrl;
+    if (typeof window !== 'undefined') {
+      return serial ? `/frames/${serial}/${ch}.jpg` : `/frames/${ch}.jpg`;
+    }
+    return null;
   }
 
   public subscribe(listener: (state: CloudP2PState) => void): () => void {
@@ -351,21 +364,45 @@ class CloudP2PClient {
         const res = await this.fetchWithTimeout(`${cdnUrl}${cacheBuster}`, 3500);
         if (res.ok) {
           const cloudData = await res.json();
-          if (cloudData?.online && cloudData.tunnelUrl) {
+          if (cloudData?.online) {
             this.consecutiveFailures = 0;
+            const validTunnel =
+              cloudData.tunnelUrl && cloudData.tunnelUrl.includes('.trycloudflare.com')
+                ? cloudData.tunnelUrl
+                : '';
             this.applyRunnerReport(cloudData, {
               source: 'cloud-tunnel-24-7',
               mode: cloudData.mode || 'github-cloud-runner-24-7',
-              tunnelUrl: cloudData.tunnelUrl,
+              tunnelUrl: validTunnel,
               updatedAt: cloudData.updatedAt || nowIso,
             });
-            this.state = { ...this.state, frames: cloudData.frames || this.state.frames };
+            if (cloudData.frames && typeof cloudData.frames === 'object') {
+              this.state = { ...this.state, frames: { ...this.state.frames, ...cloudData.frames } };
+            }
             this.notify();
-            return;
+            break;
           }
         }
       } catch {
         // Try next CDN
+      }
+    }
+
+    // 3b. Query Live Frames JSON for base64 camera feeds
+    for (const cdnUrl of RAW_LIVE_FRAMES_URLS) {
+      try {
+        const cacheBuster = `?_t=${Date.now()}`;
+        const res = await this.fetchWithTimeout(`${cdnUrl}${cacheBuster}`, 3500);
+        if (res.ok) {
+          const framesDoc = await res.json();
+          if (framesDoc?.frames && typeof framesDoc.frames === 'object') {
+            this.state = { ...this.state, frames: { ...this.state.frames, ...framesDoc.frames } };
+            this.notify();
+            break;
+          }
+        }
+      } catch {
+        // next CDN
       }
     }
 

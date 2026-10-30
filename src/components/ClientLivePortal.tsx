@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { LOGO_URL } from '../lib/assets';
 import { Camera, ShareLink, Project } from '../lib/types';
+import { INITIAL_CAMERAS } from '../lib/initialData';
 import { verifyShareLink, formatExpirationText } from '../lib/tokenSecurity';
 import {
   subscribeToSingleShareLinkByToken,
@@ -141,7 +142,10 @@ export const ClientLivePortal: React.FC<ClientLivePortalProps> = ({
     }
   }, [verification.valid, activeShareLink?.token]);
 
-  const allowedCameras = cameras.filter((cam) =>
+  // Si 'cameras' aún no ha terminado de cargar desde Firestore o localStorage,
+  // usamos INITIAL_CAMERAS para que la vista del cliente nunca quede en blanco.
+  const pool = cameras.length > 0 ? cameras : INITIAL_CAMERAS;
+  const allowedCameras = pool.filter((cam) =>
     activeShareLink ? activeShareLink.cameraIds.includes(cam.id) : false
   );
 

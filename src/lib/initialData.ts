@@ -309,7 +309,25 @@ export const INITIAL_CAMERAS: Camera[] = [
   }
 ];
 
-export const INITIAL_SHARE_LINKS: ShareLink[] = [];
+export const INITIAL_SHARE_LINKS: ShareLink[] = [
+  {
+    id: 'calle-del-cementerio',
+    token: 'calle-del-cementerio',
+    projectId: 'proj-calle-cementerio',
+    title: 'Proyecto Calle del Cementerio',
+    clientName: 'Comité Calle del Cementerio',
+    cameraIds: ['cam-hilook-ch1', 'cam-hilook-ch2'],
+    expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+    isActive: true,
+    allowPtz: true,
+    allowAudio: false,
+    allowSnapshot: true,
+    showWatermark: true,
+    maxConcurrentViewers: 10,
+    accessCount: 1,
+    createdAt: new Date().toISOString(),
+  },
+];
 
 export const INITIAL_ACCESS_LOGS: AccessLog[] = [
   {

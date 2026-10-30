@@ -129,7 +129,7 @@ export const LiveCameraPlayer: React.FC<LiveCameraPlayerProps> = ({
       };
       img.onerror = () => {
         if (!active) return;
-        timer = setTimeout(fetchNextFrame, 450);
+        loadFallbackDataUrl();
       };
       img.src = frameUrl;
     };

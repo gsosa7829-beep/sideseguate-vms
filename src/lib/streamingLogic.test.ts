@@ -1135,6 +1135,9 @@ test('multi-tenant: el tenant se resuelve por URL, subdominio o valor guardado',
   assert.equal(resolveTenantId({}), 'sideseguate');
   // Un subdominio reservado jamás se toma como tenant.
   assert.equal(resolveTenantId({ hostname: 'www.sideseguate.com' }), 'sideseguate');
+  // Dominios de hosting público (Surge, GitHub Pages, etc.) resuelven al tenant principal
+  assert.equal(resolveTenantId({ hostname: 'sideseguate-streaming.surge.sh' }), 'sideseguate');
+  assert.equal(resolveTenantId({ hostname: 'sideseguate-cloud.surge.sh' }), 'sideseguate');
 });
 
 test('multi-tenant: los ids de documento quedan aislados por cliente', () => {
