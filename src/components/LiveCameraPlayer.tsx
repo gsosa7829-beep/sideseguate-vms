@@ -18,7 +18,10 @@ import {
   ZoomOut, 
   AlertTriangle,
   Scan,
-  Sparkles
+  Sparkles,
+  RefreshCw,
+  Radio,
+  WifiOff
 } from 'lucide-react';
 
 interface LiveCameraPlayerProps {
@@ -89,14 +92,20 @@ if (typeof window !== 'undefined') {
 export async function fetchEzvizLiveHls(
   channel: number,
   serial: string,
-  quality: '1' | '2' = '1'
-): Promise<string | null> {
+  quality: '1' | '2' = '1',
+  forceRefresh: boolean = false
+): Promise<{ url: string | null; isOffline: boolean; error?: string }> {
   const devSerial = serial || 'F31700438';
   const cacheKey = `${devSerial}_${channel}_${quality}`;
   const now = Date.now();
-  if (ezvizHlsCache[cacheKey] && ezvizHlsCache[cacheKey].expires > now + 60000) {
-    return ezvizHlsCache[cacheKey].url;
+
+  if (forceRefresh) {
+    delete ezvizHlsCache[cacheKey];
+    savePersistedHlsCache(ezvizHlsCache);
+  } else if (ezvizHlsCache[cacheKey] && ezvizHlsCache[cacheKey].expires > now + 60000) {
+    return { url: ezvizHlsCache[cacheKey].url, isOffline: false };
   }
+
   try {
     const queryStream = async () => {
       const res = await fetch('https://iusopen.ezvizlife.com/api/lapp/v2/live/address/get', {
@@ -136,12 +145,21 @@ export async function fetchEzvizLiveHls(
       const expireMs = data.data.expireTime ? new Date(data.data.expireTime).getTime() : now + 12 * 3600 * 1000;
       ezvizHlsCache[cacheKey] = { url: data.data.url, expires: expireMs };
       savePersistedHlsCache(ezvizHlsCache);
-      return data.data.url;
+      return { url: data.data.url, isOffline: false };
     }
+
+    // Si el DVR está fuera de línea o falló, invalidar caché para evitar reintentos con URLs muertas
+    delete ezvizHlsCache[cacheKey];
+    savePersistedHlsCache(ezvizHlsCache);
+
+    const isOffline = data?.code === '20007' || data?.msg?.includes('offline') || false;
+    return { url: null, isOffline, error: data?.msg || 'Error al obtener flujo' };
   } catch (err) {
     console.warn('Error al obtener stream HLS de Ezviz:', err);
+    delete ezvizHlsCache[cacheKey];
+    savePersistedHlsCache(ezvizHlsCache);
+    return { url: null, isOffline: false, error: 'Error de red' };
   }
-  return null;
 }
 
 async function fetchEzvizLiveCapture(channel: number, serial: string): Promise<string | null> {
@@ -271,7 +289,42 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
   const [ivmsBridgeActive, setIvmsBridgeActive] = useState(() => ivmsLiveBridge.isActive());
   const [ivmsCropConfig, setIvmsCropConfig] = useState(() => ivmsLiveBridge.getCropConfig());
 
-  // Consulta dinámica de streaming HLS en vivo sin cifrado (prioriza 1080p FHD Main Stream)
+  // Estados de reconexión rápida y auto-recuperación 24/7
+  const [isReconnecting, setIsReconnecting] = useState(false);
+  const [isOffline, setIsOffline] = useState(false);
+  const [autoRetrySeconds, setAutoRetrySeconds] = useState(0);
+  const [reconnectToast, setReconnectToast] = useState<string | null>(null);
+
+  const handleForceReconnect = (userInitiated = true) => {
+    setIsReconnecting(true);
+    if (userInitiated) {
+      setReconnectToast('Buscando señal del DVR HiLook...');
+    }
+    const ch = Math.min(4, Math.max(1, camera.channel || 1));
+    const devSerial = cloudP2pClient.resolveDevice(camera)?.serial || camera.deviceSerial || 'F31700438';
+
+    fetchEzvizLiveHls(ch, devSerial, streamQuality, true).then((res) => {
+      setIsReconnecting(false);
+      if (res.url) {
+        setLiveHlsUrl(res.url);
+        setIsOffline(false);
+        if (userInitiated) {
+          setReconnectToast('¡Señal restablecida con éxito!');
+          setTimeout(() => setReconnectToast(null), 2500);
+        }
+      } else {
+        setLiveHlsUrl(null);
+        setHlsLiveReady(false);
+        setIsOffline(res.isOffline);
+        if (userInitiated) {
+          setReconnectToast(res.isOffline ? 'DVR fuera de línea. Reintentando...' : 'Reconectando con la nube...');
+          setTimeout(() => setReconnectToast(null), 3500);
+        }
+      }
+    });
+  };
+
+  // Consulta dinámica de streaming HLS en vivo sin cifrado
   useEffect(() => {
     let cancelled = false;
     const ch = Math.min(4, Math.max(1, camera.channel || 1));
@@ -283,9 +336,16 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
       return;
     }
 
-    fetchEzvizLiveHls(ch, deviceSerial, streamQuality).then((url) => {
-      if (!cancelled && url) {
-        setLiveHlsUrl(url);
+    fetchEzvizLiveHls(ch, deviceSerial, streamQuality).then((res) => {
+      if (!cancelled) {
+        if (res.url) {
+          setLiveHlsUrl(res.url);
+          setIsOffline(false);
+        } else {
+          setLiveHlsUrl(null);
+          setHlsLiveReady(false);
+          setIsOffline(res.isOffline);
+        }
       }
     });
 
@@ -293,6 +353,35 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
       cancelled = true;
     };
   }, [camera.channel, camera.deviceSerial, camera.hlsStreamUrl, streamQuality]);
+
+  // Bucle de Auto-recuperación cuando el DVR está offline (reintento cada 5 segundos)
+  useEffect(() => {
+    if (!isOffline && liveHlsUrl) return;
+
+    let countdown = 5;
+    setAutoRetrySeconds(countdown);
+
+    const interval = setInterval(() => {
+      countdown -= 1;
+      setAutoRetrySeconds(countdown);
+      if (countdown <= 0) {
+        countdown = 5;
+        setAutoRetrySeconds(5);
+        const ch = Math.min(4, Math.max(1, camera.channel || 1));
+        const devSerial = cloudP2pClient.resolveDevice(camera)?.serial || camera.deviceSerial || 'F31700438';
+        fetchEzvizLiveHls(ch, devSerial, streamQuality, true).then((res) => {
+          if (res.url) {
+            setLiveHlsUrl(res.url);
+            setIsOffline(false);
+            setReconnectToast('¡Señal recuperada automáticamente!');
+            setTimeout(() => setReconnectToast(null), 3000);
+          }
+        });
+      }
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [isOffline, liveHlsUrl, camera.channel, camera.deviceSerial, streamQuality]);
 
   useEffect(() => {
     return ivmsLiveBridge.subscribe(() => {
@@ -729,42 +818,45 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
     >
       {/* Top Floating Telemetry Scrim (Píldoras Flotantes Discretas) */}
       <div className="absolute top-2.5 inset-x-2.5 z-20 flex items-center justify-between gap-2 pointer-events-none">
-        <div className="flex items-center gap-1.5 bg-black/65 backdrop-blur-md px-2.5 py-1 rounded-full border border-white/10 shadow-lg">
+        <button
+          type="button"
+          onClick={() => handleForceReconnect(true)}
+          className="pointer-events-auto flex items-center gap-1.5 bg-black/75 hover:bg-black/90 active:bg-black backdrop-blur-md px-2.5 py-1 rounded-full border border-white/15 hover:border-sky-500/50 shadow-lg transition active:scale-95 cursor-pointer"
+          title="Toca para reconectar o refrescar señal de video al instante"
+        >
           <span
             className={`w-2 h-2 rounded-full shrink-0 ${
-              nativeP2pReady || ivmsBridgeActive || hasHls
+              isReconnecting
+                ? 'bg-sky-400 animate-spin'
+                : hasHls
                 ? 'bg-emerald-400 animate-pulse'
-                : camera.status === 'online'
-                ? 'bg-red-500'
-                : 'bg-amber-500'
+                : 'bg-amber-400 animate-ping'
             }`}
           />
           <span
-            className={`text-[10px] sm:text-[11px] font-mono font-bold tracking-wider whitespace-nowrap shrink-0 ${
-              nativeP2pReady || ivmsBridgeActive || hasHls ? 'text-emerald-400' : 'text-red-400'
+            className={`text-[10px] sm:text-[11px] font-mono font-bold tracking-wider whitespace-nowrap shrink-0 flex items-center gap-1 ${
+              hasHls ? 'text-emerald-400' : 'text-amber-400'
             }`}
           >
-            {/* En móvil: Sólo 'EN VIVO' para mantener despejada la fecha y hora estampada por el DVR */}
-            <span className="sm:hidden">EN VIVO</span>
+            <span className="sm:hidden">{isReconnecting ? 'CONECTANDO…' : hasHls ? 'EN VIVO' : 'RECONECTAR'}</span>
             <span className="hidden sm:inline">
-              {hasHls
+              {isReconnecting
+                ? 'RECONECTANDO…'
+                : hasHls
                 ? streamQuality === '1'
                   ? 'EN VIVO · 1080p FHD'
                   : 'EN VIVO · SD FLUIDO'
-                : nativeP2pReady
-                ? 'EN VIVO · P2P DIRECTO'
-                : ivmsBridgeActive
-                ? 'EN VIVO · iVMS-4200'
-                : 'EN VIVO'}
+                : 'RECONECTAR SEÑAL'}
             </span>
+            <RefreshCw className={`w-2.5 h-2.5 opacity-80 ${isReconnecting ? 'animate-spin text-sky-400' : ''}`} />
           </span>
-          {!isCompact && (
+          {!isCompact && hasHls && (
             <span className="hidden md:inline-flex items-center gap-1.5 text-xs font-medium text-white truncate drop-shadow">
               <span className="text-neutral-500 text-xs">·</span>
               <span className="truncate max-w-[160px]">{camera.name}</span>
             </span>
           )}
-        </div>
+        </button>
 
         <div className="flex items-center gap-1 bg-black/65 backdrop-blur-md px-2.5 py-1 rounded-full border border-white/10 text-[10px] sm:text-[11px] font-mono tabular-nums text-neutral-200 whitespace-nowrap shrink-0 shadow-lg">
           <span className="hidden sm:inline">
@@ -825,6 +917,47 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
           <div className="absolute bottom-0 left-0 w-3 h-3 border-b border-l border-sky-400/70" />
           <div className="absolute bottom-0 right-0 w-3 h-3 border-b border-r border-sky-400/70" />
         </div>
+
+        {/* Pantalla Táctica de Reconexión Rápida del DVR */}
+        {(!hasHls || isOffline) && (
+          <div className="absolute inset-0 z-30 flex flex-col items-center justify-center p-5 bg-neutral-950/85 backdrop-blur-sm text-center select-none animate-in fade-in duration-200">
+            <div className="w-13 h-13 sm:w-14 sm:h-14 rounded-2xl bg-amber-500/15 border border-amber-500/35 flex items-center justify-center mb-3 shadow-lg shadow-amber-500/10">
+              <Radio className={`w-6 h-6 sm:w-7 sm:h-7 text-amber-400 ${isReconnecting ? 'animate-spin' : 'animate-pulse'}`} />
+            </div>
+            <h4 className="text-sm font-bold text-white mb-1 flex items-center gap-2">
+              <span>{isReconnecting ? 'Buscando Señal del DVR...' : 'Reconectando con el DVR'}</span>
+            </h4>
+            <p className="text-xs text-neutral-400 max-w-sm mb-4 leading-relaxed">
+              {isOffline 
+                ? 'El DVR HiLook (F31700438) se encuentra fuera de línea o reiniciando enlace.'
+                : 'Restableciendo transmisión en vivo sin cifrado.'}
+              {autoRetrySeconds > 0 && (
+                <span className="block mt-1 text-sky-400 font-mono font-semibold">
+                  Comprobando automáticamente en {autoRetrySeconds}s…
+                </span>
+              )}
+            </p>
+            <button
+              type="button"
+              disabled={isReconnecting}
+              onClick={() => handleForceReconnect(true)}
+              className="px-5 py-2.5 bg-gradient-to-r from-sky-600 to-sky-500 hover:from-sky-500 hover:to-sky-400 active:scale-95 text-white font-bold text-xs rounded-xl transition shadow-lg shadow-sky-600/30 flex items-center gap-2"
+            >
+              <RefreshCw className={`w-4 h-4 ${isReconnecting ? 'animate-spin' : ''}`} />
+              <span>Reconectar Señal Ahora</span>
+            </button>
+          </div>
+        )}
+
+        {/* Notificación Flotante de Reconexión (Toast) */}
+        {reconnectToast && (
+          <div className="absolute top-12 inset-x-0 z-40 flex justify-center pointer-events-none px-4">
+            <div className="bg-sky-950/95 border border-sky-500/50 text-white text-xs font-semibold px-4 py-2 rounded-xl shadow-2xl flex items-center gap-2 backdrop-blur-md">
+              <RefreshCw className="w-3.5 h-3.5 text-sky-400 animate-spin" />
+              <span>{reconnectToast}</span>
+            </div>
+          </div>
+        )}
 
         {liveHlsUrl && (
           <video
@@ -1074,6 +1207,15 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
             >
               {nightVision ? <Moon className="w-3.5 h-3.5 text-emerald-400" /> : <Sun className="w-3.5 h-3.5 text-neutral-400" />}
               <span>{nightVision ? 'Infrarrojo IR' : 'Color Estándar'}</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => handleForceReconnect(true)}
+              className="min-h-[42px] sm:min-h-[32px] px-3 rounded-xl sm:rounded-lg border border-sky-500/50 bg-sky-950/80 hover:bg-sky-900 text-sky-200 text-xs font-semibold transition flex items-center justify-center gap-1.5 active:scale-95 col-span-2 sm:col-span-1 shadow-sm"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${isReconnecting ? 'animate-spin' : ''}`} />
+              <span>Reconectar Señal</span>
             </button>
 
             <button
