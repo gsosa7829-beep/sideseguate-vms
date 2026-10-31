@@ -1,10 +1,12 @@
 import React, { useEffect, useRef, useState } from 'react';
-import type HlsType from 'hls.js';
+import Hls from 'hls.js';
 import { Camera } from '../lib/types';
 import { ivmsLiveBridge, computeIvmsChannelSourceRect } from '../lib/ivmsLiveBridge';
 import { cloudP2pClient } from '../lib/cloudP2pClient';
 import { 
-  Maximize2, 
+  Maximize2,
+  Sliders,
+  RotateCcw, 
   Minimize2, 
   Volume2, 
   VolumeX, 
@@ -15,7 +17,8 @@ import {
   ZoomIn, 
   ZoomOut, 
   AlertTriangle,
-  Scan
+  Scan,
+  Sparkles
 } from 'lucide-react';
 
 interface LiveCameraPlayerProps {
@@ -30,6 +33,116 @@ interface LiveCameraPlayerProps {
 }
 
 const EZVIZ_ACCESS_TOKEN = 'at.b1exbqau80l85aox2k6x3487cw0byh2s-51eyws3m7n-0ii5ze3-uuk9pufag';
+
+// Persistencia en LocalStorage para arranque instantáneo (0ms) sin pantalla negra al cambiar entre secciones
+const HLS_CACHE_STORAGE_KEY = 'sideseguate_ezviz_hls_cache_v2';
+
+function loadPersistedHlsCache(): Record<string, { url: string; expires: number }> {
+  try {
+    const raw = typeof localStorage !== 'undefined' ? localStorage.getItem(HLS_CACHE_STORAGE_KEY) : null;
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    const now = Date.now();
+    const cleaned: Record<string, { url: string; expires: number }> = {};
+    for (const [k, v] of Object.entries(parsed as Record<string, { url: string; expires: number }>)) {
+      if (v && v.url && v.expires > now) {
+        cleaned[k] = v;
+      }
+    }
+    return cleaned;
+  } catch {
+    return {};
+  }
+}
+
+function savePersistedHlsCache(cache: Record<string, { url: string; expires: number }>) {
+  try {
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem(HLS_CACHE_STORAGE_KEY, JSON.stringify(cache));
+    }
+  } catch {}
+}
+
+const ezvizHlsCache: Record<string, { url: string; expires: number }> = loadPersistedHlsCache();
+
+export function getCachedHlsUrl(channel: number, serial: string, quality: '1' | '2' = '1'): string | null {
+  const devSerial = serial || 'F31700438';
+  const cacheKey = `${devSerial}_${channel}_${quality}`;
+  const now = Date.now();
+  if (ezvizHlsCache[cacheKey] && ezvizHlsCache[cacheKey].expires > now + 60000) {
+    return ezvizHlsCache[cacheKey].url;
+  }
+  return null;
+}
+
+// Pre-calentamiento inteligente de transmisiones (usa calidad fluida 25 FPS para eliminar congelamientos)
+export function prewarmHikvisionCameras() {
+  const serial = 'F31700438';
+  fetchEzvizLiveHls(1, serial, '2');
+  fetchEzvizLiveHls(2, serial, '2');
+}
+
+if (typeof window !== 'undefined') {
+  setTimeout(prewarmHikvisionCameras, 300);
+}
+
+export async function fetchEzvizLiveHls(
+  channel: number,
+  serial: string,
+  quality: '1' | '2' = '1'
+): Promise<string | null> {
+  const devSerial = serial || 'F31700438';
+  const cacheKey = `${devSerial}_${channel}_${quality}`;
+  const now = Date.now();
+  if (ezvizHlsCache[cacheKey] && ezvizHlsCache[cacheKey].expires > now + 60000) {
+    return ezvizHlsCache[cacheKey].url;
+  }
+  try {
+    const queryStream = async () => {
+      const res = await fetch('https://iusopen.ezvizlife.com/api/lapp/v2/live/address/get', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+          accessToken: EZVIZ_ACCESS_TOKEN,
+          deviceSerial: devSerial,
+          channelNo: String(channel),
+          protocol: '2', // HLS
+          quality: quality, // '1': 1080p FHD Main Stream, '2': Sub Stream Fluido
+        }),
+      });
+      return res.ok ? await res.json() : null;
+    };
+
+    let data = await queryStream();
+
+    // Auto-recuperación 24/7 si el DVR se reinicia y vuelve a activar el cifrado
+    if (data?.code === '60019' || data?.msg?.includes('Encryption')) {
+      console.warn('Cifrado detectado (60019). Desbloqueando automáticamente en la nube de Hikvision...');
+      try {
+        await fetch('https://open.ezvizlife.com/api/lapp/device/encrypt/off', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: new URLSearchParams({
+            accessToken: EZVIZ_ACCESS_TOKEN,
+            deviceSerial: devSerial,
+            validateCode: 'HELGDM',
+          }),
+        });
+      } catch {}
+      data = await queryStream();
+    }
+
+    if (data?.code === '200' && data.data?.url) {
+      const expireMs = data.data.expireTime ? new Date(data.data.expireTime).getTime() : now + 12 * 3600 * 1000;
+      ezvizHlsCache[cacheKey] = { url: data.data.url, expires: expireMs };
+      savePersistedHlsCache(ezvizHlsCache);
+      return data.data.url;
+    }
+  } catch (err) {
+    console.warn('Error al obtener stream HLS de Ezviz:', err);
+  }
+  return null;
+}
 
 async function fetchEzvizLiveCapture(channel: number, serial: string): Promise<string | null> {
   try {
@@ -53,7 +166,7 @@ async function fetchEzvizLiveCapture(channel: number, serial: string): Promise<s
   return null;
 }
 
-export const LiveCameraPlayer: React.FC<LiveCameraPlayerProps> = ({
+const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
   camera,
   allowPtz = true,
   allowAudio = true,
@@ -75,6 +188,66 @@ export const LiveCameraPlayer: React.FC<LiveCameraPlayerProps> = ({
   const [ptzTilt, setPtzTilt] = useState(0); // -50 to 50
   const [ptzZoom, setPtzZoom] = useState(1);
   const [showPtzControls, setShowPtzControls] = useState(false);
+  const [showAdvancedMenu, setShowAdvancedMenu] = useState(false);
+  const [tapFeedback, setTapFeedback] = useState<string | null>(null);
+  const lastTapRef = useRef<number>(0);
+  const pinchStartDistRef = useRef<number | null>(null);
+  const pinchStartZoomRef = useRef<number>(1);
+
+  // Sincronización perfecta del estado Fullscreen con eventos de sistema (móvil y PC)
+  useEffect(() => {
+    const handleFsChange = () => {
+      setIsFullscreen(Boolean(document.fullscreenElement));
+    };
+    document.addEventListener('fullscreenchange', handleFsChange);
+    document.addEventListener('webkitfullscreenchange', handleFsChange);
+    return () => {
+      document.removeEventListener('fullscreenchange', handleFsChange);
+      document.removeEventListener('webkitfullscreenchange', handleFsChange);
+    };
+  }, []);
+
+  const handleTouchStart = (e: React.TouchEvent<HTMLDivElement>) => {
+    if (e.touches.length === 2) {
+      const dist = Math.hypot(
+        e.touches[0].clientX - e.touches[1].clientX,
+        e.touches[0].clientY - e.touches[1].clientY
+      );
+      pinchStartDistRef.current = dist;
+      pinchStartZoomRef.current = digitalZoom;
+    }
+  };
+
+  const handleTouchMove = (e: React.TouchEvent<HTMLDivElement>) => {
+    if (e.touches.length === 2 && pinchStartDistRef.current !== null) {
+      const dist = Math.hypot(
+        e.touches[0].clientX - e.touches[1].clientX,
+        e.touches[0].clientY - e.touches[1].clientY
+      );
+      const ratio = dist / pinchStartDistRef.current;
+      const nextZoom = Math.min(3, Math.max(1, +(pinchStartZoomRef.current * ratio).toFixed(1)));
+      setDigitalZoom(nextZoom);
+    }
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent<HTMLDivElement>) => {
+    if (e.touches.length < 2) {
+      pinchStartDistRef.current = null;
+    }
+
+    // Doble toque táctil para entrar/salir de pantalla completa
+    if (e.changedTouches.length === 1) {
+      const now = Date.now();
+      if (now - lastTapRef.current < 320) {
+        toggleFullscreen();
+        setTapFeedback(!isFullscreen ? 'Pantalla Completa' : 'Vista Normal');
+        setTimeout(() => setTapFeedback(null), 1400);
+        lastTapRef.current = 0;
+      } else {
+        lastTapRef.current = now;
+      }
+    }
+  };
   const [snapshotToast, setSnapshotToast] = useState<string | null>(null);
   const [metrics, setMetrics] = useState({
     fps: camera.fps || 25,
@@ -86,8 +259,40 @@ export const LiveCameraPlayer: React.FC<LiveCameraPlayerProps> = ({
   const nativeP2pImgRef = useRef<HTMLImageElement | null>(null);
   const [nativeP2pReady, setNativeP2pReady] = useState(false);
   const [hlsLiveReady, setHlsLiveReady] = useState(false);
+  const [liveHlsUrl, setLiveHlsUrl] = useState<string | null>(() => {
+    if (camera.hlsStreamUrl && camera.hlsStreamUrl.includes('.m3u8') && !camera.hlsStreamUrl.includes('localhost')) {
+      return camera.hlsStreamUrl;
+    }
+    const devSerial = cloudP2pClient.resolveDevice(camera)?.serial || camera.deviceSerial || 'F31700438';
+    const ch = Math.min(4, Math.max(1, camera.channel || 1));
+    return getCachedHlsUrl(ch, devSerial, '2') || getCachedHlsUrl(ch, devSerial, '1');
+  });
+  const [streamQuality, setStreamQuality] = useState<'1' | '2'>('2');
   const [ivmsBridgeActive, setIvmsBridgeActive] = useState(() => ivmsLiveBridge.isActive());
   const [ivmsCropConfig, setIvmsCropConfig] = useState(() => ivmsLiveBridge.getCropConfig());
+
+  // Consulta dinámica de streaming HLS en vivo sin cifrado (prioriza 1080p FHD Main Stream)
+  useEffect(() => {
+    let cancelled = false;
+    const ch = Math.min(4, Math.max(1, camera.channel || 1));
+    const deviceSerial =
+      cloudP2pClient.resolveDevice(camera)?.serial || camera.deviceSerial || 'F31700438';
+
+    if (camera.hlsStreamUrl && camera.hlsStreamUrl.includes('.m3u8') && !camera.hlsStreamUrl.includes('localhost')) {
+      setLiveHlsUrl(camera.hlsStreamUrl);
+      return;
+    }
+
+    fetchEzvizLiveHls(ch, deviceSerial, streamQuality).then((url) => {
+      if (!cancelled && url) {
+        setLiveHlsUrl(url);
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [camera.channel, camera.deviceSerial, camera.hlsStreamUrl, streamQuality]);
 
   useEffect(() => {
     return ivmsLiveBridge.subscribe(() => {
@@ -127,6 +332,11 @@ export const LiveCameraPlayer: React.FC<LiveCameraPlayerProps> = ({
 
     const fetchNextFrame = async () => {
       if (!active) return;
+      if (hlsLiveReady) {
+        // Pausar peticiones de capturas mientras el flujo continuo HLS 25 FPS está reproduciéndose
+        timer = setTimeout(fetchNextFrame, 2000);
+        return;
+      }
 
       // 1. Si hay un túnel local o Cloudflare en vivo (:8890 o trycloudflare), se usa con alta tasa de cuadros
       const frameUrl = cloudP2pClient.getBestFrameUrl(ch, deviceSerial);
@@ -143,7 +353,7 @@ export const LiveCameraPlayer: React.FC<LiveCameraPlayerProps> = ({
           if (!active) return;
           nativeP2pImgRef.current = img;
           setNativeP2pReady(true);
-          timer = setTimeout(fetchNextFrame, 180);
+          timer = setTimeout(fetchNextFrame, 50);
         };
         img.onerror = () => {
           if (!active) return;
@@ -153,7 +363,13 @@ export const LiveCameraPlayer: React.FC<LiveCameraPlayerProps> = ({
         return;
       }
 
-      // 2. Transmisión directa continua desde Ezviz Cloud API (sin depender del PC del operador)
+      // Si hay HLS activo o en proceso de carga, no saturar el chip del DVR con peticiones de capturas
+      if (liveHlsUrl || hlsLiveReady) {
+        timer = setTimeout(fetchNextFrame, 5000);
+        return;
+      }
+
+      // 2. Respaldo de captura única solo si no hay señal HLS
       const livePicUrl = await fetchEzvizLiveCapture(ch, deviceSerial || 'F31700438');
       if (livePicUrl && active) {
         const img = new Image();
@@ -162,12 +378,11 @@ export const LiveCameraPlayer: React.FC<LiveCameraPlayerProps> = ({
           if (!active) return;
           nativeP2pImgRef.current = img;
           setNativeP2pReady(true);
-          // 1200ms da una transmisión fluida continua en vivo en cualquier móvil/PC
-          timer = setTimeout(fetchNextFrame, 1200);
+          timer = setTimeout(fetchNextFrame, 1500);
         };
         img.onerror = () => {
           if (!active) return;
-          loadFallbackDataUrl();
+          timer = setTimeout(fetchNextFrame, 3000);
         };
         img.src = `${livePicUrl}&_t=${Date.now()}`;
         return;
@@ -213,60 +428,139 @@ export const LiveCameraPlayer: React.FC<LiveCameraPlayerProps> = ({
   }, []);
 
   const isDemoTunnelPlaceholder =
-    !!camera.hlsStreamUrl &&
+    !!liveHlsUrl &&
     /sideseguate-[a-z0-9-]*\.trycloudflare\.com|xxxx\.trycloudflare\.com/i.test(
-      camera.hlsStreamUrl
+      liveHlsUrl
     );
-  const hasHls = !!camera.hlsStreamUrl && !isDemoTunnelPlaceholder && hlsLiveReady;
+  const hasHls = !!liveHlsUrl && !isDemoTunnelPlaceholder && hlsLiveReady;
 
   useEffect(() => {
     setHlsLiveReady(false);
     const video = videoRef.current;
-    if (!camera.hlsStreamUrl || isDemoTunnelPlaceholder || !video) return;
+    if (!liveHlsUrl || isDemoTunnelPlaceholder || !video) return;
 
-    // hls.js pesa ~565 KB: se descarga solo cuando de verdad hay un stream HLS.
-    let hls: HlsType | null = null;
+    let hls: Hls | null = null;
     let cancelled = false;
 
-    const start = async () => {
-      const mod = await import('hls.js');
+    const start = () => {
       if (cancelled) return;
-      const Hls = mod.default;
 
       if (Hls.isSupported()) {
-        hls = new Hls({ lowLatencyMode: true });
-        hls.loadSource(camera.hlsStreamUrl!);
+        const isHd = streamQuality === '1';
+        hls = new Hls({
+          lowLatencyMode: !isHd,
+          backBufferLength: isHd ? 12 : 6,
+          maxBufferLength: isHd ? 30 : 8,
+          maxMaxBufferLength: isHd ? 50 : 16,
+          liveSyncDurationCount: isHd ? 2 : 3, // Colchón de 3 segmentos para absorber jitter de red sin congelar
+          liveMaxLatencyDurationCount: isHd ? 4 : 6,
+          maxLiveSyncPlaybackRate: 1.0, // ESTABILIDAD ABSOLUTA: 1.0x sin aceleraciones que drenen el búfer
+          enableWorker: true,
+          highBufferWatchdogPeriod: 2,
+          nudgeOffset: 0.1,
+          nudgeMaxRetry: 5,
+          fragLoadingTimeOut: 20000,
+          manifestLoadingTimeOut: 20000,
+          levelLoadingTimeOut: 20000,
+        });
+
+        hls.loadSource(liveHlsUrl);
         hls.attachMedia(video);
+
         hls.on(Hls.Events.MANIFEST_PARSED, () => {
           if (cancelled) return;
           setHlsLiveReady(true);
           video.play().catch(() => {});
         });
+
+        // Regla de Auto-recuperación 100% estable ante fluctuaciones de red o caídas
         hls.on(Hls.Events.ERROR, (_event, data) => {
-          if (data.fatal) {
-            setHlsLiveReady(false);
-            hls?.destroy();
+          if (!data.fatal) return;
+
+          switch (data.type) {
+            case Hls.ErrorTypes.NETWORK_ERROR:
+              console.log('Fallo de red transitorio en cámara, reanudando stream...');
+              hls?.startLoad();
+              break;
+            case Hls.ErrorTypes.MEDIA_ERROR:
+              console.log('Error de decodificación de fotogramas, recuperando media buffer...');
+              hls?.recoverMediaError();
+              break;
+            default:
+              console.warn('Reconectando señal HLS sin congelar pantalla...', data.details);
+              hls?.destroy();
+              setTimeout(() => {
+                if (!cancelled) start();
+              }, 600);
+              break;
           }
         });
       } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
-        // Safari/iOS reproduce HLS de forma nativa (sin librería).
-        video.src = camera.hlsStreamUrl!;
+        // Soporte nativo para Apple iPhone / iPad Safari
+        video.src = liveHlsUrl;
         video.onloadedmetadata = () => {
           if (cancelled) return;
           setHlsLiveReady(true);
+          try {
+            if (video.seekable && video.seekable.length > 0) {
+              const edge = video.seekable.end(video.seekable.length - 1);
+              video.currentTime = Math.max(0, edge - 2.0); // Colchón de 2 segundos para evitar micro-congelamientos
+            }
+          } catch {}
           video.play().catch(() => {});
         };
-        video.onerror = () => setHlsLiveReady(false);
+        video.ontimeupdate = () => {
+          try {
+            if (video.seekable && video.seekable.length > 0) {
+              const liveEdge = video.seekable.end(video.seekable.length - 1);
+              if (liveEdge - video.currentTime > 8.0) {
+                video.currentTime = Math.max(0, liveEdge - 2.0);
+              }
+            }
+          } catch {}
+        };
+        video.onerror = () => {
+          setTimeout(() => {
+            if (!cancelled && video) {
+              video.src = liveHlsUrl;
+              video.load();
+              video.play().catch(() => {});
+            }
+          }, 1000);
+        };
       }
     };
 
-    start().catch(() => setHlsLiveReady(false));
+    start();
+
+    // Sincronización instantánea al desbloquear celular o volver a la pestaña
+    const handleSyncOnVisible = () => {
+      if (document.visibilityState === 'visible' && video) {
+        if (hls) {
+          hls.startLoad();
+        }
+        if (video.paused) {
+          video.play().catch(() => {});
+        }
+        try {
+          if (video.seekable && video.seekable.length > 0) {
+            const edge = video.seekable.end(video.seekable.length - 1);
+            video.currentTime = Math.max(0, edge - 0.5);
+          }
+        } catch {}
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleSyncOnVisible);
+    window.addEventListener('focus', handleSyncOnVisible);
 
     return () => {
       cancelled = true;
+      document.removeEventListener('visibilitychange', handleSyncOnVisible);
+      window.removeEventListener('focus', handleSyncOnVisible);
       hls?.destroy();
     };
-  }, [camera.hlsStreamUrl, isDemoTunnelPlaceholder]);
+  }, [liveHlsUrl, isDemoTunnelPlaceholder]);
 
   // Canvas-based camera renderer (renders native Hikvision P2P V3 stream directly from DVR FB2200254)
   useEffect(() => {
@@ -382,11 +676,23 @@ export const LiveCameraPlayer: React.FC<LiveCameraPlayerProps> = ({
 
   const handleTakeSnapshot = () => {
     if (!allowSnapshot) return;
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-
     try {
-      const dataUrl = canvas.toDataURL('image/jpeg', 0.95);
+      let dataUrl: string | null = null;
+      if (hasHls && videoRef.current) {
+        const vid = videoRef.current;
+        const tempCanvas = document.createElement('canvas');
+        tempCanvas.width = vid.videoWidth || 1280;
+        tempCanvas.height = vid.videoHeight || 720;
+        const ctx = tempCanvas.getContext('2d');
+        if (ctx) {
+          ctx.drawImage(vid, 0, 0, tempCanvas.width, tempCanvas.height);
+          dataUrl = tempCanvas.toDataURL('image/jpeg', 0.95);
+        }
+      } else if (canvasRef.current) {
+        dataUrl = canvasRef.current.toDataURL('image/jpeg', 0.95);
+      }
+      if (!dataUrl) return;
+
       const link = document.createElement('a');
       const dateStr = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
       link.download = `SIDESEGUATE_${camera.name.replace(/\s+/g, '_')}_${dateStr}.jpg`;
@@ -421,9 +727,9 @@ export const LiveCameraPlayer: React.FC<LiveCameraPlayerProps> = ({
         isFullscreen ? 'fixed inset-0 z-50 rounded-none' : ''
       }`}
     >
-      {/* Top Floating Telemetry Scrim (Unboxed Metadata Discipline) */}
-      <div className="absolute top-0 inset-x-0 z-20 flex items-center justify-between gap-2 px-3.5 py-2 bg-gradient-to-b from-black/90 via-black/45 to-transparent pointer-events-none">
-        <div className="flex items-center gap-2 min-w-0">
+      {/* Top Floating Telemetry Scrim (Píldoras Flotantes Discretas) */}
+      <div className="absolute top-2.5 inset-x-2.5 z-20 flex items-center justify-between gap-2 pointer-events-none">
+        <div className="flex items-center gap-1.5 bg-black/65 backdrop-blur-md px-2.5 py-1 rounded-full border border-white/10 shadow-lg">
           <span
             className={`w-2 h-2 rounded-full shrink-0 ${
               nativeP2pReady || ivmsBridgeActive || hasHls
@@ -434,41 +740,45 @@ export const LiveCameraPlayer: React.FC<LiveCameraPlayerProps> = ({
             }`}
           />
           <span
-            className={`text-[11px] font-mono font-bold tracking-wider whitespace-nowrap shrink-0 ${
+            className={`text-[10px] sm:text-[11px] font-mono font-bold tracking-wider whitespace-nowrap shrink-0 ${
               nativeP2pReady || ivmsBridgeActive || hasHls ? 'text-emerald-400' : 'text-red-400'
             }`}
           >
-            {nativeP2pReady
-              ? 'EN VIVO · P2P DIRECTO'
-              : ivmsBridgeActive
-              ? 'EN VIVO · iVMS-4200'
-              : hasHls
-              ? 'EN VIVO · MediaMTX'
-              : 'EN VIVO'}
+            {/* En móvil: Sólo 'EN VIVO' para mantener despejada la fecha y hora estampada por el DVR */}
+            <span className="sm:hidden">EN VIVO</span>
+            <span className="hidden sm:inline">
+              {hasHls
+                ? streamQuality === '1'
+                  ? 'EN VIVO · 1080p FHD'
+                  : 'EN VIVO · SD FLUIDO'
+                : nativeP2pReady
+                ? 'EN VIVO · P2P DIRECTO'
+                : ivmsBridgeActive
+                ? 'EN VIVO · iVMS-4200'
+                : 'EN VIVO'}
+            </span>
           </span>
           {!isCompact && (
-            <>
-              <span className="text-neutral-500 text-xs" aria-hidden="true">·</span>
-              <span className="text-xs font-medium text-white truncate drop-shadow">
-                {camera.name}
-              </span>
-            </>
+            <span className="hidden md:inline-flex items-center gap-1.5 text-xs font-medium text-white truncate drop-shadow">
+              <span className="text-neutral-500 text-xs">·</span>
+              <span className="truncate max-w-[160px]">{camera.name}</span>
+            </span>
           )}
         </div>
 
-        <div className="flex items-center gap-1.5 text-[11px] font-mono tabular-nums text-neutral-200 whitespace-nowrap shrink-0 drop-shadow">
-          {!isCompact && (
-            <>
-              <span>{camera.resolution.split(' ')[0]}</span>
-              <span className="text-neutral-400" aria-hidden="true">·</span>
-            </>
-          )}
-          <span className="text-emerald-400">{metrics.fps} FPS</span>
-          <span className="text-neutral-400" aria-hidden="true">·</span>
-          <span className="text-sky-300">{metrics.bitrate} kbps</span>
+        <div className="flex items-center gap-1 bg-black/65 backdrop-blur-md px-2.5 py-1 rounded-full border border-white/10 text-[10px] sm:text-[11px] font-mono tabular-nums text-neutral-200 whitespace-nowrap shrink-0 shadow-lg">
+          <span className="hidden sm:inline">
+            <span>{streamQuality === '1' ? '1920x1080' : '704x480'}</span>
+            <span className="text-neutral-500 mx-1">·</span>
+          </span>
+          <span className="text-emerald-400 font-semibold">{metrics.fps} FPS</span>
+          <span className="text-neutral-500 mx-1">·</span>
+          <span className="text-sky-300 font-semibold">
+            {streamQuality === '1' ? Math.round(metrics.bitrate * 1.5) : metrics.bitrate} kbps
+          </span>
           {nightVision && (
             <>
-              <span className="text-neutral-400" aria-hidden="true">·</span>
+              <span className="text-neutral-500 mx-1">·</span>
               <span className="text-emerald-300 font-semibold">IR</span>
             </>
           )}
@@ -476,7 +786,38 @@ export const LiveCameraPlayer: React.FC<LiveCameraPlayerProps> = ({
       </div>
 
       {/* Main Video Viewport */}
-      <div className="relative w-full aspect-video bg-neutral-950 flex items-center justify-center overflow-hidden">
+      <div 
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+        onDoubleClick={toggleFullscreen}
+        className="relative w-full aspect-video bg-neutral-950 flex items-center justify-center overflow-hidden select-none cursor-pointer"
+        title="Doble toque o doble clic para Pantalla Completa · Pellizca para Zoom"
+      >
+        {/* Floating Zoom Reset Button */}
+        {digitalZoom > 1 && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              setDigitalZoom(1);
+            }}
+            className="absolute top-12 left-3 z-30 bg-black/80 backdrop-blur-md border border-neutral-700 text-sky-300 text-xs font-mono px-2.5 py-1.5 rounded-lg shadow-xl flex items-center gap-1.5 active:scale-95"
+            title="Restablecer zoom a 1x"
+          >
+            <RotateCcw className="w-3.5 h-3.5 text-sky-400" />
+            <span>Zoom {digitalZoom}x · Toca para 1x</span>
+          </button>
+        )}
+
+        {/* Double-tap feedback indicator */}
+        {tapFeedback && (
+          <div className="absolute inset-0 z-30 pointer-events-none flex items-center justify-center">
+            <div className="bg-black/85 backdrop-blur-md border border-sky-500/40 text-white text-xs font-bold px-4 py-2.5 rounded-2xl shadow-2xl flex items-center gap-2">
+              <Maximize2 className="w-4 h-4 text-sky-400" />
+              <span>{tapFeedback}</span>
+            </div>
+          </div>
+        )}
         {/* Subtle VMS Broadcast Viewfinder Corner Reticles */}
         <div className="pointer-events-none absolute inset-3 z-10 opacity-40">
           <div className="absolute top-0 left-0 w-3 h-3 border-t border-l border-sky-400/70" />
@@ -485,13 +826,22 @@ export const LiveCameraPlayer: React.FC<LiveCameraPlayerProps> = ({
           <div className="absolute bottom-0 right-0 w-3 h-3 border-b border-r border-sky-400/70" />
         </div>
 
-        {camera.hlsStreamUrl && (
+        {liveHlsUrl && (
           <video
             ref={videoRef}
-            className={hasHls ? 'w-full h-full object-contain' : 'hidden'}
+            className={hasHls ? 'w-full h-full object-fill' : 'hidden'}
             muted={isMuted}
             playsInline
             autoPlay
+            style={
+              digitalZoom * ptzZoom > 1 || ptzPan !== 0 || ptzTilt !== 0
+                ? {
+                    objectFit: 'fill',
+                    transform: `scale(${digitalZoom * ptzZoom}) translate(${ptzPan * 0.5}px, ${ptzTilt * 0.5}px)`,
+                    transition: 'transform 0.15s ease-out',
+                  }
+                : { objectFit: 'fill' }
+            }
           />
         )}
         {!hasHls && (
@@ -499,7 +849,7 @@ export const LiveCameraPlayer: React.FC<LiveCameraPlayerProps> = ({
             ref={canvasRef}
             width={1280}
             height={720}
-            className="w-full h-full object-contain select-none"
+            className="w-full h-full object-fill select-none"
           />
         )}
 
@@ -617,130 +967,162 @@ export const LiveCameraPlayer: React.FC<LiveCameraPlayerProps> = ({
         )}
       </div>
 
-      {/* Bottom Control Bar */}
-      <div className="relative z-20 bg-neutral-950 border-t border-neutral-800/90 px-3 sm:px-4 py-2.5 flex flex-wrap items-center justify-between gap-2 text-neutral-300">
-        <div className="flex items-center gap-2">
-          {/* Audio toggle */}
-          {allowAudio && (
-            <button
-              aria-label={isMuted ? 'Activar audio ambiental' : 'Silenciar audio'}
-              onClick={() => setIsMuted(!isMuted)}
-              className={`h-8 px-2.5 rounded-lg border text-xs transition flex items-center justify-center gap-1.5 whitespace-nowrap ${
-                isMuted 
-                  ? 'bg-neutral-900 border-neutral-800 text-neutral-300 hover:text-white' 
-                  : 'bg-emerald-950/70 border-emerald-600/50 text-emerald-300'
-              }`}
-              title={isMuted ? 'Audio silenciado' : 'Audio ambiental activo'}
-            >
-              {isMuted ? <VolumeX className="w-4 h-4 shrink-0" /> : <Volume2 className="w-4 h-4 shrink-0" />}
-              <span className="hidden sm:inline text-[11px] font-medium">
-                {isMuted ? 'Audio' : 'Audio Activo'}
-              </span>
-            </button>
-          )}
-
-          {/* Night Vision IR Toggle */}
+      {/* Bottom Control Bar: Ergonomía Móvil 1 Fila Perfecta (5 Botones Balanceados) */}
+      <div className="relative z-20 bg-neutral-950 border-t border-neutral-800/90 px-2 sm:px-4 py-2 sm:py-2.5 text-neutral-300">
+        <div className="grid grid-cols-5 gap-1.5 sm:flex sm:items-center sm:justify-between sm:gap-2">
+          {/* Botón 1: Selector Calidad (HD / SD) */}
           <button
-            aria-label={nightVision ? 'Cambiar a modo día color' : 'Activar visión nocturna infrarroja'}
-            onClick={() => setNightVision(!nightVision)}
-            className={`h-8 px-2.5 rounded-lg border text-xs transition flex items-center justify-center gap-1.5 whitespace-nowrap ${
-              nightVision
-                ? 'bg-emerald-950/70 border-emerald-600/50 text-emerald-300'
-                : 'bg-neutral-900 border-neutral-800 text-neutral-300 hover:text-white'
+            type="button"
+            aria-label={streamQuality === '1' ? 'Cambiar a calidad fluida SD' : 'Cambiar a calidad alta definición 1080p HD'}
+            onClick={() => setStreamQuality((q) => (q === '1' ? '2' : '1'))}
+            className={`min-h-[44px] sm:min-h-[34px] h-11 sm:h-8.5 px-2 sm:px-3 rounded-xl sm:rounded-lg border text-xs font-bold transition-all flex items-center justify-center gap-1 sm:gap-1.5 whitespace-nowrap active:scale-95 col-span-1 ${
+              streamQuality === '1'
+                ? 'bg-sky-950/80 border-sky-500/80 text-sky-300 shadow-sm shadow-sky-950/50'
+                : 'bg-neutral-900 border-neutral-800 text-neutral-400 hover:text-white'
             }`}
-            title="Alternar visión nocturna infrarroja"
+            title={streamQuality === '1' ? 'Calidad HD 1080p FHD activa (clic para SD Fluido)' : 'Calidad SD activa (clic para HD 1080p)'}
           >
-            {nightVision ? <Moon className="w-4 h-4 text-emerald-400 shrink-0" /> : <Sun className="w-4 h-4 shrink-0" />}
+            <Sparkles className="w-4 h-4 sm:w-3.5 sm:h-3.5 text-sky-400 shrink-0" />
+            <span className="font-mono text-xs sm:text-[11px] font-bold">
+              <span className="sm:hidden">{streamQuality === '1' ? 'HD' : 'SD'}</span>
+              <span className="hidden sm:inline">{streamQuality === '1' ? '1080p HD' : 'SD Fluido'}</span>
+            </span>
+          </button>
+
+          {/* Botón 2: Audio Silenciar/Activar */}
+          <button
+            type="button"
+            disabled={!allowAudio}
+            aria-label={isMuted ? 'Activar audio ambiental' : 'Silenciar audio'}
+            onClick={() => setIsMuted(!isMuted)}
+            className={`min-h-[44px] sm:min-h-[34px] h-11 sm:h-8.5 px-2 sm:px-2.5 rounded-xl sm:rounded-lg border text-xs transition-all flex items-center justify-center gap-1.5 whitespace-nowrap active:scale-95 col-span-1 ${
+              !allowAudio
+                ? 'opacity-30 cursor-not-allowed bg-neutral-900 border-neutral-800 text-neutral-500'
+                : isMuted 
+                ? 'bg-neutral-900 border-neutral-800 text-neutral-300 hover:text-white' 
+                : 'bg-emerald-950/80 border-emerald-500/60 text-emerald-300 shadow-sm'
+            }`}
+            title={allowAudio ? (isMuted ? 'Audio silenciado (toca para activar)' : 'Audio ambiental activo') : 'Audio no disponible en esta cámara'}
+          >
+            {isMuted ? <VolumeX className="w-4 h-4 shrink-0" /> : <Volume2 className="w-4 h-4 shrink-0" />}
             <span className="hidden sm:inline text-[11px] font-medium">
-              {nightVision ? 'IR Noche' : 'Color Día'}
+              {isMuted ? 'Audio' : 'Audio Activo'}
             </span>
           </button>
 
-          {/* Smart Detection Reticle Toggle */}
+          {/* Botón 3: Captura Rápida de Foto */}
           <button
-            aria-label={aiDetection ? 'Ocultar detección inteligente' : 'Mostrar detección inteligente'}
-            onClick={() => setAiDetection(!aiDetection)}
-            className={`h-8 px-2.5 rounded-lg border text-xs transition flex items-center justify-center gap-1.5 whitespace-nowrap ${
-              aiDetection
-                ? 'bg-sky-950/70 border-sky-500/40 text-sky-300'
-                : 'bg-neutral-900 border-neutral-800 text-neutral-300 hover:text-white'
+            type="button"
+            disabled={!allowSnapshot}
+            aria-label="Guardar captura de imagen"
+            onClick={handleTakeSnapshot}
+            className={`min-h-[44px] sm:min-h-[34px] h-11 sm:h-8.5 px-2 sm:px-2.5 bg-neutral-900 hover:bg-neutral-850 active:bg-neutral-800 border border-neutral-800 text-neutral-200 hover:text-white rounded-xl sm:rounded-lg transition-all flex items-center justify-center gap-1.5 active:scale-95 col-span-1 ${
+              !allowSnapshot ? 'opacity-30 cursor-not-allowed' : ''
             }`}
-            title="Alternar recuadros de detección de movimiento"
+            title="Descargar Foto / Captura JPG"
           >
-            <Scan className="w-4 h-4 shrink-0" />
-            <span className="hidden md:inline text-[11px] font-medium">Detección</span>
+            <CameraIcon className="w-4 h-4 text-sky-400 shrink-0" />
+            <span className="hidden sm:inline text-[11px] font-medium">Foto</span>
           </button>
 
-          {/* PTZ Trigger if supported */}
-          {allowPtz && camera.ptzSupported && (
-            <button
-              aria-label="Abrir controles PTZ"
-              onClick={() => setShowPtzControls(!showPtzControls)}
-              className={`h-8 px-2.5 rounded-lg border text-xs transition flex items-center justify-center gap-1.5 whitespace-nowrap ${
-                showPtzControls
-                  ? 'bg-sky-600 text-white border-sky-500'
-                  : 'bg-neutral-900 border-neutral-800 text-neutral-300 hover:text-white'
-              }`}
-            >
-              <Compass className="w-4 h-4 shrink-0" />
-              <span className="hidden sm:inline text-[11px] font-medium">PTZ</span>
-            </button>
-          )}
-        </div>
-
-        <div className="flex items-center gap-2">
-          {/* Digital Zoom */}
-          <div className="flex items-center h-8 bg-neutral-900 rounded-lg border border-neutral-800 px-1.5 font-mono tabular-nums">
-            <button
-              aria-label="Alejar zoom digital"
-              disabled={digitalZoom <= 1}
-              onClick={() => setDigitalZoom((z) => Math.max(1, +(z - 0.5).toFixed(1)))}
-              className="p-1.5 text-neutral-300 hover:text-white disabled:opacity-30 transition"
-              title="Alejar"
-            >
-              <ZoomOut className="w-3.5 h-3.5" />
-            </button>
-            <span className="text-[11px] px-1.5 text-neutral-200 font-semibold">
-              {digitalZoom}x
-            </span>
-            <button
-              aria-label="Acercar zoom digital"
-              disabled={digitalZoom >= 3}
-              onClick={() => setDigitalZoom((z) => Math.min(3, +(z + 0.5).toFixed(1)))}
-              className="p-1.5 text-neutral-300 hover:text-white disabled:opacity-30 transition"
-              title="Acercar"
-            >
-              <ZoomIn className="w-3.5 h-3.5" />
-            </button>
-          </div>
-
-          {/* Snapshot Button */}
-          {allowSnapshot && (
-            <button
-              aria-label="Guardar captura de imagen"
-              onClick={handleTakeSnapshot}
-              className="h-8 w-8 sm:w-auto sm:px-2.5 bg-neutral-900 hover:bg-neutral-800 border border-neutral-800 text-neutral-200 hover:text-white rounded-lg transition flex items-center justify-center gap-1.5"
-              title="Descargar Captura JPG"
-            >
-              <CameraIcon className="w-4 h-4 text-sky-400 shrink-0" />
-              {!isCompact && <span className="hidden sm:inline text-[11px] font-medium">Capturar</span>}
-            </button>
-          )}
-
-          {/* Fullscreen Button */}
+          {/* Botón 4: Ajustes (IR, Zoom, IA) */}
           <button
+            type="button"
+            aria-label="Más ajustes de video"
+            onClick={() => setShowAdvancedMenu(!showAdvancedMenu)}
+            className={`min-h-[44px] sm:min-h-[34px] h-11 sm:h-8.5 px-2 sm:px-2.5 rounded-xl sm:rounded-lg border text-xs transition-all flex items-center justify-center gap-1 active:scale-95 col-span-1 ${
+              showAdvancedMenu
+                ? 'bg-sky-600/30 border-sky-500 text-sky-300'
+                : 'bg-neutral-900 border-neutral-800 text-neutral-400 hover:text-white'
+            }`}
+            title="Ajustes de cámara (Visión nocturna, detección, zoom)"
+          >
+            <Sliders className="w-4 h-4 shrink-0" />
+            <span className="hidden sm:inline text-[11px]">Ajustes</span>
+          </button>
+
+          {/* Botón 5: Pantalla Completa / Ampliar */}
+          <button
+            type="button"
             aria-label={isFullscreen ? 'Salir de pantalla completa' : 'Pantalla completa'}
             onClick={toggleFullscreen}
-            className="h-8 w-8 bg-neutral-900 hover:bg-neutral-800 border border-neutral-800 text-neutral-300 hover:text-white rounded-lg transition flex items-center justify-center shrink-0"
-            title={isFullscreen ? 'Salir de pantalla completa' : 'Pantalla Completa'}
+            className={`min-h-[44px] sm:min-h-[34px] h-11 sm:h-8.5 px-2 sm:px-3 rounded-xl sm:rounded-lg border transition-all flex items-center justify-center gap-1.5 active:scale-95 font-medium col-span-1 ${
+              isFullscreen 
+                ? 'bg-neutral-800 border-neutral-700 text-white' 
+                : 'bg-sky-600/25 hover:bg-sky-600/35 border-sky-500/60 text-sky-200 shadow-sm'
+            }`}
+            title={isFullscreen ? 'Salir de pantalla completa' : 'Ver a Pantalla Completa'}
           >
-            {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
+            {isFullscreen ? <Minimize2 className="w-4 h-4 shrink-0" /> : <Maximize2 className="w-4 h-4 text-sky-400 shrink-0" />}
+            <span className="text-xs sm:text-[11px] font-bold">
+              <span className="sm:hidden">{isFullscreen ? 'Salir' : 'Zoom'}</span>
+              <span className="hidden sm:inline">{isFullscreen ? 'Salir' : 'Ampliar'}</span>
+            </span>
           </button>
         </div>
       </div>
+
+      {/* Advanced / Secondary Settings Drawer */}
+      {showAdvancedMenu && (
+        <div className="relative z-20 bg-neutral-900 border-t border-neutral-800 px-3.5 sm:px-4 py-3 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 text-xs animate-in fade-in duration-150">
+          <div className="grid grid-cols-2 sm:flex sm:items-center gap-2">
+            <button
+              onClick={() => setNightVision(!nightVision)}
+              className={`min-h-[42px] sm:min-h-[32px] px-3 rounded-xl sm:rounded-lg border text-xs transition flex items-center justify-center gap-1.5 active:scale-95 ${
+                nightVision ? 'bg-emerald-950 border-emerald-600 text-emerald-300' : 'bg-neutral-950 border-neutral-800 text-neutral-300'
+              }`}
+            >
+              {nightVision ? <Moon className="w-3.5 h-3.5 text-emerald-400" /> : <Sun className="w-3.5 h-3.5 text-neutral-400" />}
+              <span>{nightVision ? 'Infrarrojo IR' : 'Color Estándar'}</span>
+            </button>
+
+            <button
+              onClick={() => setAiDetection(!aiDetection)}
+              className={`min-h-[42px] sm:min-h-[32px] px-3 rounded-xl sm:rounded-lg border text-xs transition flex items-center justify-center gap-1.5 active:scale-95 ${
+                aiDetection ? 'bg-sky-950 border-sky-500 text-sky-300' : 'bg-neutral-950 border-neutral-800 text-neutral-300'
+              }`}
+            >
+              <Scan className="w-3.5 h-3.5 text-sky-400" />
+              <span>{aiDetection ? 'IA Detección ON' : 'IA Detección OFF'}</span>
+            </button>
+          </div>
+
+          {/* Stepper de Zoom Digital Táctil */}
+          <div className="flex items-center justify-between sm:justify-start gap-2 bg-neutral-950 p-1.5 sm:p-0 rounded-xl sm:bg-transparent border sm:border-0 border-neutral-800">
+            <span className="text-neutral-400 text-[11px] font-medium pl-1">Zoom Digital:</span>
+            <div className="flex items-center h-10 sm:h-9 bg-neutral-900 rounded-lg border border-neutral-800 px-1 font-mono">
+              <button
+                disabled={digitalZoom <= 1}
+                onClick={() => setDigitalZoom((z) => Math.max(1, +(z - 0.5).toFixed(1)))}
+                className="h-8 w-8 flex items-center justify-center text-neutral-300 hover:text-white disabled:opacity-30 active:scale-90"
+              >
+                <ZoomOut className="w-3.5 h-3.5" />
+              </button>
+              <span className="text-xs px-2 text-white font-bold">{digitalZoom}x</span>
+              <button
+                disabled={digitalZoom >= 3}
+                onClick={() => setDigitalZoom((z) => Math.min(3, +(z + 0.5).toFixed(1)))}
+                className="h-8 w-8 flex items-center justify-center text-neutral-300 hover:text-white disabled:opacity-30 active:scale-90"
+              >
+                <ZoomIn className="w-3.5 h-3.5" />
+              </button>
+            </div>
+            {digitalZoom > 1 && (
+              <button
+                onClick={() => setDigitalZoom(1)}
+                className="h-10 sm:h-9 px-2 text-xs text-sky-400 hover:text-sky-300 underline font-semibold"
+              >
+                1x
+              </button>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 };
+
+export const LiveCameraPlayer = React.memo(LiveCameraPlayerComponent);
 
 // =====================================================================
 // CANVAS SCENE RENDERERS (Realistic CCTV feeds with Smart Motion Boxes)

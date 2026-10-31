@@ -209,7 +209,7 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
 
   return (
     <>
-      <header className="h-14 sm:h-15 bg-neutral-900/90 border-b border-neutral-800/90 px-3 sm:px-6 flex items-center justify-between gap-2 sm:gap-4 sticky top-0 z-20 backdrop-blur-md">
+      <header className="h-14 sm:h-15 bg-neutral-900/90 border-b border-neutral-800/90 px-3 sm:px-6 flex items-center justify-between gap-2 sm:gap-4 sticky top-0 z-50 backdrop-blur-md bg-neutral-900/95">
         {/* Zone 1: Contextual Breadcrumb Trail */}
         <div className="flex items-center gap-2.5 min-w-0 flex-1">
           <span className="text-[11px] font-mono uppercase tracking-wider text-sky-400/90 hidden lg:inline shrink-0">
@@ -281,11 +281,16 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
             </button>
 
             {showAlertsPopover && (
-              <div
-                role="dialog"
-                aria-label="Avisos de clientes"
-                className="fixed sm:absolute right-3 sm:right-0 top-14 sm:top-11 w-[calc(100vw-1.5rem)] sm:w-96 bg-neutral-900 border border-neutral-800 rounded-2xl shadow-2xl z-50 overflow-hidden text-xs"
-              >
+              <>
+                <div
+                  className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[90] sm:hidden"
+                  onClick={() => setShowAlertsPopover(false)}
+                />
+                <div
+                  role="dialog"
+                  aria-label="Avisos de clientes"
+                  className="fixed sm:absolute right-3 sm:right-0 top-16 sm:top-11 w-[calc(100vw-1.5rem)] sm:w-96 bg-neutral-900 border border-neutral-700/80 rounded-2xl shadow-2xl z-[100] overflow-hidden text-xs ring-1 ring-white/10"
+                >
                 <div className="px-4 py-3 bg-neutral-950 border-b border-neutral-800 flex items-center justify-between gap-2">
                   <div className="flex items-center gap-2">
                     <Radio className="w-3.5 h-3.5 text-emerald-400 animate-pulse" aria-hidden="true" />
@@ -381,6 +386,7 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
                   </div>
                 )}
               </div>
+              </>
             )}
           </div>
 
@@ -402,11 +408,16 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
             </button>
 
             {showMoreMenu && (
-              <div
-                role="menu"
-                aria-label="Más opciones"
-                className="fixed sm:absolute right-3 sm:right-0 top-14 sm:top-11 w-[calc(100vw-1.5rem)] sm:w-64 bg-neutral-900 border border-neutral-800 rounded-xl shadow-2xl z-50 overflow-hidden py-1 text-xs"
-              >
+              <>
+                <div
+                  className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[90] sm:hidden"
+                  onClick={() => setShowMoreMenu(false)}
+                />
+                <div
+                  role="menu"
+                  aria-label="Más opciones"
+                  className="fixed sm:absolute right-3 sm:right-0 top-16 sm:top-11 w-[calc(100vw-1.5rem)] sm:w-64 bg-neutral-900 border border-neutral-700/80 rounded-2xl shadow-2xl z-[100] overflow-hidden py-1.5 text-xs ring-1 ring-white/10"
+                >
                 <MenuItem
                   icon={Plus}
                   label="Añadir cámara"
@@ -491,6 +502,7 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
                   </>
                 )}
               </div>
+              </>
             )}
           </div>
 

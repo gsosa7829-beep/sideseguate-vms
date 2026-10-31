@@ -7,7 +7,9 @@ import {
   subscribeToSingleShareLinkByToken,
   recordCloudShareLinkAccess,
 } from '../lib/firebase';
-import { LiveCameraPlayer } from './LiveCameraPlayer';
+import { LiveCameraPlayer, prewarmHikvisionCameras } from './LiveCameraPlayer';
+import { buildWhatsAppUrl } from '../lib/whatsapp';
+import { usePWAInstall } from '../lib/usePWAInstall';
 import { 
   ShieldCheck, 
   Lock, 
@@ -18,6 +20,9 @@ import {
   RefreshCw, 
   Clock, 
   PauseCircle,
+  Smartphone,
+  MessageSquare,
+  Download,
 } from 'lucide-react';
 
 type FailureReason = 'expired' | 'inactive' | 'invalid_pin' | 'pin_required' | 'not_found';
@@ -78,12 +83,16 @@ export const ClientLivePortal: React.FC<ClientLivePortalProps> = ({
   token,
   shareLink,
   cameras,
-  project: _project,
-  onBackToAdmin: _onBackToAdmin,
-  isAdminPreview: _isAdminPreview = false,
+  project,
+  onBackToAdmin,
+  isAdminPreview = false,
   isCloudLoading = false,
-  onClientAddCameras: _onClientAddCameras,
+  onClientAddCameras,
 }) => {
+  useEffect(() => {
+    prewarmHikvisionCameras();
+  }, []);
+  const { isInstallable, isInstalled, isIOS, install } = usePWAInstall();
   const [cloudShareLink, setCloudShareLink] = useState<ShareLink | null>(null);
   const [directTokenLoading, setDirectTokenLoading] = useState<boolean>(Boolean(token && !shareLink));
   const [pinInput, setPinInput] = useState('');
@@ -331,6 +340,20 @@ export const ClientLivePortal: React.FC<ClientLivePortalProps> = ({
 
   return (
     <div className="min-h-dvh bg-neutral-950 text-neutral-100 flex flex-col">
+      {onBackToAdmin && (
+        <div className="bg-sky-950/95 border-b border-sky-500/40 px-4 py-2.5 flex items-center justify-between text-xs text-sky-200 sticky top-0 z-50 backdrop-blur shadow-md">
+          <div className="flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-sky-400 animate-pulse" />
+            <span className="font-semibold text-white">Vista Previa de Cliente (Modo Administrador)</span>
+          </div>
+          <button
+            onClick={onBackToAdmin}
+            className="px-3 py-1 bg-sky-600 hover:bg-sky-500 text-white rounded-lg font-medium transition flex items-center gap-1.5 shadow"
+          >
+            <span>← Volver al Panel de Control</span>
+          </button>
+        </div>
+      )}
       {/* Top Client Header: No Admin buttons, Clean branding & prominent countdown */}
       <header className="bg-neutral-900 border-b border-neutral-800 px-3.5 sm:px-5 py-3 sticky top-0 z-40 backdrop-blur-md">
         <div className="max-w-7xl mx-auto flex items-center justify-between gap-3">
@@ -361,7 +384,7 @@ export const ClientLivePortal: React.FC<ClientLivePortalProps> = ({
           {/* Right Header Controls: Expiration Countdown Badge & View Mode Toggle */}
           <div className="flex items-center gap-2 shrink-0">
             {allowedCameras.length > 1 && (
-              <div className="flex items-center bg-neutral-950 p-0.5 rounded-lg border border-neutral-800 text-xs">
+              <div className="hidden sm:flex items-center bg-neutral-950 p-0.5 rounded-lg border border-neutral-800 text-xs">
                 <button
                   aria-label="Vista de una sola cámara"
                   onClick={() => setViewMode('single')}
@@ -371,7 +394,7 @@ export const ClientLivePortal: React.FC<ClientLivePortalProps> = ({
                   title="Cámara Individual"
                 >
                   <Square className="w-3.5 h-3.5" />
-                  <span className="text-[11px] hidden sm:inline">1×1</span>
+                  <span className="text-[11px]">1×1</span>
                 </button>
                 <button
                   aria-label="Vista de cuadrícula de cámaras"
@@ -382,20 +405,31 @@ export const ClientLivePortal: React.FC<ClientLivePortalProps> = ({
                   title="Cuadrícula Múltiple"
                 >
                   <Grid2X2 className="w-3.5 h-3.5" />
-                  <span className="text-[11px] hidden sm:inline">Mosaico</span>
+                  <span className="text-[11px]">Mosaico</span>
                 </button>
               </div>
             )}
 
-            {/* Prominent Expiration Countdown Badge */}
-            <div className={`flex items-center gap-1.5 px-3 py-1.5 border rounded-lg text-xs font-mono font-semibold transition ${
+            {/* Prominent Expiration Countdown Badge - Versión Móvil Concisa */}
+            <div className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 border rounded-lg text-xs font-mono font-semibold transition shrink-0 ${
               isExpiringSoon
                 ? 'bg-amber-950/80 border-amber-700/80 text-amber-300'
                 : 'bg-neutral-950 border-neutral-800 text-neutral-200'
             }`}>
-              <Clock className={`w-3.5 h-3.5 ${isExpiringSoon ? 'text-amber-400 animate-spin' : 'text-neutral-400'}`} />
+              <Clock className={`w-3.5 h-3.5 ${isExpiringSoon ? 'text-amber-400 animate-spin' : 'text-neutral-400'} shrink-0`} />
               <span className="text-[11px] whitespace-nowrap">
-                {expirationText}
+                <span className="sm:hidden">
+                  {expirationText
+                    .replace('Expira en ', '')
+                    .replace(' días', 'd')
+                    .replace(' día', 'd')
+                    .replace(' y ', ' ')
+                    .replace(' horas', 'h')
+                    .replace(' hora', 'h')
+                    .replace(' minutos', 'm')
+                    .replace(' minuto', 'm')}
+                </span>
+                <span className="hidden sm:inline">{expirationText}</span>
               </span>
             </div>
           </div>
@@ -403,7 +437,56 @@ export const ClientLivePortal: React.FC<ClientLivePortalProps> = ({
       </header>
 
       {/* Main Video Viewing Area */}
-      <main className="flex-1 max-w-7xl w-full mx-auto p-3 sm:p-5 flex flex-col gap-4">
+      <main className="flex-1 max-w-7xl w-full mx-auto p-3 sm:p-5 pb-28 sm:pb-8 flex flex-col gap-4">
+        {/* Selector Rápido de Cámaras Móvil (Pestañas Táctiles Mínimo 46px) */}
+        {allowedCameras.length > 1 && (
+          <div className="bg-neutral-900/90 border border-neutral-800/90 rounded-2xl p-2 shadow-lg mb-1">
+            <div className="text-[11px] font-mono text-neutral-400 px-2 py-1 flex items-center justify-between">
+              <span className="font-semibold uppercase tracking-wider text-neutral-300">Cámaras Disponibles</span>
+              <span className="text-emerald-400 flex items-center gap-1 font-sans">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                {allowedCameras.length} En Vivo
+              </span>
+            </div>
+            <div className="flex items-center gap-2 overflow-x-auto p-1 scrollbar-none snap-x">
+              {allowedCameras.map((cam) => {
+                const isSelected = cam.id === selectedCameraId && viewMode === 'single';
+                return (
+                  <button
+                    key={cam.id}
+                    onClick={() => {
+                      setSelectedCameraId(cam.id);
+                      setViewMode('single');
+                    }}
+                    className={`snap-start shrink-0 min-h-[46px] px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-2.5 transition-all shadow-sm active:scale-95 ${
+                      isSelected
+                        ? 'bg-sky-600 text-white ring-2 ring-sky-400 shadow-sky-600/30'
+                        : 'bg-neutral-950 border border-neutral-800 text-neutral-300 hover:bg-neutral-850 hover:text-white'
+                    }`}
+                  >
+                    <span className={`w-2.5 h-2.5 rounded-full ${isSelected ? 'bg-emerald-300 animate-pulse' : 'bg-emerald-500'}`} />
+                    <span className="truncate max-w-[140px] sm:max-w-none font-semibold">
+                      <span className="sm:hidden">{cam.name.replace(/^Cámara\s*\d+\s*·\s*/i, '')}</span>
+                      <span className="hidden sm:inline">{cam.name}</span>
+                    </span>
+                    <span className="text-[10px] font-mono opacity-80 bg-black/40 px-1.5 py-0.5 rounded">CH{cam.channel}</span>
+                  </button>
+                );
+              })}
+              <button
+                onClick={() => setViewMode(viewMode === 'grid' ? 'single' : 'grid')}
+                className={`snap-start shrink-0 min-h-[46px] px-3.5 py-2 rounded-xl text-xs font-semibold flex items-center gap-2 transition-all active:scale-95 ${
+                  viewMode === 'grid'
+                    ? 'bg-sky-600 text-white ring-2 ring-sky-400 shadow-sky-600/30'
+                    : 'bg-neutral-950 border border-neutral-800 text-neutral-400 hover:text-white'
+                }`}
+              >
+                <Grid2X2 className="w-4 h-4" />
+                <span className="whitespace-nowrap">Mosaico ({allowedCameras.length})</span>
+              </button>
+            </div>
+          </div>
+        )}
         {allowedCameras.length === 0 ? (
           <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-12 text-center text-neutral-400">
             <AlertCircle className="w-10 h-10 mx-auto mb-3 text-amber-500" />
@@ -415,6 +498,7 @@ export const ClientLivePortal: React.FC<ClientLivePortalProps> = ({
           <div className="max-w-5xl mx-auto w-full flex flex-col gap-3">
             {selectedCamera && (
               <LiveCameraPlayer
+                key={selectedCamera.id}
                 camera={selectedCamera}
                 allowPtz={activeShareLink.allowPtz}
                 allowAudio={activeShareLink.allowAudio}
@@ -457,6 +541,46 @@ export const ClientLivePortal: React.FC<ClientLivePortalProps> = ({
                 </div>
               </div>
             )}
+            {/* Acciones Rápidas Táctiles: WhatsApp + PWA en Celular */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-2">
+              <a
+                href={buildWhatsAppUrl({
+                  text: `Hola SIDESEGUATE, estoy viendo la transmisión en vivo de la cámara "${selectedCamera?.name || 'Cámara'}" (Canal ${selectedCamera?.channel || 1}) y deseo reportar una novedad:`,
+                  phone: project?.clientPhone || null,
+                })}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="min-h-[46px] px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 text-white font-bold rounded-xl text-xs transition-all flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/20 active:scale-95"
+              >
+                <MessageSquare className="w-4 h-4 shrink-0" />
+                <span>Reportar Novedad por WhatsApp</span>
+              </a>
+
+              {(!isInstalled && isInstallable) || (!isInstalled && isIOS) ? (
+                <div className="min-h-[46px] px-3.5 py-2 bg-neutral-900 border border-neutral-800 rounded-xl flex items-center justify-between gap-2 text-xs">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <Smartphone className="w-4 h-4 text-sky-400 shrink-0" />
+                    <span className="text-[11px] text-neutral-300 truncate">
+                      {isIOS ? 'iPhone: Toca Compartir (⎋) → Pantalla de inicio' : 'Instalar acceso directo en celular'}
+                    </span>
+                  </div>
+                  {!isIOS && isInstallable && (
+                    <button
+                      onClick={() => install()}
+                      className="px-2.5 py-1.5 bg-sky-600 hover:bg-sky-500 active:bg-sky-700 text-white text-[11px] font-semibold rounded-lg shrink-0 active:scale-95 flex items-center gap-1"
+                    >
+                      <Download className="w-3.5 h-3.5" />
+                      <span>Instalar</span>
+                    </button>
+                  )}
+                </div>
+              ) : (
+                <div className="min-h-[46px] px-3.5 py-2 bg-neutral-900/60 border border-neutral-800 rounded-xl flex items-center justify-center gap-2 text-xs text-neutral-400">
+                  <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />
+                  <span className="text-[11px]">Transmisión Segura 24/7 SIDESEGUATE</span>
+                </div>
+              )}
+            </div>
           </div>
         ) : viewMode === 'single' ? (
           /* Multi-Camera View: Focused Player + Clean Camera Selector */
@@ -464,6 +588,7 @@ export const ClientLivePortal: React.FC<ClientLivePortalProps> = ({
             <div className="lg:col-span-3 flex flex-col gap-3">
               {selectedCamera && (
                 <LiveCameraPlayer
+                  key={selectedCamera.id}
                   camera={selectedCamera}
                   allowPtz={activeShareLink.allowPtz}
                   allowAudio={activeShareLink.allowAudio}
@@ -501,6 +626,46 @@ export const ClientLivePortal: React.FC<ClientLivePortalProps> = ({
                   </div>
                 </div>
               )}
+              {/* Acciones Rápidas Táctiles: WhatsApp + PWA en Celular */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-2">
+              <a
+                href={buildWhatsAppUrl({
+                  text: `Hola SIDESEGUATE, estoy viendo la transmisión en vivo de la cámara "${selectedCamera?.name || 'Cámara'}" (Canal ${selectedCamera?.channel || 1}) y deseo reportar una novedad:`,
+                  phone: project?.clientPhone || null,
+                })}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="min-h-[46px] px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 text-white font-bold rounded-xl text-xs transition-all flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/20 active:scale-95"
+              >
+                <MessageSquare className="w-4 h-4 shrink-0" />
+                <span>Reportar Novedad por WhatsApp</span>
+              </a>
+
+              {(!isInstalled && isInstallable) || (!isInstalled && isIOS) ? (
+                <div className="min-h-[46px] px-3.5 py-2 bg-neutral-900 border border-neutral-800 rounded-xl flex items-center justify-between gap-2 text-xs">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <Smartphone className="w-4 h-4 text-sky-400 shrink-0" />
+                    <span className="text-[11px] text-neutral-300 truncate">
+                      {isIOS ? 'iPhone: Toca Compartir (⎋) → Pantalla de inicio' : 'Instalar acceso directo en celular'}
+                    </span>
+                  </div>
+                  {!isIOS && isInstallable && (
+                    <button
+                      onClick={() => install()}
+                      className="px-2.5 py-1.5 bg-sky-600 hover:bg-sky-500 active:bg-sky-700 text-white text-[11px] font-semibold rounded-lg shrink-0 active:scale-95 flex items-center gap-1"
+                    >
+                      <Download className="w-3.5 h-3.5" />
+                      <span>Instalar</span>
+                    </button>
+                  )}
+                </div>
+              ) : (
+                <div className="min-h-[46px] px-3.5 py-2 bg-neutral-900/60 border border-neutral-800 rounded-xl flex items-center justify-center gap-2 text-xs text-neutral-400">
+                  <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />
+                  <span className="text-[11px]">Transmisión Segura 24/7 SIDESEGUATE</span>
+                </div>
+              )}
+            </div>
             </div>
 
             {/* Camera Switcher Sidebar */}

@@ -19,7 +19,7 @@ export const SectionSubNav: React.FC<SectionSubNavProps> = ({ currentTab, onSele
   if (section.items.length < 2) return null;
 
   return (
-    <div className="sticky top-0 z-10 -mx-3.5 sm:-mx-6 -mt-3.5 sm:-mt-6 mb-4 px-3.5 sm:px-6 py-2 bg-neutral-950/90 backdrop-blur-md border-b border-neutral-800/80">
+    <div className="mb-4 pb-2 border-b border-neutral-800/80">
       <div
         role="tablist"
         aria-label={`Pantallas de ${section.label}`}

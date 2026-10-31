@@ -1005,8 +1005,8 @@ function AppShell() {
           <SectionSubNav currentTab={activeTab} onSelectTab={(tab) => setActiveTab(tab)} />
 
           <div className="space-y-5 sm:space-y-6">
-          {/* VIEW 1: Muro de Video (Matrix Multicámara) */}
-          {activeTab === 'videowall' && (
+          {/* VIEW 1: Muro de Video (Matrix Multicámara) - Conexión viva 24/7 sin reinicios al cambiar pestañas */}
+          <div className={activeTab === 'videowall' ? 'block' : 'hidden'}>
             <VideoWall
               cameras={cameras}
               onSelectCamera={(id) => {
@@ -1022,7 +1022,7 @@ function AppShell() {
                 setIsShareModalOpen(true);
               }}
             />
-          )}
+          </div>
 
           {/* VIEW 4: Enlaces Privados para Clientes */}
           {activeTab === 'share_links' && (
