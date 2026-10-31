@@ -35,6 +35,7 @@ const ClientCameraOnboardingView = lazy(() =>
   import('./components/ClientCameraOnboardingView').then((m) => ({ default: m.ClientCameraOnboardingView }))
 );
 import { ShareLinkModal } from './components/ShareLinkModal';
+import { WhatsAppTimedShareModal } from './components/WhatsAppTimedShareModal';
 import { CameraModal } from './components/CameraModal';
 import { ProjectModal } from './components/ProjectModal';
 import { Sidebar } from './components/Sidebar';
@@ -113,6 +114,7 @@ import {
   Download,
   Share2,
   MessageCircle,
+  MessageSquare,
   CheckCircle2,
   FileCode,
   Server,
@@ -206,6 +208,8 @@ function AppShell() {
 
   // Modals state
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
+  const [isWhatsAppTimedModalOpen, setIsWhatsAppTimedModalOpen] = useState(false);
+  const [whatsAppTimedTargetLink, setWhatsAppTimedTargetLink] = useState<ShareLink | null>(null);
   const [editingShareLink, setEditingShareLink] = useState<ShareLink | null>(null);
   const [shareDefaultProjectId, setShareDefaultProjectId] = useState<string | null>(null);
   const [handoverShareLink, setHandoverShareLink] = useState<ShareLink | null>(null);
@@ -1055,6 +1059,19 @@ function AppShell() {
                   </button>
 
                   <button
+                    type="button"
+                    onClick={() => {
+                      setWhatsAppTimedTargetLink(null);
+                      setIsWhatsAppTimedModalOpen(true);
+                    }}
+                    className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 shadow-sm transition shrink-0 whitespace-nowrap active:scale-95"
+                    title="Crear y enviar enlace por WhatsApp con temporizador personalizado"
+                  >
+                    <MessageSquare className="w-3.5 h-3.5" />
+                    <span>WhatsApp con Temporizador</span>
+                  </button>
+
+                  <button
                     onClick={() => {
                       setEditingShareLink(null);
                       setShareDefaultProjectId(null);
@@ -1227,16 +1244,18 @@ function AppShell() {
                           <span>QR</span>
                         </button>
 
-                        <a
-                          href={getWhatsAppShareUrl(link)}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="px-2 py-1.5 bg-neutral-950 hover:bg-emerald-950 text-neutral-200 hover:text-emerald-300 border border-neutral-800 rounded-lg text-xs font-medium transition flex items-center justify-center gap-1 whitespace-nowrap"
-                          title="Enviar enlace por WhatsApp al cliente"
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setWhatsAppTimedTargetLink(link);
+                            setIsWhatsAppTimedModalOpen(true);
+                          }}
+                          className="px-2 py-1.5 bg-neutral-950 hover:bg-emerald-950 text-neutral-200 hover:text-emerald-300 border border-neutral-800 rounded-lg text-xs font-medium transition flex items-center justify-center gap-1 whitespace-nowrap active:scale-95"
+                          title="Enviar o renovar enlace por WhatsApp con temporizador personalizado"
                         >
                           <MessageCircle className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
                           <span>WhatsApp</span>
-                        </a>
+                        </button>
 
                         <button
                           onClick={() => handleCopyLinkUrl(link.token)}
@@ -1666,6 +1685,18 @@ function AppShell() {
       />
 
       {/* Persistent Modals */}
+      <WhatsAppTimedShareModal
+        isOpen={isWhatsAppTimedModalOpen}
+        onClose={() => {
+          setIsWhatsAppTimedModalOpen(false);
+          setWhatsAppTimedTargetLink(null);
+        }}
+        onSaveLink={handleSaveShareLink}
+        cameras={cameras}
+        projects={projects}
+        existingLink={whatsAppTimedTargetLink}
+      />
+
       <ShareLinkModal
         isOpen={isShareModalOpen}
         onClose={() => {
