@@ -115,12 +115,12 @@ export const NAV_SECTIONS: NavSection[] = [
       {
         id: 'windows_server',
         label: 'Servidor de video',
-        hint: 'El programa de Windows que convierte tus cámaras en video web.',
+        hint: 'Comprobación en tiempo real del estado del servidor (Verde / Rojo).',
       },
       {
         id: 'mediamtx_config',
-        label: 'Archivo MediaMTX',
-        hint: 'Configuración avanzada del servidor de video.',
+        label: 'Autodiagnóstico',
+        hint: 'Comprobación general del sistema y base de datos.',
       },
       {
         id: 'zero_storage',

@@ -356,9 +356,9 @@ export const ClientLivePortal: React.FC<ClientLivePortalProps> = ({
       )}
       {/* Top Client Header: No Admin buttons, Clean branding & prominent countdown */}
       <header className="bg-neutral-900 border-b border-neutral-800 px-3.5 sm:px-5 py-3 sticky top-0 z-40 backdrop-blur-md">
-        <div className="max-w-7xl mx-auto flex items-center justify-between gap-3">
+        <div className="max-w-7xl mx-auto flex items-center justify-between gap-2.5">
           {/* SIDESEGUATE Branding */}
-          <div className="flex items-center gap-2.5 min-w-0">
+          <div className="flex items-center gap-2.5 min-w-0 flex-1">
             <div className="w-8 h-8 rounded-lg overflow-hidden bg-white flex items-center justify-center shrink-0 shadow-sm">
               <img 
                 src={LOGO_URL} 
@@ -366,58 +366,30 @@ export const ClientLivePortal: React.FC<ClientLivePortalProps> = ({
                 className="w-full h-full object-cover"
               />
             </div>
-            <div className="min-w-0">
+            <div className="min-w-0 flex-1">
               <div className="flex items-center gap-1.5">
                 <h1 className="text-sm font-bold text-white tracking-tight">SIDESEGUATE</h1>
                 <span className="text-neutral-600 text-xs font-mono">/</span>
-                <span className="text-xs text-emerald-400 font-semibold flex items-center gap-1">
+                <span className="text-xs text-emerald-400 font-semibold flex items-center gap-1 shrink-0">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
                   En Vivo
                 </span>
               </div>
-              <p className="text-[11px] text-neutral-400 truncate max-w-[180px] sm:max-w-md">
+              <p className="text-xs text-neutral-400 truncate">
                 {activeShareLink.title || (selectedCamera ? selectedCamera.name : 'Cámara')}
               </p>
             </div>
           </div>
 
-          {/* Right Header Controls: Expiration Countdown Badge & View Mode Toggle */}
+          {/* Right Header Controls: Compact Expiration Badge */}
           <div className="flex items-center gap-2 shrink-0">
-            {allowedCameras.length > 1 && (
-              <div className="hidden sm:flex items-center bg-neutral-950 p-0.5 rounded-lg border border-neutral-800 text-xs">
-                <button
-                  aria-label="Vista de una sola cámara"
-                  onClick={() => setViewMode('single')}
-                  className={`h-7 px-2.5 rounded-md transition text-xs flex items-center gap-1.5 font-medium ${
-                    viewMode === 'single' ? 'bg-neutral-800 text-white shadow-sm' : 'text-neutral-400 hover:text-white'
-                  }`}
-                  title="Cámara Individual"
-                >
-                  <Square className="w-3.5 h-3.5" />
-                  <span className="text-[11px]">1×1</span>
-                </button>
-                <button
-                  aria-label="Vista de cuadrícula de cámaras"
-                  onClick={() => setViewMode('grid')}
-                  className={`h-7 px-2.5 rounded-md transition text-xs flex items-center gap-1.5 font-medium ${
-                    viewMode === 'grid' ? 'bg-neutral-800 text-white shadow-sm' : 'text-neutral-400 hover:text-white'
-                  }`}
-                  title="Cuadrícula Múltiple"
-                >
-                  <Grid2X2 className="w-3.5 h-3.5" />
-                  <span className="text-[11px]">Mosaico</span>
-                </button>
-              </div>
-            )}
-
-            {/* Prominent Expiration Countdown Badge - Versión Móvil Concisa */}
             <div className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 border rounded-lg text-xs font-mono font-semibold transition shrink-0 ${
               isExpiringSoon
                 ? 'bg-amber-950/80 border-amber-700/80 text-amber-300'
                 : 'bg-neutral-950 border-neutral-800 text-neutral-200'
             }`}>
               <Clock className={`w-3.5 h-3.5 ${isExpiringSoon ? 'text-amber-400 animate-spin' : 'text-neutral-400'} shrink-0`} />
-              <span className="text-[11px] whitespace-nowrap">
+              <span className="text-xs whitespace-nowrap">
                 <span className="sm:hidden">
                   {expirationText
                     .replace('Expira en ', '')
@@ -427,7 +399,9 @@ export const ClientLivePortal: React.FC<ClientLivePortalProps> = ({
                     .replace(' horas', 'h')
                     .replace(' hora', 'h')
                     .replace(' minutos', 'm')
-                    .replace(' minuto', 'm')}
+                    .replace(' minuto', 'm')
+                    .replace(' segundos', 's')
+                    .replace(' segundo', 's')}
                 </span>
                 <span className="hidden sm:inline">{expirationText}</span>
               </span>
@@ -437,53 +411,67 @@ export const ClientLivePortal: React.FC<ClientLivePortalProps> = ({
       </header>
 
       {/* Main Video Viewing Area */}
-      <main className="flex-1 max-w-7xl w-full mx-auto p-3 sm:p-5 pb-28 sm:pb-8 flex flex-col gap-4">
+      <main className="flex-1 max-w-7xl w-full mx-auto p-3 sm:p-5 pb-32 sm:pb-8 flex flex-col gap-4">
         {/* Selector Rápido de Cámaras Móvil (Pestañas Táctiles Mínimo 46px) */}
         {allowedCameras.length > 1 && (
-          <div className="bg-neutral-900/90 border border-neutral-800/90 rounded-2xl p-2 shadow-lg mb-1">
-            <div className="text-[11px] font-mono text-neutral-400 px-2 py-1 flex items-center justify-between">
-              <span className="font-semibold uppercase tracking-wider text-neutral-300">Cámaras Disponibles</span>
-              <span className="text-emerald-400 flex items-center gap-1 font-sans">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                {allowedCameras.length} En Vivo
+          <div className="bg-neutral-900/90 border border-neutral-800/90 rounded-2xl p-2.5 shadow-lg mb-1">
+            <div className="text-xs font-mono text-neutral-400 px-1 py-1 mb-1.5 flex items-center justify-between">
+              <span className="font-semibold uppercase tracking-wider text-neutral-300 text-[11px]">
+                Cámaras Disponibles
               </span>
+              <div className="flex items-center gap-2">
+                <span className="text-emerald-400 flex items-center gap-1 font-sans text-xs">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                  {allowedCameras.length} En Vivo
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setViewMode(viewMode === 'grid' ? 'single' : 'grid')}
+                  className={`px-2.5 py-1 rounded-lg border text-xs font-semibold flex items-center gap-1.5 transition active:scale-95 ${
+                    viewMode === 'grid'
+                      ? 'bg-sky-600 text-white border-sky-400 shadow-sm shadow-sky-600/30'
+                      : 'bg-neutral-950 border-neutral-800 text-neutral-400 hover:text-white'
+                  }`}
+                  title="Alternar entre cámara individual y mosaico"
+                >
+                  <Grid2X2 className="w-3.5 h-3.5" />
+                  <span>{viewMode === 'grid' ? '1×1' : 'Mosaico'}</span>
+                </button>
+              </div>
             </div>
-            <div className="flex items-center gap-2 overflow-x-auto p-1 scrollbar-none snap-x">
+
+            <div className={allowedCameras.length <= 2 ? 'grid grid-cols-2 gap-2' : 'flex items-center gap-2 overflow-x-auto p-0.5 scrollbar-none snap-x'}>
               {allowedCameras.map((cam) => {
                 const isSelected = cam.id === selectedCameraId && viewMode === 'single';
+                const cleanName = cam.name.replace(/^Cámara\s*\d+\s*·\s*/i, '');
                 return (
                   <button
                     key={cam.id}
+                    type="button"
                     onClick={() => {
                       setSelectedCameraId(cam.id);
                       setViewMode('single');
                     }}
-                    className={`snap-start shrink-0 min-h-[46px] px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-2.5 transition-all shadow-sm active:scale-95 ${
+                    className={`min-h-[46px] px-3 py-2 rounded-xl text-xs font-bold flex items-center justify-between gap-2 transition-all shadow-sm active:scale-95 ${
+                      allowedCameras.length > 2 ? 'snap-start shrink-0 min-w-[150px]' : 'w-full'
+                    } ${
                       isSelected
                         ? 'bg-sky-600 text-white ring-2 ring-sky-400 shadow-sky-600/30'
                         : 'bg-neutral-950 border border-neutral-800 text-neutral-300 hover:bg-neutral-850 hover:text-white'
                     }`}
                   >
-                    <span className={`w-2.5 h-2.5 rounded-full ${isSelected ? 'bg-emerald-300 animate-pulse' : 'bg-emerald-500'}`} />
-                    <span className="truncate max-w-[140px] sm:max-w-none font-semibold">
-                      <span className="sm:hidden">{cam.name.replace(/^Cámara\s*\d+\s*·\s*/i, '')}</span>
-                      <span className="hidden sm:inline">{cam.name}</span>
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${isSelected ? 'bg-emerald-300 animate-pulse' : 'bg-emerald-500'}`} />
+                      <span className="truncate font-semibold text-left">
+                        {cleanName}
+                      </span>
+                    </div>
+                    <span className="text-[10px] font-mono opacity-85 bg-black/40 px-1.5 py-0.5 rounded shrink-0">
+                      CH0{cam.channel}
                     </span>
-                    <span className="text-[10px] font-mono opacity-80 bg-black/40 px-1.5 py-0.5 rounded">CH{cam.channel}</span>
                   </button>
                 );
               })}
-              <button
-                onClick={() => setViewMode(viewMode === 'grid' ? 'single' : 'grid')}
-                className={`snap-start shrink-0 min-h-[46px] px-3.5 py-2 rounded-xl text-xs font-semibold flex items-center gap-2 transition-all active:scale-95 ${
-                  viewMode === 'grid'
-                    ? 'bg-sky-600 text-white ring-2 ring-sky-400 shadow-sky-600/30'
-                    : 'bg-neutral-950 border border-neutral-800 text-neutral-400 hover:text-white'
-                }`}
-              >
-                <Grid2X2 className="w-4 h-4" />
-                <span className="whitespace-nowrap">Mosaico ({allowedCameras.length})</span>
-              </button>
             </div>
           </div>
         )}
@@ -510,39 +498,42 @@ export const ClientLivePortal: React.FC<ClientLivePortalProps> = ({
 
             {/* Single Camera Metadata Card */}
             {selectedCamera && (
-              <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-3.5 sm:p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
-                <div>
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="font-bold text-white text-sm">{selectedCamera.name}</span>
-                    <span className="text-neutral-600" aria-hidden="true">·</span>
-                    <span className="text-neutral-400 font-mono text-[11px]">
-                      {selectedCamera.deviceType === 'hikvision_dvr' 
-                        ? 'Hikvision TurboHD DVR' 
-                        : selectedCamera.deviceType === 'hikvision_ip'
-                        ? 'Hikvision Cámara IP POE'
-                        : 'Cámara ONVIF / RTSP'}
+              <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs shadow-md">
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2 mb-1 flex-wrap">
+                    <h2 className="font-bold text-white text-sm sm:text-base truncate">
+                      {selectedCamera.name}
+                    </h2>
+                    <span className="px-2 py-0.5 rounded-md text-[11px] font-mono font-bold bg-sky-950 text-sky-400 border border-sky-800/60 shrink-0">
+                      CH0{selectedCamera.channel}
                     </span>
-                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-emerald-950/80 text-emerald-400 border border-emerald-800/60">
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold bg-emerald-950/80 text-emerald-400 border border-emerald-800/60 shrink-0">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
                       EN VIVO
                     </span>
                   </div>
-                  {selectedCamera.locationDesc && (
-                    <p className="text-neutral-400">{selectedCamera.locationDesc}</p>
-                  )}
+                  <p className="text-neutral-400 text-xs">
+                    {selectedCamera.locationDesc ? `${selectedCamera.locationDesc} · ` : ''}
+                    {selectedCamera.deviceType === 'hikvision_dvr' 
+                      ? 'Hikvision TurboHD DVR' 
+                      : selectedCamera.deviceType === 'hikvision_ip'
+                      ? 'Hikvision Cámara IP POE'
+                      : 'Cámara ONVIF / RTSP'}
+                  </p>
                 </div>
 
-                <div className="flex flex-wrap items-center gap-2 text-neutral-400 text-xs font-mono tabular-nums">
-                  <span>Resolución <strong className="text-white">{selectedCamera.resolution.split(' ')[0]}</strong></span>
-                  <span className="text-neutral-600" aria-hidden="true">·</span>
-                  <span><strong className="text-emerald-400">{selectedCamera.fps} FPS</strong></span>
-                  <span className="text-neutral-600" aria-hidden="true">·</span>
-                  <span>Códec <strong className="text-sky-400">{selectedCamera.codec}</strong></span>
+                <div className="flex items-center gap-2 text-neutral-300 text-xs font-mono tabular-nums shrink-0 bg-neutral-950 px-3 py-2 rounded-xl border border-neutral-800">
+                  <span className="text-white font-semibold">{selectedCamera.resolution.split(' ')[0]}</span>
+                  <span className="text-neutral-600">·</span>
+                  <span className="text-emerald-400 font-semibold">{selectedCamera.fps} FPS</span>
+                  <span className="text-neutral-600">·</span>
+                  <span className="text-sky-400 font-semibold">{selectedCamera.codec}</span>
                 </div>
               </div>
             )}
+
             {/* Acciones Rápidas Táctiles: WhatsApp + PWA en Celular */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-2">
+            <div className="flex flex-col sm:flex-row gap-3 mt-1">
               <a
                 href={buildWhatsAppUrl({
                   text: `Hola SIDESEGUATE, estoy viendo la transmisión en vivo de la cámara "${selectedCamera?.name || 'Cámara'}" (Canal ${selectedCamera?.channel || 1}) y deseo reportar una novedad:`,
@@ -550,24 +541,24 @@ export const ClientLivePortal: React.FC<ClientLivePortalProps> = ({
                 })}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="min-h-[46px] px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 text-white font-bold rounded-xl text-xs transition-all flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/20 active:scale-95"
+                className="min-h-[48px] px-4 py-3 bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 text-white font-bold rounded-xl text-xs transition-all flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/20 active:scale-95 flex-1"
               >
                 <MessageSquare className="w-4 h-4 shrink-0" />
                 <span>Reportar Novedad por WhatsApp</span>
               </a>
 
               {(!isInstalled && isInstallable) || (!isInstalled && isIOS) ? (
-                <div className="min-h-[46px] px-3.5 py-2 bg-neutral-900 border border-neutral-800 rounded-xl flex items-center justify-between gap-2 text-xs">
+                <div className="min-h-[48px] px-3.5 py-2.5 bg-neutral-900 border border-neutral-800 rounded-xl flex items-center justify-between gap-2 text-xs flex-1">
                   <div className="flex items-center gap-2 min-w-0">
                     <Smartphone className="w-4 h-4 text-sky-400 shrink-0" />
-                    <span className="text-[11px] text-neutral-300 truncate">
-                      {isIOS ? 'iPhone: Toca Compartir (⎋) → Pantalla de inicio' : 'Instalar acceso directo en celular'}
+                    <span className="text-xs text-neutral-300 truncate">
+                      {isIOS ? 'iPhone: Compartir (⎋) → Pantalla de inicio' : 'Instalar acceso directo en celular'}
                     </span>
                   </div>
                   {!isIOS && isInstallable && (
                     <button
                       onClick={() => install()}
-                      className="px-2.5 py-1.5 bg-sky-600 hover:bg-sky-500 active:bg-sky-700 text-white text-[11px] font-semibold rounded-lg shrink-0 active:scale-95 flex items-center gap-1"
+                      className="px-3 py-1.5 bg-sky-600 hover:bg-sky-500 active:bg-sky-700 text-white text-xs font-semibold rounded-lg shrink-0 active:scale-95 flex items-center gap-1"
                     >
                       <Download className="w-3.5 h-3.5" />
                       <span>Instalar</span>
@@ -575,9 +566,9 @@ export const ClientLivePortal: React.FC<ClientLivePortalProps> = ({
                   )}
                 </div>
               ) : (
-                <div className="min-h-[46px] px-3.5 py-2 bg-neutral-900/60 border border-neutral-800 rounded-xl flex items-center justify-center gap-2 text-xs text-neutral-400">
+                <div className="min-h-[48px] px-3.5 py-2 bg-neutral-900/60 border border-neutral-800 rounded-xl flex items-center justify-center gap-2 text-xs text-neutral-400 flex-1">
                   <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />
-                  <span className="text-[11px]">Transmisión Segura 24/7 SIDESEGUATE</span>
+                  <span className="text-xs">Transmisión Segura 24/7 SIDESEGUATE</span>
                 </div>
               )}
             </div>
@@ -598,36 +589,44 @@ export const ClientLivePortal: React.FC<ClientLivePortalProps> = ({
                 />
               )}
 
-              {selectedCamera && (
-                <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
-                  <div>
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="font-bold text-white text-sm">{selectedCamera.name}</span>
-                      <span className="text-neutral-600" aria-hidden="true">·</span>
-                      <span className="text-neutral-400 font-mono text-[11px]">
-                        {selectedCamera.deviceType === 'hikvision_dvr' 
-                          ? 'Hikvision TurboHD DVR' 
-                          : selectedCamera.deviceType === 'hikvision_ip'
-                          ? 'Hikvision Cámara IP POE'
-                          : 'Cámara ONVIF / RTSP'}
-                      </span>
-                    </div>
-                    {selectedCamera.locationDesc && (
-                      <p className="text-neutral-400">{selectedCamera.locationDesc}</p>
-                    )}
+              
+            {selectedCamera && (
+              <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs shadow-md">
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2 mb-1 flex-wrap">
+                    <h2 className="font-bold text-white text-sm sm:text-base truncate">
+                      {selectedCamera.name}
+                    </h2>
+                    <span className="px-2 py-0.5 rounded-md text-[11px] font-mono font-bold bg-sky-950 text-sky-400 border border-sky-800/60 shrink-0">
+                      CH0{selectedCamera.channel}
+                    </span>
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold bg-emerald-950/80 text-emerald-400 border border-emerald-800/60 shrink-0">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                      EN VIVO
+                    </span>
                   </div>
-
-                  <div className="flex flex-wrap items-center gap-2 text-neutral-400 text-xs font-mono tabular-nums">
-                    <span>Resolución <strong className="text-white">{selectedCamera.resolution.split(' ')[0]}</strong></span>
-                    <span className="text-neutral-600" aria-hidden="true">·</span>
-                    <span><strong className="text-emerald-400">{selectedCamera.fps} FPS</strong></span>
-                    <span className="text-neutral-600" aria-hidden="true">·</span>
-                    <span>Códec <strong className="text-sky-400">{selectedCamera.codec}</strong></span>
-                  </div>
+                  <p className="text-neutral-400 text-xs">
+                    {selectedCamera.locationDesc ? `${selectedCamera.locationDesc} · ` : ''}
+                    {selectedCamera.deviceType === 'hikvision_dvr' 
+                      ? 'Hikvision TurboHD DVR' 
+                      : selectedCamera.deviceType === 'hikvision_ip'
+                      ? 'Hikvision Cámara IP POE'
+                      : 'Cámara ONVIF / RTSP'}
+                  </p>
                 </div>
-              )}
-              {/* Acciones Rápidas Táctiles: WhatsApp + PWA en Celular */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-2">
+
+                <div className="flex items-center gap-2 text-neutral-300 text-xs font-mono tabular-nums shrink-0 bg-neutral-950 px-3 py-2 rounded-xl border border-neutral-800">
+                  <span className="text-white font-semibold">{selectedCamera.resolution.split(' ')[0]}</span>
+                  <span className="text-neutral-600">·</span>
+                  <span className="text-emerald-400 font-semibold">{selectedCamera.fps} FPS</span>
+                  <span className="text-neutral-600">·</span>
+                  <span className="text-sky-400 font-semibold">{selectedCamera.codec}</span>
+                </div>
+              </div>
+            )}
+
+            {/* Acciones Rápidas Táctiles: WhatsApp + PWA en Celular */}
+            <div className="flex flex-col sm:flex-row gap-3 mt-1">
               <a
                 href={buildWhatsAppUrl({
                   text: `Hola SIDESEGUATE, estoy viendo la transmisión en vivo de la cámara "${selectedCamera?.name || 'Cámara'}" (Canal ${selectedCamera?.channel || 1}) y deseo reportar una novedad:`,
@@ -635,24 +634,24 @@ export const ClientLivePortal: React.FC<ClientLivePortalProps> = ({
                 })}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="min-h-[46px] px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 text-white font-bold rounded-xl text-xs transition-all flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/20 active:scale-95"
+                className="min-h-[48px] px-4 py-3 bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 text-white font-bold rounded-xl text-xs transition-all flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/20 active:scale-95 flex-1"
               >
                 <MessageSquare className="w-4 h-4 shrink-0" />
                 <span>Reportar Novedad por WhatsApp</span>
               </a>
 
               {(!isInstalled && isInstallable) || (!isInstalled && isIOS) ? (
-                <div className="min-h-[46px] px-3.5 py-2 bg-neutral-900 border border-neutral-800 rounded-xl flex items-center justify-between gap-2 text-xs">
+                <div className="min-h-[48px] px-3.5 py-2.5 bg-neutral-900 border border-neutral-800 rounded-xl flex items-center justify-between gap-2 text-xs flex-1">
                   <div className="flex items-center gap-2 min-w-0">
                     <Smartphone className="w-4 h-4 text-sky-400 shrink-0" />
-                    <span className="text-[11px] text-neutral-300 truncate">
-                      {isIOS ? 'iPhone: Toca Compartir (⎋) → Pantalla de inicio' : 'Instalar acceso directo en celular'}
+                    <span className="text-xs text-neutral-300 truncate">
+                      {isIOS ? 'iPhone: Compartir (⎋) → Pantalla de inicio' : 'Instalar acceso directo en celular'}
                     </span>
                   </div>
                   {!isIOS && isInstallable && (
                     <button
                       onClick={() => install()}
-                      className="px-2.5 py-1.5 bg-sky-600 hover:bg-sky-500 active:bg-sky-700 text-white text-[11px] font-semibold rounded-lg shrink-0 active:scale-95 flex items-center gap-1"
+                      className="px-3 py-1.5 bg-sky-600 hover:bg-sky-500 active:bg-sky-700 text-white text-xs font-semibold rounded-lg shrink-0 active:scale-95 flex items-center gap-1"
                     >
                       <Download className="w-3.5 h-3.5" />
                       <span>Instalar</span>
@@ -660,13 +659,13 @@ export const ClientLivePortal: React.FC<ClientLivePortalProps> = ({
                   )}
                 </div>
               ) : (
-                <div className="min-h-[46px] px-3.5 py-2 bg-neutral-900/60 border border-neutral-800 rounded-xl flex items-center justify-center gap-2 text-xs text-neutral-400">
+                <div className="min-h-[48px] px-3.5 py-2 bg-neutral-900/60 border border-neutral-800 rounded-xl flex items-center justify-center gap-2 text-xs text-neutral-400 flex-1">
                   <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />
-                  <span className="text-[11px]">Transmisión Segura 24/7 SIDESEGUATE</span>
+                  <span className="text-xs">Transmisión Segura 24/7 SIDESEGUATE</span>
                 </div>
               )}
             </div>
-            </div>
+</div>
 
             {/* Camera Switcher Sidebar */}
             <div className="lg:col-span-1 flex flex-col gap-2">

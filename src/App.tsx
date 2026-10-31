@@ -1085,34 +1085,7 @@ function AppShell() {
                 </div>
               </div>
 
-              {/* Aviso: enlace local, o enlace que muestra el usuario personal */}
-              {(() => {
-                const info = getPublicUrlInfo();
-                const warning = describeShareUrlWarning(info);
-                if (!warning) return null;
-                const isLocal = !info.isReachableByClient;
-                return (
-                  <div className="bg-amber-950/50 border border-amber-700/60 rounded-xl p-3 flex items-start gap-2 text-[11px] sm:text-xs text-amber-200">
-                    <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5 text-amber-400" />
-                    <div className="min-w-0">
-                      <p className="font-semibold">
-                        {isLocal
-                          ? 'Los enlaces todavía no saldrán de este equipo'
-                          : 'Tus enlaces muestran tu usuario personal, no tu marca'}
-                      </p>
-                      <p className="text-amber-200/80 leading-relaxed mt-0.5">
-                        Ahora mismo apuntan a{' '}
-                        <span className="font-mono break-all">{info.baseUrl || 'una dirección local'}</span>.{' '}
-                        {isLocal
-                          ? 'Configura el '
-                          : 'Tus clientes verán ese nombre en la barra de direcciones. Configura '}
-                        <strong>dominio público de la plataforma</strong> en la pestaña
-                        "Archivo mediamtx.yml" y los enlaces pasarán a llevar tu propio dominio.
-                      </p>
-                    </div>
-                  </div>
-                );
-              })()}
+              
 
               {/* Links Grid (Single-Elevation Cards with Hairline Dividers) */}
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -1233,7 +1206,7 @@ function AppShell() {
                       </div>
 
                       {/* Client Sharing Action Bar */}
-                      <div className="pt-3 border-t border-neutral-800 grid grid-cols-4 gap-1.5">
+                      <div className="pt-3 border-t border-neutral-800 grid grid-cols-2 sm:grid-cols-4 gap-2">
                         <button
                           aria-label={`Ver código QR y ficha de ${link.title}`}
                           onClick={() => setHandoverShareLink(link)}
@@ -1626,49 +1599,12 @@ function AppShell() {
             <ZeroStorageView />
           )}
 
-          {/* VIEW 11: Configurador mediamtx.yml */}
+          {/* VIEW 11: Autodiagnóstico del Sistema */}
           {activeTab === 'mediamtx_config' && (
-            <div className="space-y-4">
+            <div className="space-y-4 max-w-5xl mx-auto">
               <Suspense fallback={<div className="h-40 bg-neutral-900 animate-pulse rounded-xl" />}>
                 <SystemDiagnosticsCard />
               </Suspense>
-
-              <Suspense fallback={<div className="h-40 bg-neutral-900 animate-pulse rounded-xl" />}>
-                <StreamGatewayCard
-                  gateway={streamGateway}
-                  cameras={cameras}
-                  onShowToast={showToast}
-                  onSave={handleSaveStreamGateway}
-                />
-              </Suspense>
-
-              <div className="bg-neutral-900/60 border border-neutral-850 p-4 rounded-xl flex items-center justify-between gap-4">
-                <div>
-                  <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                    <FileCode className="w-4 h-4 text-sky-400" />
-                    Archivo de Configuración mediamtx.yml
-                  </h3>
-                  <p className="text-xs text-neutral-400">
-                    Generado automáticamente para Windows con las {cameras.length} cámaras Hikvision registradas.
-                  </p>
-                </div>
-
-                <button
-                  onClick={() => {
-                    navigator.clipboard.writeText(mediamtxYaml);
-                    setCopiedYaml(true);
-                    setTimeout(() => setCopiedYaml(false), 2000);
-                  }}
-                  className="px-3.5 py-1.5 bg-neutral-800 hover:bg-neutral-750 text-white rounded-lg text-xs font-medium flex items-center gap-1.5 border border-neutral-700/80 transition"
-                >
-                  {copiedYaml ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-                  <span>{copiedYaml ? 'Copiado' : 'Copiar YAML'}</span>
-                </button>
-              </div>
-
-              <pre className="bg-neutral-950 border border-neutral-850 text-emerald-400 font-mono text-[11px] p-4 rounded-xl overflow-x-auto max-h-[520px] leading-relaxed">
-                {mediamtxYaml}
-              </pre>
             </div>
           )}
           </div>

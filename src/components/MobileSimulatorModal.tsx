@@ -107,6 +107,19 @@ export const MobileSimulatorModal: React.FC<MobileSimulatorModalProps> = ({
 
           <div className="space-y-2 pt-3 border-t border-neutral-850">
             <button
+              type="button"
+              onClick={() => {
+                if (!currentLink) return;
+                const fullUrl = buildPublicShareUrl(currentLink.token);
+                window.open(fullUrl, '_blank');
+              }}
+              className="w-full py-2.5 bg-sky-600 hover:bg-sky-500 text-white rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition shadow-md"
+            >
+              <ExternalLink className="w-3.5 h-3.5" />
+              <span>Abrir en Pantalla Completa</span>
+            </button>
+            <button
+              type="button"
               onClick={handleCopy}
               className="w-full py-2 bg-neutral-850 hover:bg-neutral-800 text-neutral-200 border border-neutral-750 rounded-lg text-xs font-medium flex items-center justify-center gap-1.5 transition"
             >
@@ -114,6 +127,7 @@ export const MobileSimulatorModal: React.FC<MobileSimulatorModalProps> = ({
               <span>{copied ? 'Enlace Copiado' : 'Copiar URL Real'}</span>
             </button>
             <button
+              type="button"
               onClick={onClose}
               className="w-full py-2 bg-neutral-900 hover:bg-neutral-850 text-neutral-400 hover:text-white rounded-lg text-xs transition"
             >
@@ -133,13 +147,13 @@ export const MobileSimulatorModal: React.FC<MobileSimulatorModalProps> = ({
             </div>
 
             {/* Inner Phone Screen */}
-            <div className="flex-1 bg-neutral-950 rounded-[30px] overflow-y-auto border border-neutral-850 scrollbar-none flex flex-col">
+            <div className="flex-1 bg-neutral-950 rounded-[30px] overflow-hidden border border-neutral-850 flex flex-col">
               {currentLink ? (
-                <ClientLivePortal
-                  shareLink={currentLink}
-                  cameras={toPublicCameras(cameras)}
-                  project={currentProject}
-                  isAdminPreview={false}
+                <iframe
+                  key={currentLink.token}
+                  src={`/?token=${encodeURIComponent(currentLink.token)}&preview=mobile`}
+                  className="w-full h-full border-0 bg-neutral-950"
+                  title={`Vista Móvil de ${currentLink.clientName}`}
                 />
               ) : (
                 <div className="flex-1 flex flex-col items-center justify-center p-6 text-center">

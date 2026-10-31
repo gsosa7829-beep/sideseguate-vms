@@ -1100,86 +1100,81 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
         )}
       </div>
 
-      {/* Bottom Control Bar: Ergonomía Móvil 1 Fila Perfecta (5 Botones Balanceados) */}
-      <div className="relative z-20 bg-neutral-950 border-t border-neutral-800/90 px-2 sm:px-4 py-2 sm:py-2.5 text-neutral-300">
-        <div className="grid grid-cols-5 gap-1.5 sm:flex sm:items-center sm:justify-between sm:gap-2">
-          {/* Botón 1: Selector Calidad (HD / SD) */}
+      {/* Bottom Control Bar: 1 Fila Perfecta en Móvil y Escritorio (5 Botones Simétricos) */}
+      <div className="relative z-20 bg-neutral-950 border-t border-neutral-800/90 px-2 sm:px-4 py-2 text-neutral-300">
+        <div className="grid grid-cols-5 gap-1.5 sm:gap-2 max-w-xl mx-auto">
+          {/* Botón 1: Calidad (HD / SD) */}
           <button
             type="button"
             aria-label={streamQuality === '1' ? 'Cambiar a calidad fluida SD' : 'Cambiar a calidad alta definición 1080p HD'}
             onClick={() => setStreamQuality((q) => (q === '1' ? '2' : '1'))}
-            className={`min-h-[44px] sm:min-h-[34px] h-11 sm:h-8.5 px-2 sm:px-3 rounded-xl sm:rounded-lg border text-xs font-bold transition-all flex items-center justify-center gap-1 sm:gap-1.5 whitespace-nowrap active:scale-95 col-span-1 ${
+            className={`min-h-[46px] h-[46px] px-1 sm:px-3 rounded-xl border text-xs font-bold transition-all flex items-center justify-center gap-1 sm:gap-1.5 active:scale-95 col-span-1 ${
               streamQuality === '1'
                 ? 'bg-sky-950/80 border-sky-500/80 text-sky-300 shadow-sm shadow-sky-950/50'
                 : 'bg-neutral-900 border-neutral-800 text-neutral-400 hover:text-white'
             }`}
-            title={streamQuality === '1' ? 'Calidad HD 1080p FHD activa (clic para SD Fluido)' : 'Calidad SD activa (clic para HD 1080p)'}
+            title={streamQuality === '1' ? 'Calidad HD 1080p activa' : 'Calidad SD activa'}
           >
-            <Sparkles className="w-4 h-4 sm:w-3.5 sm:h-3.5 text-sky-400 shrink-0" />
-            <span className="font-mono text-xs sm:text-[11px] font-bold">
-              <span className="sm:hidden">{streamQuality === '1' ? 'HD' : 'SD'}</span>
-              <span className="hidden sm:inline">{streamQuality === '1' ? '1080p HD' : 'SD Fluido'}</span>
-            </span>
+            <Sparkles className="w-4 h-4 text-sky-400 shrink-0" />
+            <span className="font-mono text-xs font-bold">{streamQuality === '1' ? 'HD' : 'SD'}</span>
           </button>
 
-          {/* Botón 2: Audio Silenciar/Activar */}
+          {/* Botón 2: Audio */}
           <button
             type="button"
             disabled={!allowAudio}
-            aria-label={isMuted ? 'Activar audio ambiental' : 'Silenciar audio'}
+            aria-label={isMuted ? 'Activar audio' : 'Silenciar audio'}
             onClick={() => setIsMuted(!isMuted)}
-            className={`min-h-[44px] sm:min-h-[34px] h-11 sm:h-8.5 px-2 sm:px-2.5 rounded-xl sm:rounded-lg border text-xs transition-all flex items-center justify-center gap-1.5 whitespace-nowrap active:scale-95 col-span-1 ${
+            className={`min-h-[46px] h-[46px] px-1 sm:px-2.5 rounded-xl border text-xs transition-all flex items-center justify-center gap-1 active:scale-95 col-span-1 ${
               !allowAudio
                 ? 'opacity-30 cursor-not-allowed bg-neutral-900 border-neutral-800 text-neutral-500'
                 : isMuted 
                 ? 'bg-neutral-900 border-neutral-800 text-neutral-300 hover:text-white' 
                 : 'bg-emerald-950/80 border-emerald-500/60 text-emerald-300 shadow-sm'
             }`}
-            title={allowAudio ? (isMuted ? 'Audio silenciado (toca para activar)' : 'Audio ambiental activo') : 'Audio no disponible en esta cámara'}
+            title={allowAudio ? (isMuted ? 'Audio silenciado' : 'Audio ambiental activo') : 'Audio no disponible'}
           >
             {isMuted ? <VolumeX className="w-4 h-4 shrink-0" /> : <Volume2 className="w-4 h-4 shrink-0" />}
-            <span className="hidden sm:inline text-[11px] font-medium">
-              {isMuted ? 'Audio' : 'Audio Activo'}
-            </span>
+            <span className="text-[11px] font-medium">{isMuted ? 'Mute' : 'Audio'}</span>
           </button>
 
-          {/* Botón 3: Captura Rápida de Foto */}
+          {/* Botón 3: Foto */}
           <button
             type="button"
             disabled={!allowSnapshot}
-            aria-label="Guardar captura de imagen"
+            aria-label="Guardar foto o captura"
             onClick={handleTakeSnapshot}
-            className={`min-h-[44px] sm:min-h-[34px] h-11 sm:h-8.5 px-2 sm:px-2.5 bg-neutral-900 hover:bg-neutral-850 active:bg-neutral-800 border border-neutral-800 text-neutral-200 hover:text-white rounded-xl sm:rounded-lg transition-all flex items-center justify-center gap-1.5 active:scale-95 col-span-1 ${
+            className={`min-h-[46px] h-[46px] px-1 sm:px-2.5 bg-neutral-900 hover:bg-neutral-850 active:bg-neutral-800 border border-neutral-800 text-neutral-200 hover:text-white rounded-xl transition-all flex items-center justify-center gap-1 active:scale-95 col-span-1 ${
               !allowSnapshot ? 'opacity-30 cursor-not-allowed' : ''
             }`}
             title="Descargar Foto / Captura JPG"
           >
             <CameraIcon className="w-4 h-4 text-sky-400 shrink-0" />
-            <span className="hidden sm:inline text-[11px] font-medium">Foto</span>
+            <span className="text-[11px] font-medium">Foto</span>
           </button>
 
-          {/* Botón 4: Ajustes (IR, Zoom, IA) */}
+          {/* Botón 4: Ajustes */}
           <button
             type="button"
-            aria-label="Más ajustes de video"
+            aria-label="Ajustes de video y visión"
             onClick={() => setShowAdvancedMenu(!showAdvancedMenu)}
-            className={`min-h-[44px] sm:min-h-[34px] h-11 sm:h-8.5 px-2 sm:px-2.5 rounded-xl sm:rounded-lg border text-xs transition-all flex items-center justify-center gap-1 active:scale-95 col-span-1 ${
+            className={`min-h-[46px] h-[46px] px-1 sm:px-2.5 rounded-xl border text-xs transition-all flex items-center justify-center gap-1 active:scale-95 col-span-1 ${
               showAdvancedMenu
-                ? 'bg-sky-600/30 border-sky-500 text-sky-300'
+                ? 'bg-sky-600/30 border-sky-500 text-sky-300 shadow-sm'
                 : 'bg-neutral-900 border-neutral-800 text-neutral-400 hover:text-white'
             }`}
             title="Ajustes de cámara (Visión nocturna, detección, zoom)"
           >
             <Sliders className="w-4 h-4 shrink-0" />
-            <span className="hidden sm:inline text-[11px]">Ajustes</span>
+            <span className="text-[11px] font-medium">Ajustes</span>
           </button>
 
-          {/* Botón 5: Pantalla Completa / Ampliar */}
+          {/* Botón 5: Ampliar */}
           <button
             type="button"
             aria-label={isFullscreen ? 'Salir de pantalla completa' : 'Pantalla completa'}
             onClick={toggleFullscreen}
-            className={`min-h-[44px] sm:min-h-[34px] h-11 sm:h-8.5 px-2 sm:px-3 rounded-xl sm:rounded-lg border transition-all flex items-center justify-center gap-1.5 active:scale-95 font-medium col-span-1 ${
+            className={`min-h-[46px] h-[46px] px-1 sm:px-3 rounded-xl border transition-all flex items-center justify-center gap-1 active:scale-95 font-medium col-span-1 ${
               isFullscreen 
                 ? 'bg-neutral-800 border-neutral-700 text-white' 
                 : 'bg-sky-600/25 hover:bg-sky-600/35 border-sky-500/60 text-sky-200 shadow-sm'
@@ -1187,81 +1182,87 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
             title={isFullscreen ? 'Salir de pantalla completa' : 'Ver a Pantalla Completa'}
           >
             {isFullscreen ? <Minimize2 className="w-4 h-4 shrink-0" /> : <Maximize2 className="w-4 h-4 text-sky-400 shrink-0" />}
-            <span className="text-xs sm:text-[11px] font-bold">
-              <span className="sm:hidden">{isFullscreen ? 'Salir' : 'Zoom'}</span>
-              <span className="hidden sm:inline">{isFullscreen ? 'Salir' : 'Ampliar'}</span>
-            </span>
+            <span className="text-[11px] font-bold">{isFullscreen ? 'Salir' : 'Ampliar'}</span>
           </button>
         </div>
       </div>
 
-      {/* Advanced / Secondary Settings Drawer */}
+      {/* Panel Desplegable de Ajustes (Limpio, con botón cerrar y opciones 2x2 táctiles) */}
       {showAdvancedMenu && (
-        <div className="relative z-20 bg-neutral-900 border-t border-neutral-800 px-3.5 sm:px-4 py-3 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 text-xs animate-in fade-in duration-150">
-          <div className="grid grid-cols-2 sm:flex sm:items-center gap-2">
+        <div className="relative z-20 bg-neutral-900 border-t border-neutral-800 p-3 sm:p-4 text-xs animate-in fade-in duration-150">
+          <div className="flex items-center justify-between pb-2 mb-2.5 border-b border-neutral-800">
+            <span className="font-bold text-white flex items-center gap-1.5">
+              <Sliders className="w-3.5 h-3.5 text-sky-400" />
+              <span>Ajustes de Transmisión</span>
+            </span>
             <button
+              type="button"
+              onClick={() => setShowAdvancedMenu(false)}
+              className="text-neutral-400 hover:text-white px-2 py-0.5 rounded-lg border border-neutral-800 hover:bg-neutral-800"
+              title="Cerrar ajustes"
+            >
+              Cerrar ✕
+            </button>
+          </div>
+
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              type="button"
               onClick={() => setNightVision(!nightVision)}
-              className={`min-h-[42px] sm:min-h-[32px] px-3 rounded-xl sm:rounded-lg border text-xs transition flex items-center justify-center gap-1.5 active:scale-95 ${
-                nightVision ? 'bg-emerald-950 border-emerald-600 text-emerald-300' : 'bg-neutral-950 border-neutral-800 text-neutral-300'
+              className={`min-h-[44px] px-3 rounded-xl border text-xs font-medium transition flex items-center justify-center gap-2 active:scale-95 ${
+                nightVision ? 'bg-emerald-950 border-emerald-600 text-emerald-300' : 'bg-neutral-950 border-neutral-800 text-neutral-300 hover:text-white'
               }`}
             >
-              {nightVision ? <Moon className="w-3.5 h-3.5 text-emerald-400" /> : <Sun className="w-3.5 h-3.5 text-neutral-400" />}
-              <span>{nightVision ? 'Infrarrojo IR' : 'Color Estándar'}</span>
+              {nightVision ? <Moon className="w-4 h-4 text-emerald-400" /> : <Sun className="w-4 h-4 text-neutral-400" />}
+              <span>{nightVision ? 'Modo IR' : 'Modo Color'}</span>
             </button>
 
             <button
               type="button"
               onClick={() => handleForceReconnect(true)}
-              className="min-h-[42px] sm:min-h-[32px] px-3 rounded-xl sm:rounded-lg border border-sky-500/50 bg-sky-950/80 hover:bg-sky-900 text-sky-200 text-xs font-semibold transition flex items-center justify-center gap-1.5 active:scale-95 col-span-2 sm:col-span-1 shadow-sm"
+              className="min-h-[44px] px-3 rounded-xl border border-sky-500/50 bg-sky-950/80 hover:bg-sky-900 text-sky-200 text-xs font-semibold transition flex items-center justify-center gap-2 active:scale-95 shadow-sm"
             >
-              <RefreshCw className={`w-3.5 h-3.5 ${isReconnecting ? 'animate-spin' : ''}`} />
-              <span>Reconectar Señal</span>
+              <RefreshCw className={`w-4 h-4 ${isReconnecting ? 'animate-spin' : ''}`} />
+              <span>{isReconnecting ? 'Conectando…' : 'Reconectar'}</span>
             </button>
 
             <button
+              type="button"
               onClick={() => setAiDetection(!aiDetection)}
-              className={`min-h-[42px] sm:min-h-[32px] px-3 rounded-xl sm:rounded-lg border text-xs transition flex items-center justify-center gap-1.5 active:scale-95 ${
-                aiDetection ? 'bg-sky-950 border-sky-500 text-sky-300' : 'bg-neutral-950 border-neutral-800 text-neutral-300'
+              className={`min-h-[44px] px-3 rounded-xl border text-xs font-medium transition flex items-center justify-center gap-2 active:scale-95 ${
+                aiDetection ? 'bg-sky-950 border-sky-500 text-sky-300' : 'bg-neutral-950 border-neutral-800 text-neutral-300 hover:text-white'
               }`}
             >
-              <Scan className="w-3.5 h-3.5 text-sky-400" />
-              <span>{aiDetection ? 'IA Detección ON' : 'IA Detección OFF'}</span>
+              <Scan className="w-4 h-4 text-sky-400" />
+              <span>{aiDetection ? 'Detección ON' : 'Detección OFF'}</span>
             </button>
-          </div>
 
-          {/* Stepper de Zoom Digital Táctil */}
-          <div className="flex items-center justify-between sm:justify-start gap-2 bg-neutral-950 p-1.5 sm:p-0 rounded-xl sm:bg-transparent border sm:border-0 border-neutral-800">
-            <span className="text-neutral-400 text-[11px] font-medium pl-1">Zoom Digital:</span>
-            <div className="flex items-center h-10 sm:h-9 bg-neutral-900 rounded-lg border border-neutral-800 px-1 font-mono">
-              <button
-                disabled={digitalZoom <= 1}
-                onClick={() => setDigitalZoom((z) => Math.max(1, +(z - 0.5).toFixed(1)))}
-                className="h-8 w-8 flex items-center justify-center text-neutral-300 hover:text-white disabled:opacity-30 active:scale-90"
-              >
-                <ZoomOut className="w-3.5 h-3.5" />
-              </button>
-              <span className="text-xs px-2 text-white font-bold">{digitalZoom}x</span>
-              <button
-                disabled={digitalZoom >= 3}
-                onClick={() => setDigitalZoom((z) => Math.min(3, +(z + 0.5).toFixed(1)))}
-                className="h-8 w-8 flex items-center justify-center text-neutral-300 hover:text-white disabled:opacity-30 active:scale-90"
-              >
-                <ZoomIn className="w-3.5 h-3.5" />
-              </button>
+            <div className="min-h-[44px] px-2.5 rounded-xl border border-neutral-800 bg-neutral-950 flex items-center justify-between text-xs">
+              <span className="text-neutral-400 font-medium pl-1">Zoom:</span>
+              <div className="flex items-center gap-1 font-mono">
+                <button
+                  type="button"
+                  disabled={digitalZoom <= 1}
+                  onClick={() => setDigitalZoom((z) => Math.max(1, +(z - 0.5).toFixed(1)))}
+                  className="w-8 h-8 rounded-lg bg-neutral-900 border border-neutral-800 flex items-center justify-center text-neutral-300 disabled:opacity-30 active:scale-90"
+                >
+                  <ZoomOut className="w-3.5 h-3.5" />
+                </button>
+                <span className="text-xs px-1.5 text-white font-bold">{digitalZoom}x</span>
+                <button
+                  type="button"
+                  disabled={digitalZoom >= 3}
+                  onClick={() => setDigitalZoom((z) => Math.min(3, +(z + 0.5).toFixed(1)))}
+                  className="w-8 h-8 rounded-lg bg-neutral-900 border border-neutral-800 flex items-center justify-center text-neutral-300 disabled:opacity-30 active:scale-90"
+                >
+                  <ZoomIn className="w-3.5 h-3.5" />
+                </button>
+              </div>
             </div>
-            {digitalZoom > 1 && (
-              <button
-                onClick={() => setDigitalZoom(1)}
-                className="h-10 sm:h-9 px-2 text-xs text-sky-400 hover:text-sky-300 underline font-semibold"
-              >
-                1x
-              </button>
-            )}
           </div>
         </div>
       )}
-    </div>
-  );
+    </div>  );
 };
 
 export const LiveCameraPlayer = React.memo(LiveCameraPlayerComponent);
