@@ -40,6 +40,7 @@ export const auth = authInstance;
 
 export const GOOGLE_CLOUD_PROJECT_ID = firebaseConfig.projectId;
 export const FIRESTORE_DATABASE_ID = firebaseConfig.firestoreDatabaseId;
+export const FIREBASE_API_KEY = firebaseConfig.apiKey;
 
 export enum OperationType {
   CREATE = 'create',
