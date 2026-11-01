@@ -2,9 +2,9 @@ import { Project, Camera, ShareLink, AccessLog } from './types';
 import { INITIAL_PROJECTS, INITIAL_CAMERAS, INITIAL_SHARE_LINKS, INITIAL_ACCESS_LOGS } from './initialData';
 
 const STORAGE_KEYS = {
-  PROJECTS: 'sideseguate_projects_v8_calle_cementerio',
-  CAMERAS: 'sideseguate_cameras_v8_only_2_real',
-  SHARE_LINKS: 'sideseguate_share_links_v9_calle_cementerio',
+  PROJECTS: 'sideseguate_projects_v9_ocos',
+  CAMERAS: 'sideseguate_cameras_v9_ocos',
+  SHARE_LINKS: 'sideseguate_share_links_v10_ocos',
   ACCESS_LOGS: 'sideseguate_access_logs_v5',
 };
 
@@ -33,7 +33,7 @@ export const storage = {
       if (data) {
         const parsed = JSON.parse(data);
         const filtered = parsed.filter(
-          (c: any) => c.id === 'cam-hilook-ch1' || c.id === 'cam-hilook-ch2'
+          (c: any) => c.id === 'cam-hilook-ch1' || c.id === 'cam-hilook-ch2' || c.id === 'cam-ocos-ch1' || c.deviceSerial === 'FF9363270'
         );
         if (filtered.length > 0) return filtered;
       }

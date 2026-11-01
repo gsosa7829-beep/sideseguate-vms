@@ -2,6 +2,21 @@ import { Project, Camera, ShareLink, AccessLog } from './types';
 
 export const CLIENT_HIKVISION_HARDWARE = [
   {
+    model: 'Hikvision Smart Hybrid Light 4G (PROYECTO OCOS)',
+    name: 'PROYECTO OCOS #1 (FF9363270)',
+    serial: 'FF9363270',
+    shortSerial: 'FF9363270',
+    verificationCode: 'LBNZYU',
+    lanIp: '192.168.1.120',
+    publicIp: '54.156.218.223',
+    serverPort: 8890,
+    httpPort: 80,
+    rtspPort: 554,
+    totalChannels: 1,
+    recommendedStream: '1080p FHD Realtime Stream H.265',
+    rtspSyntaxExample: 'rtsp://admin:LBNZYU@127.0.0.1:554/Streaming/Channels/101'
+  },
+  {
     model: 'HiLook DVR TurboHD (Proyecto Calle del Cementerio)',
     name: 'HiLookVision Desktop Client (F31700438)',
     serial: 'F31700438',
@@ -20,6 +35,16 @@ export const CLIENT_HIKVISION_HARDWARE = [
 
 export const INITIAL_PROJECTS: Project[] = [
   {
+    id: 'proj-ocos',
+    name: 'PROYECTO OCOS',
+    clientName: 'Comité Proyecto Ocós',
+    clientPhone: '+502 5555-0199',
+    location: 'Ocós, San Marcos, Guatemala',
+    status: 'instalado_activo',
+    equipmentNotes: 'Cámara 4G Hikvision (SN: FF9363270) · Transmisión en vivo 24/7.',
+    createdAt: '2026-10-31T20:00:00.000Z'
+  },
+  {
     id: 'proj-calle-cementerio',
     name: 'Proyecto Calle del Cementerio',
     clientName: 'Comité de Vecinos Calle del Cementerio',
@@ -32,6 +57,33 @@ export const INITIAL_PROJECTS: Project[] = [
 ];
 
 export const INITIAL_CAMERAS: Camera[] = [
+  {
+    id: 'cam-ocos-ch1',
+    projectId: 'proj-ocos',
+    name: 'Cámara 1 · PROYECTO OCOS (CH1)',
+    deviceType: 'hikvision_ip',
+    host: '127.0.0.1',
+    port: 554,
+    onvifPort: 80,
+    username: 'admin',
+    password: '',
+    verificationCode: 'LBNZYU',
+    channel: 1,
+    streamType: 'sub',
+    rtspUrl: 'rtsp://admin:LBNZYU@192.168.1.120:554/Streaming/Channels/102',
+    hlsStreamUrl: '',
+    webrtcUrl: '',
+    status: 'online',
+    fps: 25,
+    resolution: '1920x1080 (1080p FHD)',
+    bitrateKbps: 2048,
+    codec: 'H.265',
+    locationDesc: 'Canal 1 HiLookVision · PROYECTO OCOS (FF9363270)',
+    ptzSupported: false,
+    nightVision: false,
+    deviceSerial: 'FF9363270',
+    notes: 'Cámara 4G Hikvision FF9363270 | P2P Ezviz / HiLookVision | PROYECTO OCOS Activo en vivo'
+  },
   {
     id: 'cam-hilook-ch1',
     projectId: 'proj-calle-cementerio',
@@ -89,6 +141,23 @@ export const INITIAL_CAMERAS: Camera[] = [
 ];
 
 export const INITIAL_SHARE_LINKS: ShareLink[] = [
+  {
+    id: 'proyecto-ocos',
+    token: 'proyecto-ocos',
+    projectId: 'proj-ocos',
+    title: 'PROYECTO OCOS',
+    clientName: 'Comité Proyecto Ocós',
+    cameraIds: ['cam-ocos-ch1'],
+    expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+    isActive: true,
+    allowPtz: false,
+    allowAudio: false,
+    allowSnapshot: true,
+    showWatermark: true,
+    maxConcurrentViewers: 10,
+    accessCount: 0,
+    createdAt: new Date().toISOString(),
+  },
   {
     id: 'calle-del-cementerio',
     token: 'calle-del-cementerio',

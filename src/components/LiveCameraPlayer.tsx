@@ -80,9 +80,9 @@ export function getCachedHlsUrl(channel: number, serial: string, quality: '1' | 
 
 // Pre-calentamiento inteligente de transmisiones (usa calidad fluida 25 FPS para eliminar congelamientos)
 export function prewarmHikvisionCameras() {
-  const serial = 'F31700438';
-  fetchEzvizLiveHls(1, serial, '2');
-  fetchEzvizLiveHls(2, serial, '2');
+  fetchEzvizLiveHls(1, 'F31700438', '2');
+  fetchEzvizLiveHls(2, 'F31700438', '2');
+  fetchEzvizLiveHls(1, 'FF9363270', '2');
 }
 
 if (typeof window !== 'undefined') {
@@ -107,6 +107,7 @@ export async function fetchEzvizLiveHls(
   }
 
   try {
+    const validateCode = devSerial === 'FF9363270' ? 'LBNZYU' : 'HELGDM';
     const queryStream = async () => {
       const res = await fetch('https://iusopen.ezvizlife.com/api/lapp/v2/live/address/get', {
         method: 'POST',
@@ -117,6 +118,8 @@ export async function fetchEzvizLiveHls(
           channelNo: String(channel),
           protocol: '2', // HLS
           quality: quality, // '1': 1080p FHD Main Stream, '2': Sub Stream Fluido
+          code: validateCode,
+          supportH265: '1',
         }),
       });
       return res.ok ? await res.json() : null;
@@ -134,7 +137,7 @@ export async function fetchEzvizLiveHls(
           body: new URLSearchParams({
             accessToken: EZVIZ_ACCESS_TOKEN,
             deviceSerial: devSerial,
-            validateCode: 'HELGDM',
+            validateCode: devSerial === 'FF9363270' ? 'LBNZYU' : 'HELGDM',
           }),
         });
       } catch {}
@@ -929,7 +932,7 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
             </h4>
             <p className="text-xs text-neutral-400 max-w-sm mb-4 leading-relaxed">
               {isOffline 
-                ? 'El DVR HiLook (F31700438) se encuentra fuera de línea o reiniciando enlace.'
+                ? `El equipo de video (${camera.deviceSerial || 'HiLook'}) se encuentra fuera de línea o reiniciando enlace.`
                 : 'Restableciendo transmisión en vivo sin cifrado.'}
               {autoRetrySeconds > 0 && (
                 <span className="block mt-1 text-sky-400 font-mono font-semibold">

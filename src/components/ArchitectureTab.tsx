@@ -171,7 +171,7 @@ export const ArchitectureTab: React.FC<ArchitectureTabProps> = ({ cameras }) => 
         </h3>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          {cameras.slice(0, 2).map((cam) => (
+          {cameras.map((cam) => (
             <div
               key={cam.id}
               className={`p-3.5 rounded-xl border flex items-center justify-between transition-all ${
