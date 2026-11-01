@@ -21,7 +21,8 @@ import {
   Sparkles,
   RefreshCw,
   Radio,
-  WifiOff
+  WifiOff,
+  Info
 } from 'lucide-react';
 
 interface LiveCameraPlayerProps {
@@ -529,11 +530,11 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
           nativeP2pImgRef.current = img;
           setNativeP2pReady(true);
           setIsOffline(false);
-          timer = setTimeout(fetchNextFrame, 1200);
+          timer = setTimeout(fetchNextFrame, 200);
         };
         img.onerror = () => {
           if (!active) return;
-          timer = setTimeout(fetchNextFrame, 2000);
+          timer = setTimeout(fetchNextFrame, 800);
         };
         const sep = livePicUrl.includes('?') ? '&' : '?';
         img.src = `${livePicUrl}${sep}_t=${Date.now()}`;
@@ -584,7 +585,7 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
     /sideseguate-[a-z0-9-]*\.trycloudflare\.com|xxxx\.trycloudflare\.com/i.test(
       liveHlsUrl
     );
-  const isHevcCamera = camera.codec === 'H.265' || camera.deviceSerial === 'FF9363270';
+  const isHevcCamera = camera.codec === 'H.265';
   const hasHls = !isHevcCamera && !!liveHlsUrl && !isDemoTunnelPlaceholder && hlsLiveReady;
   const hasImage = hasHls || nativeP2pReady;
 
@@ -911,7 +912,7 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
                   ? streamQuality === '1'
                     ? 'EN VIVO · 1080p FHD'
                     : 'EN VIVO · SD FLUIDO'
-                  : 'EN VIVO · 4G HD'
+                  : 'EN VIVO · RÁFAGA 4G'
                 : 'RECONECTAR SEÑAL'}
             </span>
             <RefreshCw className={`w-2.5 h-2.5 opacity-80 ${isReconnecting ? 'animate-spin text-sky-400' : ''}`} />
@@ -929,10 +930,10 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
             <span>{streamQuality === '1' ? '1920x1080' : '704x480'}</span>
             <span className="text-neutral-500 mx-1">·</span>
           </span>
-          <span className="text-emerald-400 font-semibold">{metrics.fps} FPS</span>
+          <span className="text-emerald-400 font-semibold">{hasHls ? `${metrics.fps} FPS` : '4G P2P'}</span>
           <span className="text-neutral-500 mx-1">·</span>
           <span className="text-sky-300 font-semibold">
-            {streamQuality === '1' ? Math.round(metrics.bitrate * 1.5) : metrics.bitrate} kbps
+            {hasHls ? `${streamQuality === '1' ? Math.round(metrics.bitrate * 1.5) : metrics.bitrate} kbps` : 'DIRECTO'}
           </span>
           {nightVision && (
             <>
@@ -1317,7 +1318,16 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
               <span>{aiDetection ? 'Detección ON' : 'Detección OFF'}</span>
             </button>
 
-            <div className="min-h-[44px] px-2.5 rounded-xl border border-neutral-800 bg-neutral-950 flex items-center justify-between text-xs">
+          {isHevcCamera && (
+            <div className="col-span-2 p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/25 text-amber-300 text-[11px] leading-relaxed flex items-start gap-2 mb-1">
+              <Info className="w-4 h-4 shrink-0 text-amber-400 mt-0.5" />
+              <div>
+                <span className="font-semibold">Modo Ráfaga 4G:</span> Transmitiendo instantáneas directas desde la antena celular de la cámara. Para activar video fluido a 25 FPS sin saltos, cambia en la app HiLookVision la codificación a H.264.
+              </div>
+            </div>
+          )}
+
+          <div className="min-h-[44px] px-2.5 rounded-xl border border-neutral-800 bg-neutral-950 flex items-center justify-between text-xs">
               <span className="text-neutral-400 font-medium pl-1">Zoom:</span>
               <div className="flex items-center gap-1 font-mono">
                 <button

@@ -47,6 +47,9 @@ export const CameraModal: React.FC<CameraModalProps> = ({
   const [streamType, setStreamType] = useState<'main' | 'sub'>(
     initialCamera?.streamType || 'main'
   );
+  const [codec, setCodec] = useState<'H.264' | 'H.265'>(
+    initialCamera?.codec || 'H.264'
+  );
   const [customRtsp, setCustomRtsp] = useState(initialCamera?.rtspUrl || '');
   const [isManualRtsp, setIsManualRtsp] = useState(false);
   const [locationDesc, setLocationDesc] = useState(
@@ -97,6 +100,7 @@ export const CameraModal: React.FC<CameraModalProps> = ({
       setVerificationCode(initialCamera?.verificationCode || '');
       setChannel(initChan);
       setStreamType(initStream);
+      setCodec(initialCamera?.codec || 'H.264');
       setCustomRtsp(
         initialCamera?.rtspUrl ||
           buildPresetRtspUrl(initBrand, initHost, initPort, initUser, initPass, initChan, initStream)
@@ -168,7 +172,7 @@ export const CameraModal: React.FC<CameraModalProps> = ({
       fps: Number(fps),
       resolution,
       bitrateKbps: Number(bitrateKbps),
-      codec: 'H.264',
+      codec,
       locationDesc: locationDesc.trim() || 'Ubicación de vigilancia',
       ptzSupported,
       nightVision,
@@ -414,6 +418,18 @@ export const CameraModal: React.FC<CameraModalProps> = ({
                 >
                   <option value="main">Flujo Principal (Main Stream 1080p / 2K)</option>
                   <option value="sub">Subflujo (Sub Stream 720p / Ahorro Datos Móviles)</option>
+                </select>
+              </div>
+
+              <div className="col-span-1 sm:col-span-2">
+                <label className="block text-neutral-400 mb-1">Codificación de Video (Códec):</label>
+                <select
+                  value={codec}
+                  onChange={(e) => setCodec(e.target.value as 'H.264' | 'H.265')}
+                  className="w-full bg-neutral-900 border border-neutral-700 rounded-lg px-3 py-1.5 text-white focus:border-sky-500 focus:outline-none"
+                >
+                  <option value="H.264">H.264 (Recomendado: Video continuo fluido a 25 FPS para navegador)</option>
+                  <option value="H.265">H.265 (HEVC: Modo ráfaga rápida en cámaras 4G)</option>
                 </select>
               </div>
             </div>
