@@ -514,7 +514,7 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
       }
 
       // Si el reproductor HLS ya está activo y reproduciendo el video en el navegador, no saturar con capturas
-      if (hlsLiveReady) {
+      if (hlsLiveReady && !isHevcCamera) {
         timer = setTimeout(fetchNextFrame, 3000);
         return;
       }
@@ -529,7 +529,7 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
           nativeP2pImgRef.current = img;
           setNativeP2pReady(true);
           setIsOffline(false);
-          timer = setTimeout(fetchNextFrame, 1000);
+          timer = setTimeout(fetchNextFrame, 1200);
         };
         img.onerror = () => {
           if (!active) return;
@@ -584,13 +584,14 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
     /sideseguate-[a-z0-9-]*\.trycloudflare\.com|xxxx\.trycloudflare\.com/i.test(
       liveHlsUrl
     );
-  const hasHls = !!liveHlsUrl && !isDemoTunnelPlaceholder && hlsLiveReady;
+  const isHevcCamera = camera.codec === 'H.265' || camera.deviceSerial === 'FF9363270';
+  const hasHls = !isHevcCamera && !!liveHlsUrl && !isDemoTunnelPlaceholder && hlsLiveReady;
   const hasImage = hasHls || nativeP2pReady;
 
   useEffect(() => {
     setHlsLiveReady(false);
     const video = videoRef.current;
-    if (!liveHlsUrl || isDemoTunnelPlaceholder || !video) return;
+    if (isHevcCamera || !liveHlsUrl || isDemoTunnelPlaceholder || !video) return;
 
     let hls: Hls | null = null;
     let cancelled = false;
@@ -622,7 +623,6 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
 
         hls.on(Hls.Events.MANIFEST_PARSED, () => {
           if (cancelled) return;
-          setHlsLiveReady(true);
           video.play().catch(() => {});
         });
 
@@ -1025,13 +1025,35 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
           </div>
         )}
 
-        {liveHlsUrl && (
+        {/* Canvas de video en vivo de alta definición: SIEMPRE montado para que nunca se pierda la imagen */}
+        <canvas
+          ref={canvasRef}
+          width={1280}
+          height={720}
+          className="w-full h-full object-fill select-none"
+        />
+
+        {/* Video continuo para cámaras H.264 cuando HLS esté reproduciendo */}
+        {liveHlsUrl && !isHevcCamera && (
           <video
             ref={videoRef}
-            className={hasHls ? 'w-full h-full object-fill' : 'hidden'}
+            className={hasHls ? 'absolute inset-0 w-full h-full object-fill z-10' : 'hidden'}
             muted={isMuted}
             playsInline
             autoPlay
+            onPlaying={() => {
+              if (videoRef.current && videoRef.current.videoWidth > 0) {
+                setHlsLiveReady(true);
+              }
+            }}
+            onLoadedData={() => {
+              if (videoRef.current && videoRef.current.videoWidth > 0) {
+                setHlsLiveReady(true);
+              }
+            }}
+            onError={() => {
+              setHlsLiveReady(false);
+            }}
             style={
               digitalZoom * ptzZoom > 1 || ptzPan !== 0 || ptzTilt !== 0
                 ? {
@@ -1041,14 +1063,6 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
                   }
                 : { objectFit: 'fill' }
             }
-          />
-        )}
-        {!hasHls && (
-          <canvas
-            ref={canvasRef}
-            width={1280}
-            height={720}
-            className="w-full h-full object-fill select-none"
           />
         )}
 
