@@ -213,3 +213,37 @@
     scroll-behavior: auto !important;
   }
 }
+
+/* EZUIKit Player: Integración fluida en SIDESEGUATE Video Wall */
+.ezuikit-live-player {
+  position: absolute;
+  inset: 0;
+  width: 100% !important;
+  height: 100% !important;
+  overflow: hidden;
+  background: transparent;
+}
+
+.ezuikit-live-player .ezplayer-header,
+.ezuikit-live-player .ezplayer-footer,
+.ezuikit-live-player .ezplayer-mobile-extend,
+.ezuikit-live-player .ezplayer-rec-footer,
+.ezuikit-live-player .ezplayer-mask,
+.ezuikit-live-player .ezplayer-control {
+  display: none !important;
+}
+
+.ezuikit-live-player .ezplayer,
+.ezuikit-live-player .ezplayer-contain,
+.ezuikit-live-player .ezplayer-screen {
+  width: 100% !important;
+  height: 100% !important;
+  background-color: transparent !important;
+}
+
+.ezuikit-live-player canvas {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: fill !important;
+  display: block !important;
+}

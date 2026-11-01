@@ -334,6 +334,15 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
     return getCachedHlsUrl(ch, devSerial, '2') || getCachedHlsUrl(ch, devSerial, '1');
   });
   const [streamQuality, setStreamQuality] = useState<'1' | '2'>('2');
+  const isEzopenDevice = Boolean(
+    camera.deviceSerial === 'FF9363270' ||
+    camera.notes?.includes('FF9363270') ||
+    camera.codec === 'H.265' ||
+    camera.id?.includes('ocos')
+  );
+  const ezuikitContainerId = useRef('ezuikit-live-' + Math.random().toString(36).substring(2, 9)).current;
+  const ezPlayerRef = useRef<any>(null);
+  const [ezuikitLiveReady, setEzuikitLiveReady] = useState(false);
   const [ivmsBridgeActive, setIvmsBridgeActive] = useState(() => ivmsLiveBridge.isActive());
   const [ivmsCropConfig, setIvmsCropConfig] = useState(() => ivmsLiveBridge.getCropConfig());
 
@@ -345,6 +354,12 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
 
   const handleForceReconnect = (userInitiated = true) => {
     setIsReconnecting(true);
+    if (ezPlayerRef.current) {
+      try {
+        ezPlayerRef.current.stop();
+        ezPlayerRef.current.play();
+      } catch {}
+    }
     if (userInitiated) {
       setReconnectToast('Buscando señal en vivo...');
     }
@@ -385,6 +400,89 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
       }
     });
   };
+
+  // Reproductor WebAssembly EZUIKit (H.265 / 4G para Proyecto Ocós a 25 FPS sin saltos de 5s)
+  useEffect(() => {
+    if (!isEzopenDevice) return;
+    let active = true;
+
+    const initEzPlayer = async () => {
+      let tries = 0;
+      while (!((window as any).EZUIKit?.EZUIKitPlayer) && tries < 40) {
+        if (!active) return;
+        await new Promise((r) => setTimeout(r, 100));
+        tries++;
+      }
+
+      if (!active) return;
+      const EZUIKit = (window as any).EZUIKit;
+      if (!EZUIKit?.EZUIKitPlayer) {
+        console.warn('Librería EZUIKit no disponible');
+        return;
+      }
+
+      const container = document.getElementById(ezuikitContainerId);
+      if (!container) return;
+
+      if (ezPlayerRef.current) {
+        try {
+          ezPlayerRef.current.stop();
+          ezPlayerRef.current.destroy();
+        } catch {}
+        ezPlayerRef.current = null;
+      }
+
+      const devSerial = camera.deviceSerial || 'FF9363270';
+      const code = camera.verificationCode || (devSerial === 'FF9363270' ? 'LBNZYU' : '');
+      const codePrefix = code ? `${code}@` : '';
+      const streamTypeStr = streamQuality === '1' ? '.hd.live' : '.live';
+      const ezopenUrl = `ezopen://${codePrefix}open.ezviz.com/${devSerial}/${camera.channel || 1}${streamTypeStr}`;
+
+      try {
+        const width = container.clientWidth || 640;
+        const height = container.clientHeight || 360;
+
+        const player = new EZUIKit.EZUIKitPlayer({
+          id: ezuikitContainerId,
+          accessToken: EZVIZ_ACCESS_TOKEN,
+          url: ezopenUrl,
+          env: { domain: 'https://iusopen.ezvizlife.com' },
+          width: width,
+          height: height,
+          autoplay: true,
+          audio: isMuted ? 0 : 1,
+          handleSuccess: () => {
+            if (!active) return;
+            setEzuikitLiveReady(true);
+            setIsOffline(false);
+          },
+          handleError: (err: any) => {
+            console.warn('EZUIKit stream warning:', err);
+            if (!active) return;
+            setEzuikitLiveReady(false);
+          },
+        });
+
+        ezPlayerRef.current = player;
+      } catch (e) {
+        console.warn('EZUIKit init error:', e);
+      }
+    };
+
+    initEzPlayer();
+
+    return () => {
+      active = false;
+      if (ezPlayerRef.current) {
+        try {
+          ezPlayerRef.current.stop();
+          ezPlayerRef.current.destroy();
+        } catch {}
+        ezPlayerRef.current = null;
+      }
+      setEzuikitLiveReady(false);
+    };
+  }, [camera.deviceSerial, camera.channel, camera.verificationCode, isEzopenDevice, streamQuality]);
 
   // Consulta dinámica de streaming HLS en vivo sin cifrado
   useEffect(() => {
@@ -483,9 +581,9 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
 
     const fetchNextFrame = async () => {
       if (!active) return;
-      if (hlsLiveReady) {
-        // Pausar peticiones de capturas mientras el flujo continuo HLS 25 FPS está reproduciéndose
-        timer = setTimeout(fetchNextFrame, 2000);
+      if (hlsLiveReady || ezuikitLiveReady) {
+        // Pausar peticiones de capturas mientras el flujo continuo 25 FPS está reproduciéndose
+        timer = setTimeout(fetchNextFrame, 3000);
         return;
       }
 
@@ -515,7 +613,7 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
       }
 
       // Si el reproductor HLS ya está activo y reproduciendo el video en el navegador, no saturar con capturas
-      if (hlsLiveReady) {
+      if (hlsLiveReady || ezuikitLiveReady) {
         timer = setTimeout(fetchNextFrame, 3000);
         return;
       }
@@ -585,8 +683,9 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
     /sideseguate-[a-z0-9-]*\.trycloudflare\.com|xxxx\.trycloudflare\.com/i.test(
       liveHlsUrl
     );
-  const hasHls = !!liveHlsUrl && !isDemoTunnelPlaceholder && hlsLiveReady;
-  const hasImage = hasHls || nativeP2pReady;
+  const hasHls = !isEzopenDevice && !!liveHlsUrl && !isDemoTunnelPlaceholder && hlsLiveReady;
+  const isContinuousLive = hasHls || ezuikitLiveReady;
+  const hasImage = isContinuousLive || nativeP2pReady;
 
   useEffect(() => {
     setHlsLiveReady(false);
@@ -721,7 +820,7 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
 
   // Canvas-based camera renderer (renders native Hikvision P2P V3 stream directly from DVR FB2200254)
   useEffect(() => {
-    if (hasHls) return;
+    if (isContinuousLive) return;
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
@@ -808,7 +907,7 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
     return () => {
       if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
     };
-  }, [hasHls, nativeP2pReady, ivmsBridgeActive, ivmsCropConfig, camera, digitalZoom, nightVision, aiDetection, ptzPan, ptzTilt, ptzZoom, showWatermark, watermarkText]);
+  }, [isContinuousLive, nativeP2pReady, ivmsBridgeActive, ivmsCropConfig, camera, digitalZoom, nightVision, aiDetection, ptzPan, ptzTilt, ptzZoom, showWatermark, watermarkText]);
 
   // Slight metric variance for realism
   useEffect(() => {
@@ -835,7 +934,10 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
     if (!allowSnapshot) return;
     try {
       let dataUrl: string | null = null;
-      if (hasHls && videoRef.current) {
+      const ezuikitCanvas = containerRef.current?.querySelector('.ezuikit-live-player canvas') as HTMLCanvasElement | null;
+      if (ezuikitLiveReady && ezuikitCanvas) {
+        dataUrl = ezuikitCanvas.toDataURL('image/jpeg', 0.95);
+      } else if (hasHls && videoRef.current) {
         const vid = videoRef.current;
         const tempCanvas = document.createElement('canvas');
         tempCanvas.width = vid.videoWidth || 1280;
@@ -911,7 +1013,7 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
               {isReconnecting
                 ? 'RECONECTANDO…'
                 : hasImage
-                ? hasHls
+                ? isContinuousLive
                   ? streamQuality === '1'
                     ? 'EN VIVO · 1080p FHD'
                     : 'EN VIVO · SD FLUIDO'
@@ -933,10 +1035,10 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
             <span>{streamQuality === '1' ? '1920x1080' : '704x480'}</span>
             <span className="text-neutral-500 mx-1">·</span>
           </span>
-          <span className="text-emerald-400 font-semibold">{hasHls ? `${metrics.fps} FPS` : '4G P2P'}</span>
+          <span className="text-emerald-400 font-semibold">{isContinuousLive ? `${metrics.fps} FPS` : '4G P2P'}</span>
           <span className="text-neutral-500 mx-1">·</span>
           <span className="text-sky-300 font-semibold">
-            {hasHls ? `${streamQuality === '1' ? Math.round(metrics.bitrate * 1.5) : metrics.bitrate} kbps` : 'DIRECTO'}
+            {isContinuousLive ? `${streamQuality === '1' ? Math.round(metrics.bitrate * 1.5) : metrics.bitrate} kbps` : 'DIRECTO'}
           </span>
           {nightVision && (
             <>
@@ -1037,8 +1139,18 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
           className="w-full h-full object-fill select-none"
         />
 
-        {/* Video continuo cuando HLS esté reproduciendo */}
-        {liveHlsUrl && !isDemoTunnelPlaceholder && (
+        {/* Reproductor WebAssembly EZUIKit (H.265 para Proyecto Ocós a 25 FPS fluidos) */}
+        {isEzopenDevice && (
+          <div
+            id={ezuikitContainerId}
+            className={`ezuikit-live-player transition-opacity duration-300 ${
+              ezuikitLiveReady ? 'opacity-100 z-10' : 'opacity-0 pointer-events-none'
+            }`}
+          />
+        )}
+
+        {/* Video continuo cuando HLS esté reproduciendo (para DVR H.264) */}
+        {!isEzopenDevice && liveHlsUrl && !isDemoTunnelPlaceholder && (
           <video
             ref={videoRef}
             className={hasHls ? 'absolute inset-0 w-full h-full object-fill z-10' : 'hidden'}
@@ -1208,7 +1320,19 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
             type="button"
             disabled={!allowAudio}
             aria-label={isMuted ? 'Activar audio' : 'Silenciar audio'}
-            onClick={() => setIsMuted(!isMuted)}
+            onClick={() => {
+              const next = !isMuted;
+              setIsMuted(next);
+              if (ezPlayerRef.current) {
+                try {
+                  if (next) {
+                    ezPlayerRef.current.closeSound();
+                  } else {
+                    ezPlayerRef.current.openSound();
+                  }
+                } catch {}
+              }
+            }}
             className={`min-h-[46px] h-[46px] px-1 sm:px-2.5 rounded-xl border text-xs transition-all flex items-center justify-center gap-1 active:scale-95 col-span-1 ${
               !allowAudio
                 ? 'opacity-30 cursor-not-allowed bg-neutral-900 border-neutral-800 text-neutral-500'
@@ -1321,7 +1445,7 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
               <span>{aiDetection ? 'Detección ON' : 'Detección OFF'}</span>
             </button>
 
-          {!hasHls && (
+          {!isContinuousLive && (
             <div className="col-span-2 p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/25 text-amber-300 text-[11px] leading-relaxed flex items-start gap-2 mb-1">
               <Info className="w-4 h-4 shrink-0 text-amber-400 mt-0.5" />
               <div>
