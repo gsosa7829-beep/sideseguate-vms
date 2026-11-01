@@ -60,7 +60,7 @@ export const INITIAL_CAMERAS: Camera[] = [
   {
     id: 'cam-ocos-ch1',
     projectId: 'proj-ocos',
-    name: 'Cámara 1 · PROYECTO OCOS (CH1)',
+    name: 'PROYECTO OCOS',
     deviceType: 'hikvision_ip',
     host: '127.0.0.1',
     port: 554,

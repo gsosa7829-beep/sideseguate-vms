@@ -2,9 +2,9 @@ import { Project, Camera, ShareLink, AccessLog } from './types';
 import { INITIAL_PROJECTS, INITIAL_CAMERAS, INITIAL_SHARE_LINKS, INITIAL_ACCESS_LOGS } from './initialData';
 
 const STORAGE_KEYS = {
-  PROJECTS: 'sideseguate_projects_v9_ocos',
-  CAMERAS: 'sideseguate_cameras_v9_ocos',
-  SHARE_LINKS: 'sideseguate_share_links_v10_ocos',
+  PROJECTS: 'sideseguate_projects_v11_ocos',
+  CAMERAS: 'sideseguate_cameras_v11_ocos',
+  SHARE_LINKS: 'sideseguate_share_links_v11_ocos',
   ACCESS_LOGS: 'sideseguate_access_logs_v5',
 };
 

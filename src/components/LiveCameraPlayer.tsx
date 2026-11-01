@@ -38,7 +38,7 @@ interface LiveCameraPlayerProps {
 const EZVIZ_ACCESS_TOKEN = 'at.b1exbqau80l85aox2k6x3487cw0byh2s-51eyws3m7n-0ii5ze3-uuk9pufag';
 
 // Persistencia en LocalStorage para arranque instantáneo (0ms) sin pantalla negra al cambiar entre secciones
-const HLS_CACHE_STORAGE_KEY = 'sideseguate_ezviz_hls_cache_v2';
+const HLS_CACHE_STORAGE_KEY = 'sideseguate_ezviz_hls_cache_v3';
 
 function loadPersistedHlsCache(): Record<string, { url: string; expires: number }> {
   try {
@@ -93,7 +93,8 @@ export async function fetchEzvizLiveHls(
   channel: number,
   serial: string,
   quality: '1' | '2' = '1',
-  forceRefresh: boolean = false
+  forceRefresh: boolean = false,
+  explicitCode?: string
 ): Promise<{ url: string | null; isOffline: boolean; error?: string }> {
   const devSerial = serial || 'F31700438';
   const cacheKey = `${devSerial}_${channel}_${quality}`;
@@ -107,7 +108,7 @@ export async function fetchEzvizLiveHls(
   }
 
   try {
-    const validateCode = devSerial === 'FF9363270' ? 'LBNZYU' : 'HELGDM';
+    const validateCode = explicitCode || (devSerial === 'FF9363270' ? 'LBNZYU' : 'HELGDM');
     const queryStream = async () => {
       const res = await fetch('https://iusopen.ezvizlife.com/api/lapp/v2/live/address/get', {
         method: 'POST',
@@ -137,7 +138,7 @@ export async function fetchEzvizLiveHls(
           body: new URLSearchParams({
             accessToken: EZVIZ_ACCESS_TOKEN,
             deviceSerial: devSerial,
-            validateCode: devSerial === 'FF9363270' ? 'LBNZYU' : 'HELGDM',
+            validateCode: validateCode,
           }),
         });
       } catch {}
@@ -284,7 +285,7 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
     if (camera.hlsStreamUrl && camera.hlsStreamUrl.includes('.m3u8') && !camera.hlsStreamUrl.includes('localhost')) {
       return camera.hlsStreamUrl;
     }
-    const devSerial = cloudP2pClient.resolveDevice(camera)?.serial || camera.deviceSerial || 'F31700438';
+    const devSerial = camera.deviceSerial || cloudP2pClient.resolveDevice(camera)?.serial || 'F31700438';
     const ch = Math.min(4, Math.max(1, camera.channel || 1));
     return getCachedHlsUrl(ch, devSerial, '2') || getCachedHlsUrl(ch, devSerial, '1');
   });
@@ -304,9 +305,9 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
       setReconnectToast('Buscando señal del DVR HiLook...');
     }
     const ch = Math.min(4, Math.max(1, camera.channel || 1));
-    const devSerial = cloudP2pClient.resolveDevice(camera)?.serial || camera.deviceSerial || 'F31700438';
+    const devSerial = camera.deviceSerial || cloudP2pClient.resolveDevice(camera)?.serial || 'F31700438';
 
-    fetchEzvizLiveHls(ch, devSerial, streamQuality, true).then((res) => {
+    fetchEzvizLiveHls(ch, devSerial, streamQuality, true, camera.verificationCode).then((res) => {
       setIsReconnecting(false);
       if (res.url) {
         setLiveHlsUrl(res.url);
@@ -332,14 +333,14 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
     let cancelled = false;
     const ch = Math.min(4, Math.max(1, camera.channel || 1));
     const deviceSerial =
-      cloudP2pClient.resolveDevice(camera)?.serial || camera.deviceSerial || 'F31700438';
+      camera.deviceSerial || cloudP2pClient.resolveDevice(camera)?.serial || 'F31700438';
 
     if (camera.hlsStreamUrl && camera.hlsStreamUrl.includes('.m3u8') && !camera.hlsStreamUrl.includes('localhost')) {
       setLiveHlsUrl(camera.hlsStreamUrl);
       return;
     }
 
-    fetchEzvizLiveHls(ch, deviceSerial, streamQuality).then((res) => {
+    fetchEzvizLiveHls(ch, deviceSerial, streamQuality, false, camera.verificationCode).then((res) => {
       if (!cancelled) {
         if (res.url) {
           setLiveHlsUrl(res.url);
@@ -371,8 +372,8 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
         countdown = 5;
         setAutoRetrySeconds(5);
         const ch = Math.min(4, Math.max(1, camera.channel || 1));
-        const devSerial = cloudP2pClient.resolveDevice(camera)?.serial || camera.deviceSerial || 'F31700438';
-        fetchEzvizLiveHls(ch, devSerial, streamQuality, true).then((res) => {
+        const devSerial = camera.deviceSerial || cloudP2pClient.resolveDevice(camera)?.serial || 'F31700438';
+        fetchEzvizLiveHls(ch, devSerial, streamQuality, true, camera.verificationCode).then((res) => {
           if (res.url) {
             setLiveHlsUrl(res.url);
             setIsOffline(false);
@@ -400,7 +401,7 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
     const ch = Math.min(4, Math.max(1, camera.channel || 1));
     // Multi-dispositivo: el frame se pide con la serie del equipo de esta cámara.
     const deviceSerial =
-      cloudP2pClient.resolveDevice(camera)?.serial || camera.deviceSerial || '';
+      camera.deviceSerial || cloudP2pClient.resolveDevice(camera)?.serial || '';
 
     const loadFallbackDataUrl = () => {
       const dataUrl = cloudP2pClient.getFallbackDataUrl(ch, deviceSerial);

@@ -149,8 +149,8 @@ export function resolveDeviceForCamera(
 ): RunnerDevice | null {
   if (devices.length === 0) return null;
 
-  const explicit = findDevice(devices, camera.deviceSerial);
-  if (explicit) return explicit;
+  if (camera.deviceSerial) return findDevice(devices, camera.deviceSerial);
+
 
   const haystack = `${camera.cloudId || ''} ${camera.notes || ''}`.toUpperCase();
   if (haystack.trim()) {

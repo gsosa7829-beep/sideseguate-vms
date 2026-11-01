@@ -1106,6 +1106,7 @@ test('resolveDeviceForCamera empareja por serie y nunca adivina con varios equip
   assert.equal(resolveDeviceForCamera({}, devices), null);
   // Un único equipo: no hay ambigüedad posible.
   assert.equal(resolveDeviceForCamera({}, [devices[0]])?.serial, 'AAA111');
+  assert.equal(resolveDeviceForCamera({ deviceSerial: 'FF9363270' }, [devices[0]]), null);
 });
 
 test('buildFramePath usa la ruta corta con un equipo y la namespaced con varios', () => {
