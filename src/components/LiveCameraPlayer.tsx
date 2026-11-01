@@ -83,6 +83,9 @@ export function prewarmHikvisionCameras() {
   fetchEzvizLiveHls(1, 'F31700438', '2');
   fetchEzvizLiveHls(2, 'F31700438', '2');
   fetchEzvizLiveHls(1, 'FF9363270', '2');
+  fetchEzvizLiveCapture(1, 'FF9363270');
+  fetchEzvizLiveCapture(1, 'F31700438');
+  fetchEzvizLiveCapture(2, 'F31700438');
 }
 
 if (typeof window !== 'undefined') {
@@ -166,26 +169,51 @@ export async function fetchEzvizLiveHls(
   }
 }
 
+const CAPTURE_CACHE_STORAGE_KEY = 'sideseguate_ezviz_capture_cache_v2';
+
+function loadPersistedCaptureCache(): Record<string, string> {
+  try {
+    const raw = typeof localStorage !== 'undefined' ? localStorage.getItem(CAPTURE_CACHE_STORAGE_KEY) : null;
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+}
+
+function savePersistedCaptureCache(cache: Record<string, string>) {
+  try {
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem(CAPTURE_CACHE_STORAGE_KEY, JSON.stringify(cache));
+    }
+  } catch {}
+}
+
+const ezvizCaptureCache: Record<string, string> = loadPersistedCaptureCache();
+
 async function fetchEzvizLiveCapture(channel: number, serial: string): Promise<string | null> {
+  const devSerial = serial || 'F31700438';
+  const cacheKey = `${devSerial}_${channel}`;
   try {
     const res = await fetch('https://iusopen.ezvizlife.com/api/lapp/device/capture', {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: new URLSearchParams({
         accessToken: EZVIZ_ACCESS_TOKEN,
-        deviceSerial: serial || 'F31700438',
+        deviceSerial: devSerial,
         channelNo: String(channel),
       }),
     });
-    if (!res.ok) return null;
+    if (!res.ok) return ezvizCaptureCache[cacheKey] || null;
     const data = await res.json();
     if (data.code === '200' && data.data?.picUrl) {
+      ezvizCaptureCache[cacheKey] = data.data.picUrl;
+      savePersistedCaptureCache(ezvizCaptureCache);
       return data.data.picUrl;
     }
   } catch {
     // network or offline
   }
-  return null;
+  return ezvizCaptureCache[cacheKey] || null;
 }
 
 const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
@@ -279,7 +307,22 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
 
   const animFrameRef = useRef<number | null>(null);
   const nativeP2pImgRef = useRef<HTMLImageElement | null>(null);
-  const [nativeP2pReady, setNativeP2pReady] = useState(false);
+  const [nativeP2pReady, setNativeP2pReady] = useState<boolean>(() => {
+    const ch = Math.min(4, Math.max(1, camera.channel || 1));
+    const devSerial = camera.deviceSerial || cloudP2pClient.resolveDevice(camera)?.serial || 'F31700438';
+    const cached = ezvizCaptureCache[`${devSerial}_${ch}`];
+    if (cached) {
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = () => {
+        nativeP2pImgRef.current = img;
+      };
+      img.src = cached;
+      nativeP2pImgRef.current = img;
+      return true;
+    }
+    return false;
+  });
   const [hlsLiveReady, setHlsLiveReady] = useState(false);
   const [liveHlsUrl, setLiveHlsUrl] = useState<string | null>(() => {
     if (camera.hlsStreamUrl && camera.hlsStreamUrl.includes('.m3u8') && !camera.hlsStreamUrl.includes('localhost')) {
@@ -302,10 +345,24 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
   const handleForceReconnect = (userInitiated = true) => {
     setIsReconnecting(true);
     if (userInitiated) {
-      setReconnectToast('Buscando señal del DVR HiLook...');
+      setReconnectToast('Buscando señal en vivo...');
     }
     const ch = Math.min(4, Math.max(1, camera.channel || 1));
     const devSerial = camera.deviceSerial || cloudP2pClient.resolveDevice(camera)?.serial || 'F31700438';
+
+    fetchEzvizLiveCapture(ch, devSerial).then((pic) => {
+      if (pic) {
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        img.onload = () => {
+          nativeP2pImgRef.current = img;
+          setNativeP2pReady(true);
+          setIsOffline(false);
+        };
+        const sep = pic.includes('?') ? '&' : '?';
+        img.src = `${pic}${sep}_t=${Date.now()}`;
+      }
+    });
 
     fetchEzvizLiveHls(ch, devSerial, streamQuality, true, camera.verificationCode).then((res) => {
       setIsReconnecting(false);
@@ -321,7 +378,7 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
         setHlsLiveReady(false);
         setIsOffline(res.isOffline);
         if (userInitiated) {
-          setReconnectToast(res.isOffline ? 'DVR fuera de línea. Reintentando...' : 'Reconectando con la nube...');
+          setReconnectToast(res.isOffline ? 'Equipo fuera de línea. Reintentando...' : 'Reconectando con la nube...');
           setTimeout(() => setReconnectToast(null), 3500);
         }
       }
@@ -456,13 +513,13 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
         return;
       }
 
-      // Si hay HLS activo o en proceso de carga, no saturar el chip del DVR con peticiones de capturas
-      if (liveHlsUrl || hlsLiveReady) {
-        timer = setTimeout(fetchNextFrame, 5000);
+      // Si el reproductor HLS ya está activo y reproduciendo el video en el navegador, no saturar con capturas
+      if (hlsLiveReady) {
+        timer = setTimeout(fetchNextFrame, 3000);
         return;
       }
 
-      // 2. Respaldo de captura única solo si no hay señal HLS
+      // 2. Transmisión continua de fotogramas en vivo vía Cloud P2P
       const livePicUrl = await fetchEzvizLiveCapture(ch, deviceSerial || 'F31700438');
       if (livePicUrl && active) {
         const img = new Image();
@@ -471,13 +528,15 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
           if (!active) return;
           nativeP2pImgRef.current = img;
           setNativeP2pReady(true);
-          timer = setTimeout(fetchNextFrame, 1500);
+          setIsOffline(false);
+          timer = setTimeout(fetchNextFrame, 1000);
         };
         img.onerror = () => {
           if (!active) return;
-          timer = setTimeout(fetchNextFrame, 3000);
+          timer = setTimeout(fetchNextFrame, 2000);
         };
-        img.src = `${livePicUrl}&_t=${Date.now()}`;
+        const sep = livePicUrl.includes('?') ? '&' : '?';
+        img.src = `${livePicUrl}${sep}_t=${Date.now()}`;
         return;
       }
 
@@ -526,6 +585,7 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
       liveHlsUrl
     );
   const hasHls = !!liveHlsUrl && !isDemoTunnelPlaceholder && hlsLiveReady;
+  const hasImage = hasHls || nativeP2pReady;
 
   useEffect(() => {
     setHlsLiveReady(false);
@@ -832,29 +892,31 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
             className={`w-2 h-2 rounded-full shrink-0 ${
               isReconnecting
                 ? 'bg-sky-400 animate-spin'
-                : hasHls
+                : hasImage
                 ? 'bg-emerald-400 animate-pulse'
                 : 'bg-amber-400 animate-ping'
             }`}
           />
           <span
             className={`text-[10px] sm:text-[11px] font-mono font-bold tracking-wider whitespace-nowrap shrink-0 flex items-center gap-1 ${
-              hasHls ? 'text-emerald-400' : 'text-amber-400'
+              hasImage ? 'text-emerald-400' : 'text-amber-400'
             }`}
           >
-            <span className="sm:hidden">{isReconnecting ? 'CONECTANDO…' : hasHls ? 'EN VIVO' : 'RECONECTAR'}</span>
+            <span className="sm:hidden">{isReconnecting ? 'CONECTANDO…' : hasImage ? 'EN VIVO' : 'RECONECTAR'}</span>
             <span className="hidden sm:inline">
               {isReconnecting
                 ? 'RECONECTANDO…'
-                : hasHls
-                ? streamQuality === '1'
-                  ? 'EN VIVO · 1080p FHD'
-                  : 'EN VIVO · SD FLUIDO'
+                : hasImage
+                ? hasHls
+                  ? streamQuality === '1'
+                    ? 'EN VIVO · 1080p FHD'
+                    : 'EN VIVO · SD FLUIDO'
+                  : 'EN VIVO · 4G HD'
                 : 'RECONECTAR SEÑAL'}
             </span>
             <RefreshCw className={`w-2.5 h-2.5 opacity-80 ${isReconnecting ? 'animate-spin text-sky-400' : ''}`} />
           </span>
-          {!isCompact && hasHls && (
+          {!isCompact && hasImage && (
             <span className="hidden md:inline-flex items-center gap-1.5 text-xs font-medium text-white truncate drop-shadow">
               <span className="text-neutral-500 text-xs">·</span>
               <span className="truncate max-w-[160px]">{camera.name}</span>
@@ -923,7 +985,7 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
         </div>
 
         {/* Pantalla Táctica de Reconexión Rápida del DVR */}
-        {(!hasHls || isOffline) && (
+        {(!hasImage || isOffline) && (
           <div className="absolute inset-0 z-30 flex flex-col items-center justify-center p-5 bg-neutral-950/85 backdrop-blur-sm text-center select-none animate-in fade-in duration-200">
             <div className="w-13 h-13 sm:w-14 sm:h-14 rounded-2xl bg-amber-500/15 border border-amber-500/35 flex items-center justify-center mb-3 shadow-lg shadow-amber-500/10">
               <Radio className={`w-6 h-6 sm:w-7 sm:h-7 text-amber-400 ${isReconnecting ? 'animate-spin' : 'animate-pulse'}`} />
