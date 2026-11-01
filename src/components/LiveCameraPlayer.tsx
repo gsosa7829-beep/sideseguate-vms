@@ -515,7 +515,7 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
       }
 
       // Si el reproductor HLS ya está activo y reproduciendo el video en el navegador, no saturar con capturas
-      if (hlsLiveReady && !isHevcCamera) {
+      if (hlsLiveReady) {
         timer = setTimeout(fetchNextFrame, 3000);
         return;
       }
@@ -530,11 +530,11 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
           nativeP2pImgRef.current = img;
           setNativeP2pReady(true);
           setIsOffline(false);
-          timer = setTimeout(fetchNextFrame, 200);
+          timer = setTimeout(fetchNextFrame, 50);
         };
         img.onerror = () => {
           if (!active) return;
-          timer = setTimeout(fetchNextFrame, 800);
+          timer = setTimeout(fetchNextFrame, 400);
         };
         const sep = livePicUrl.includes('?') ? '&' : '?';
         img.src = `${livePicUrl}${sep}_t=${Date.now()}`;
@@ -585,14 +585,13 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
     /sideseguate-[a-z0-9-]*\.trycloudflare\.com|xxxx\.trycloudflare\.com/i.test(
       liveHlsUrl
     );
-  const isHevcCamera = camera.codec === 'H.265';
-  const hasHls = !isHevcCamera && !!liveHlsUrl && !isDemoTunnelPlaceholder && hlsLiveReady;
+  const hasHls = !!liveHlsUrl && !isDemoTunnelPlaceholder && hlsLiveReady;
   const hasImage = hasHls || nativeP2pReady;
 
   useEffect(() => {
     setHlsLiveReady(false);
     const video = videoRef.current;
-    if (isHevcCamera || !liveHlsUrl || isDemoTunnelPlaceholder || !video) return;
+    if (!liveHlsUrl || isDemoTunnelPlaceholder || !video) return;
 
     let hls: Hls | null = null;
     let cancelled = false;
@@ -603,20 +602,20 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
       if (Hls.isSupported()) {
         const isHd = streamQuality === '1';
         hls = new Hls({
-          lowLatencyMode: !isHd,
-          backBufferLength: isHd ? 12 : 6,
-          maxBufferLength: isHd ? 30 : 8,
-          maxMaxBufferLength: isHd ? 50 : 16,
-          liveSyncDurationCount: isHd ? 2 : 3, // Colchón de 3 segmentos para absorber jitter de red sin congelar
-          liveMaxLatencyDurationCount: isHd ? 4 : 6,
-          maxLiveSyncPlaybackRate: 1.0, // ESTABILIDAD ABSOLUTA: 1.0x sin aceleraciones que drenen el búfer
+          lowLatencyMode: false, // 4G celular requiere estabilidad sin drenar el búfer
+          backBufferLength: isHd ? 15 : 10,
+          maxBufferLength: isHd ? 30 : 20, // Búfer amplio para absorber fluctuaciones de red móvil
+          maxMaxBufferLength: isHd ? 60 : 40,
+          liveSyncDurationCount: 3, // Colchón de 3 segmentos (12s) para absorción total de jitter 4G
+          liveMaxLatencyDurationCount: 6,
+          maxLiveSyncPlaybackRate: 1.0, // 1.0x sin saltos ni aceleraciones que vacíen el búfer
           enableWorker: true,
           highBufferWatchdogPeriod: 2,
           nudgeOffset: 0.1,
-          nudgeMaxRetry: 5,
-          fragLoadingTimeOut: 20000,
-          manifestLoadingTimeOut: 20000,
-          levelLoadingTimeOut: 20000,
+          nudgeMaxRetry: 8,
+          fragLoadingTimeOut: 30000,
+          manifestLoadingTimeOut: 30000,
+          levelLoadingTimeOut: 30000,
         });
 
         hls.loadSource(liveHlsUrl);
@@ -633,7 +632,7 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
 
           switch (data.type) {
             case Hls.ErrorTypes.NETWORK_ERROR:
-              console.log('Fallo de red transitorio en cámara, reanudando stream...');
+              console.log('Fallo de red 4G transitorio en cámara, reanudando stream...');
               hls?.startLoad();
               break;
             case Hls.ErrorTypes.MEDIA_ERROR:
@@ -642,10 +641,14 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
               break;
             default:
               console.warn('Reconectando señal HLS sin congelar pantalla...', data.details);
-              hls?.destroy();
-              setTimeout(() => {
-                if (!cancelled) start();
-              }, 600);
+              try {
+                hls?.startLoad();
+              } catch {
+                hls?.destroy();
+                setTimeout(() => {
+                  if (!cancelled) start();
+                }, 1000);
+              }
               break;
           }
         });
@@ -1034,8 +1037,8 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
           className="w-full h-full object-fill select-none"
         />
 
-        {/* Video continuo para cámaras H.264 cuando HLS esté reproduciendo */}
-        {liveHlsUrl && !isHevcCamera && (
+        {/* Video continuo cuando HLS esté reproduciendo */}
+        {liveHlsUrl && !isDemoTunnelPlaceholder && (
           <video
             ref={videoRef}
             className={hasHls ? 'absolute inset-0 w-full h-full object-fill z-10' : 'hidden'}
@@ -1318,11 +1321,11 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
               <span>{aiDetection ? 'Detección ON' : 'Detección OFF'}</span>
             </button>
 
-          {isHevcCamera && (
+          {!hasHls && (
             <div className="col-span-2 p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/25 text-amber-300 text-[11px] leading-relaxed flex items-start gap-2 mb-1">
               <Info className="w-4 h-4 shrink-0 text-amber-400 mt-0.5" />
               <div>
-                <span className="font-semibold">Modo Ráfaga 4G:</span> Transmitiendo instantáneas directas desde la antena celular de la cámara. Para activar video fluido a 25 FPS sin saltos, cambia en la app HiLookVision la codificación a H.264.
+                <span className="font-semibold">Modo Ráfaga 4G:</span> Transmitiendo instantáneas directas desde la antena celular de la cámara mientras se sincroniza el video continuo.
               </div>
             </div>
           )}

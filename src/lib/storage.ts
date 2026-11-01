@@ -55,13 +55,20 @@ export const storage = {
             }
           });
         }
-        const filtered = Array.from(map.values()).filter(
-          (c: any) =>
-            c.id === 'cam-hilook-ch1' ||
-            c.id === 'cam-hilook-ch2' ||
-            c.id === 'cam-ocos-ch1' ||
-            c.deviceSerial === 'FF9363270'
-        );
+        const filtered = Array.from(map.values())
+          .filter(
+            (c: any) =>
+              c.id === 'cam-hilook-ch1' ||
+              c.id === 'cam-hilook-ch2' ||
+              c.id === 'cam-ocos-ch1' ||
+              c.deviceSerial === 'FF9363270'
+          )
+          .map((c: any) => {
+            if (c.id === 'cam-ocos-ch1') {
+              return { ...c, codec: 'H.264' };
+            }
+            return c;
+          });
         if (filtered.length > 0) return filtered;
       }
     } catch {

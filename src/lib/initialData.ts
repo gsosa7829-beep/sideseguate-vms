@@ -77,7 +77,7 @@ export const INITIAL_CAMERAS: Camera[] = [
     fps: 25,
     resolution: '1920x1080 (1080p FHD)',
     bitrateKbps: 2048,
-    codec: 'H.265',
+    codec: 'H.264',
     locationDesc: 'Canal 1 HiLookVision · PROYECTO OCOS (FF9363270)',
     ptzSupported: false,
     nightVision: false,
