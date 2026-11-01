@@ -12,7 +12,20 @@ export const storage = {
   getProjects(): Project[] {
     try {
       const data = localStorage.getItem(STORAGE_KEYS.PROJECTS);
-      if (data) return JSON.parse(data);
+      if (data) {
+        const parsed = JSON.parse(data);
+        const map = new Map<string, Project>();
+        INITIAL_PROJECTS.forEach((p) => map.set(p.id, p));
+        if (Array.isArray(parsed)) {
+          parsed.forEach((p: any) => {
+            if (p && p.id) {
+              const base = map.get(p.id);
+              map.set(p.id, base ? { ...base, ...p } : p);
+            }
+          });
+        }
+        return Array.from(map.values());
+      }
     } catch {
       // fallback
     }
@@ -32,8 +45,22 @@ export const storage = {
       const data = localStorage.getItem(STORAGE_KEYS.CAMERAS);
       if (data) {
         const parsed = JSON.parse(data);
-        const filtered = parsed.filter(
-          (c: any) => c.id === 'cam-hilook-ch1' || c.id === 'cam-hilook-ch2' || c.id === 'cam-ocos-ch1' || c.deviceSerial === 'FF9363270'
+        const map = new Map<string, Camera>();
+        INITIAL_CAMERAS.forEach((c) => map.set(c.id, c));
+        if (Array.isArray(parsed)) {
+          parsed.forEach((c: any) => {
+            if (c && c.id) {
+              const base = map.get(c.id);
+              map.set(c.id, base ? { ...base, ...c } : c);
+            }
+          });
+        }
+        const filtered = Array.from(map.values()).filter(
+          (c: any) =>
+            c.id === 'cam-hilook-ch1' ||
+            c.id === 'cam-hilook-ch2' ||
+            c.id === 'cam-ocos-ch1' ||
+            c.deviceSerial === 'FF9363270'
         );
         if (filtered.length > 0) return filtered;
       }
@@ -57,7 +84,20 @@ export const storage = {
       localStorage.removeItem('sideseguate_share_links_v6');
       localStorage.removeItem('sideseguate_share_links_v7');
       const data = localStorage.getItem(STORAGE_KEYS.SHARE_LINKS);
-      if (data) return JSON.parse(data);
+      if (data) {
+        const parsed = JSON.parse(data);
+        const map = new Map<string, ShareLink>();
+        INITIAL_SHARE_LINKS.forEach((l) => map.set(l.id, l));
+        if (Array.isArray(parsed)) {
+          parsed.forEach((l: any) => {
+            if (l && l.id) {
+              const base = map.get(l.id);
+              map.set(l.id, base ? { ...base, ...l } : l);
+            }
+          });
+        }
+        return Array.from(map.values());
+      }
     } catch {
       // fallback
     }

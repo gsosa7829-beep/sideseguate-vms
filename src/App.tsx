@@ -279,7 +279,13 @@ function AppShell() {
   // Load data from persistent storage + subscribe to Cloud Firestore in real time
   useEffect(() => {
     const loadedProjects = storage.getProjects();
-    let loadedCameras = storage.getCameras().filter(c => c.id === 'cam-hilook-ch1' || c.id === 'cam-hilook-ch2');
+    let loadedCameras = storage.getCameras().filter(
+      (c) =>
+        c.id === 'cam-hilook-ch1' ||
+        c.id === 'cam-hilook-ch2' ||
+        c.id === 'cam-ocos-ch1' ||
+        c.deviceSerial === 'FF9363270'
+    );
     if (loadedCameras.length === 0) loadedCameras = INITIAL_CAMERAS;
     const loadedLinks = storage.getShareLinks();
     const loadedLogs = storage.getAccessLogs();
@@ -325,8 +331,8 @@ function AppShell() {
       }
     } else {
       setLiveBuyerBanner({
-        headline: `Servidor MediaMTX v1.9.3 Conectado en Local (${loadedCameras.length} cámaras vinculadas)`,
-        subline: `Puertos activos en tu PC: RTSP :8554 · HLS Web :8888 · WebRTC WHEP :8889 · API :9997`,
+        headline: `Servidor de Video en Línea (${loadedCameras.length} canales activos)`,
+        subline: `Transmisión continua HD 24/7 sincronizada en tiempo real`,
         severity: 'success',
         timestamp: new Date().toLocaleTimeString('es-GT'),
       });
@@ -419,17 +425,23 @@ function AppShell() {
         // viajan a la nube. Al recibir cámaras desde Firestore hay que
         // re-aplicar los locales para no dejarlas sin credenciales.
         const localById = new Map(storage.getCameras().map((c) => [c.id, c]));
-        const onlyRealCams = cloudCameras.filter(c => c.id === 'cam-hilook-ch1' || c.id === 'cam-hilook-ch2');
-        const enriched = (onlyRealCams.length > 0 ? onlyRealCams : INITIAL_CAMERAS).map((cam) => {
+        const validIds = new Set(['cam-hilook-ch1', 'cam-hilook-ch2', 'cam-ocos-ch1']);
+        const onlyRealCams = cloudCameras.filter(
+          (c) => validIds.has(c.id) || c.deviceSerial === 'FF9363270' || c.deviceSerial === 'F31700438'
+        );
+        const cloudIds = new Set(onlyRealCams.map((c) => c.id));
+        const mergedCams = [...onlyRealCams, ...INITIAL_CAMERAS.filter((c) => !cloudIds.has(c.id))];
+        const enriched = (mergedCams.length > 0 ? mergedCams : INITIAL_CAMERAS).map((cam) => {
           const { hlsUrl, webrtcUrl } = resolveStreamUrls(cam, gatewayNow);
           const local = localById.get(cam.id);
+          const initial = INITIAL_CAMERAS.find((c) => c.id === cam.id);
           return {
             ...cam,
-            username: local?.username || cam.username || '',
-            password: local?.password ?? cam.password ?? '',
-            rtspUrl: local?.rtspUrl || cam.rtspUrl || '',
-            verificationCode: local?.verificationCode || '',
-            deviceSerial: cam.deviceSerial || local?.deviceSerial,
+            username: local?.username || cam.username || initial?.username || '',
+            password: local?.password ?? cam.password ?? initial?.password ?? '',
+            rtspUrl: local?.rtspUrl || cam.rtspUrl || initial?.rtspUrl || '',
+            verificationCode: local?.verificationCode || initial?.verificationCode || '',
+            deviceSerial: cam.deviceSerial || local?.deviceSerial || initial?.deviceSerial,
             hlsStreamUrl: hlsUrl,
             webrtcUrl,
           };
