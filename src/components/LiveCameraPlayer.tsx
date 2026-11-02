@@ -465,12 +465,10 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
 
       try {
         const rect = container.getBoundingClientRect();
-        const dpr = Math.min(window.devicePixelRatio || 1, 2);
-        const baseWidth = Math.round(rect.width || container.clientWidth || window.innerWidth || 640);
-        const isHd = streamQuality === '1';
-        // En HD pasar resolución nativa 16:9 nítida (1280x720) para evitar submuestreo borroso en pantallas móviles retina
-        const width = isHd ? 1280 : Math.max(320, Math.round(baseWidth * dpr));
-        const height = isHd ? 720 : Math.max(180, Math.round((width * 9) / 16));
+        const clientW = Math.round(rect.width || container.clientWidth || 640);
+        const clientH = Math.round(rect.height || container.clientHeight || 360);
+        const width = Math.max(320, clientW);
+        const height = Math.max(180, clientH);
 
         const player = new EZUIKit.EZUIKitPlayer({
           id: ezuikitContainerId,
@@ -481,6 +479,7 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
           height: height,
           autoplay: true,
           audio: 0, // Cumplimiento de política autoplay móvil: siempre inicia silenciado
+          scaleMode: 1, // 1 = CONTAIN (Preserva la geometría y relación de aspecto natural 100% sin estirar en PC y móvil)
           handleSuccess: () => {
             if (!active) return;
             setEzuikitLiveReady(true);
@@ -911,7 +910,26 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
         }
         ctx.imageSmoothingEnabled = true;
         ctx.imageSmoothingQuality = 'high';
-        ctx.drawImage(p2pImg, 0, 0, width, height);
+
+        // Mantener proporción de aspecto natural exacta sin estirar la imagen en PC ni móvil
+        const imgW = p2pImg.naturalWidth;
+        const imgH = p2pImg.naturalHeight;
+        const imgRatio = imgW / imgH;
+        const canvasRatio = width / height;
+        let drawW = width;
+        let drawH = height;
+        let offsetX = 0;
+        let offsetY = 0;
+
+        if (imgRatio > canvasRatio) {
+          drawH = width / imgRatio;
+          offsetY = (height - drawH) / 2;
+        } else {
+          drawW = height * imgRatio;
+          offsetX = (width - drawW) / 2;
+        }
+
+        ctx.drawImage(p2pImg, offsetX, offsetY, drawW, drawH);
         ctx.filter = 'none';
       } else if (
         ivmsBridgeActive &&
@@ -1445,7 +1463,7 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
         {!isEzopenDevice && liveHlsUrl && !isDemoTunnelPlaceholder && (
           <video
             ref={videoRef}
-            className={hasHls ? 'absolute inset-0 w-full h-full object-fill z-10' : 'hidden'}
+            className={hasHls ? 'absolute inset-0 w-full h-full object-contain z-10' : 'hidden'}
             muted={true}
             playsInline
             autoPlay
@@ -1490,11 +1508,11 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
             style={
               digitalZoom * ptzZoom > 1 || ptzPan !== 0 || ptzTilt !== 0
                 ? {
-                    objectFit: 'fill',
+                    objectFit: 'contain',
                     transform: `scale(${digitalZoom * ptzZoom}) translate(${ptzPan * 0.5}px, ${ptzTilt * 0.5}px)`,
                     transition: 'transform 0.15s ease-out',
                   }
-                : { objectFit: 'fill' }
+                : { objectFit: 'contain' }
             }
           />
         )}

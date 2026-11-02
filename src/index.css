@@ -255,11 +255,11 @@
 .ezuikit-live-player canvas,
 .ezuikit-live-player video,
 .ezuikit-live-player iframe {
-  width: 100% !important;
-  height: 100% !important;
-  object-fit: contain !important;
-  display: block !important;
   max-width: 100% !important;
   max-height: 100% !important;
+  width: auto !important;
+  height: auto !important;
+  object-fit: contain !important;
+  display: block !important;
   margin: auto !important;
 }
