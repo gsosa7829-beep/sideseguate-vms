@@ -465,10 +465,12 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
 
       try {
         const rect = container.getBoundingClientRect();
-        const clientW = Math.round(rect.width || container.clientWidth || 640);
-        const clientH = Math.round(rect.height || container.clientHeight || 360);
-        const width = Math.max(320, clientW);
-        const height = Math.max(180, clientH);
+        const dpr = Math.min(window.devicePixelRatio || 1, 2);
+        const baseWidth = Math.round(rect.width || container.clientWidth || window.innerWidth || 640);
+        const isHd = streamQuality === '1';
+        // En HD pasar resolución nativa 16:9 nítida (1280x720) para evitar submuestreo y asegurar escala completa en PC y móvil
+        const width = isHd ? 1280 : Math.max(320, Math.round(baseWidth * dpr));
+        const height = isHd ? 720 : Math.max(180, Math.round((width * 9) / 16));
 
         const player = new EZUIKit.EZUIKitPlayer({
           id: ezuikitContainerId,
