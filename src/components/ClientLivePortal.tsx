@@ -23,6 +23,7 @@ import {
   Smartphone,
   MessageSquare,
   Download,
+  Video,
 } from 'lucide-react';
 
 type FailureReason = 'expired' | 'inactive' | 'invalid_pin' | 'pin_required' | 'not_found';
@@ -156,16 +157,13 @@ export const ClientLivePortal: React.FC<ClientLivePortalProps> = ({
     return () => clearInterval(interval);
   }, []);
 
-  const verification = verifyShareLink(activeShareLink, pinInput, pinVerified, nowTick);
+  const verification = verifyShareLink(activeShareLink, pinInput);
   const needsPin = Boolean(activeShareLink?.pinCode && !pinVerified);
 
   useEffect(() => {
     if (verification.valid && activeShareLink?.token && recordedAccessTokenRef.current !== activeShareLink.token) {
       recordedAccessTokenRef.current = activeShareLink.token;
-      recordCloudShareLinkAccess(activeShareLink.token, {
-        action: 'stream_started',
-        durationSeconds: 0,
-      }).catch((err) => {
+      recordCloudShareLinkAccess(activeShareLink, 'stream_started').catch((err) => {
         console.warn('No se pudo registrar telemetría de acceso:', err?.message || err);
       });
     }
@@ -206,7 +204,7 @@ export const ClientLivePortal: React.FC<ClientLivePortalProps> = ({
           <div className="w-12 h-12 rounded-xl border-2 border-neutral-700 border-t-sky-500 animate-spin" />
           <div className="text-center">
             <h2 className="text-base font-semibold text-white">Conectando con cámara en vivo...</h2>
-            <p className="text-xs text-neutral-400 mt-1">Sintonizando señal segura SIDESEGUATE</p>
+            <p className="text-xs text-neutral-400 mt-1">Sintonizando señal segura en vivo...</p>
           </div>
         </div>
       </div>
@@ -267,7 +265,7 @@ export const ClientLivePortal: React.FC<ClientLivePortalProps> = ({
 
           <div className="pt-2 border-t border-neutral-800 text-[11px] text-neutral-500 flex items-center justify-center gap-1.5">
             <ShieldCheck className="w-4 h-4 text-emerald-500" />
-            <span>Monitoreo SIDESEGUATE Guatemala</span>
+            <span>Monitoreo de Cámaras en Vivo</span>
           </div>
         </div>
       </div>
@@ -279,12 +277,8 @@ export const ClientLivePortal: React.FC<ClientLivePortalProps> = ({
     return (
       <div className="min-h-dvh bg-neutral-950 text-neutral-100 flex flex-col items-center justify-center p-6">
         <div className="max-w-md w-full bg-neutral-900 border border-neutral-800 rounded-2xl p-8 shadow-2xl">
-          <div className="relative w-16 h-16 rounded-2xl bg-white mx-auto mb-4 flex items-center justify-center shadow-xl">
-            <img 
-              src={LOGO_URL} 
-              alt="SIDESEGUATE" 
-              className="w-full h-full rounded-2xl object-cover"
-            />
+          <div className="relative w-16 h-16 rounded-2xl bg-sky-950/80 border border-sky-500/40 mx-auto mb-4 flex items-center justify-center shadow-xl text-sky-400">
+            <Video className="w-8 h-8" />
             <div className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-sky-600 border-2 border-neutral-900 flex items-center justify-center text-white">
               <KeyRound className="w-3.5 h-3.5" />
             </div>
@@ -359,16 +353,12 @@ export const ClientLivePortal: React.FC<ClientLivePortalProps> = ({
         <div className="max-w-7xl mx-auto flex items-center justify-between gap-2.5">
           {/* SIDESEGUATE Branding */}
           <div className="flex items-center gap-2.5 min-w-0 flex-1">
-            <div className="w-8 h-8 rounded-lg overflow-hidden bg-white flex items-center justify-center shrink-0 shadow-sm">
-              <img 
-                src={LOGO_URL} 
-                alt="SIDESEGUATE Logo" 
-                className="w-full h-full object-cover"
-              />
+            <div className="w-8 h-8 rounded-lg bg-sky-950/80 border border-sky-500/40 flex items-center justify-center shrink-0 text-sky-400 shadow-sm">
+              <Video className="w-4 h-4" />
             </div>
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-1.5">
-                <h1 className="text-sm font-bold text-white tracking-tight">SIDESEGUATE</h1>
+                <h1 className="text-sm font-bold text-white tracking-tight">Proyecto de Cámaras</h1>
                 <span className="text-neutral-600 text-xs font-mono">/</span>
                 <span className="text-xs text-emerald-400 font-semibold flex items-center gap-1 shrink-0">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
@@ -536,7 +526,7 @@ export const ClientLivePortal: React.FC<ClientLivePortalProps> = ({
             <div className="flex flex-col sm:flex-row gap-3 mt-1">
               <a
                 href={buildWhatsAppUrl({
-                  text: `Hola SIDESEGUATE, estoy viendo la transmisión en vivo de la cámara "${selectedCamera?.name || 'Cámara'}" (Canal ${selectedCamera?.channel || 1}) y deseo reportar una novedad:`,
+                  text: `Hola, estoy viendo la transmisión en vivo de la cámara "${selectedCamera?.name || 'Cámara'}" (Canal ${selectedCamera?.channel || 1}) y deseo reportar una novedad:`,
                   phone: project?.clientPhone || null,
                 })}
                 target="_blank"
@@ -568,7 +558,7 @@ export const ClientLivePortal: React.FC<ClientLivePortalProps> = ({
               ) : (
                 <div className="min-h-[48px] px-3.5 py-2 bg-neutral-900/60 border border-neutral-800 rounded-xl flex items-center justify-center gap-2 text-xs text-neutral-400 flex-1">
                   <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />
-                  <span className="text-xs">Transmisión Segura 24/7 SIDESEGUATE</span>
+                  <span className="text-xs">Transmisión Segura 24/7</span>
                 </div>
               )}
             </div>
@@ -629,7 +619,7 @@ export const ClientLivePortal: React.FC<ClientLivePortalProps> = ({
             <div className="flex flex-col sm:flex-row gap-3 mt-1">
               <a
                 href={buildWhatsAppUrl({
-                  text: `Hola SIDESEGUATE, estoy viendo la transmisión en vivo de la cámara "${selectedCamera?.name || 'Cámara'}" (Canal ${selectedCamera?.channel || 1}) y deseo reportar una novedad:`,
+                  text: `Hola, estoy viendo la transmisión en vivo de la cámara "${selectedCamera?.name || 'Cámara'}" (Canal ${selectedCamera?.channel || 1}) y deseo reportar una novedad:`,
                   phone: project?.clientPhone || null,
                 })}
                 target="_blank"
@@ -661,7 +651,7 @@ export const ClientLivePortal: React.FC<ClientLivePortalProps> = ({
               ) : (
                 <div className="min-h-[48px] px-3.5 py-2 bg-neutral-900/60 border border-neutral-800 rounded-xl flex items-center justify-center gap-2 text-xs text-neutral-400 flex-1">
                   <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />
-                  <span className="text-xs">Transmisión Segura 24/7 SIDESEGUATE</span>
+                  <span className="text-xs">Transmisión Segura 24/7</span>
                 </div>
               )}
             </div>
@@ -709,7 +699,7 @@ export const ClientLivePortal: React.FC<ClientLivePortalProps> = ({
                   Transmisión Protegida
                 </div>
                 <p>
-                  Esta transmisión es estrictamente confidencial. La plataforma SIDESEGUATE sincroniza su enlace en tiempo real con marca de agua digital.
+                  Esta transmisión es confidencial. La plataforma sincroniza su enlace en tiempo real con marca de agua digital.
                 </p>
               </div>
             </div>
@@ -737,7 +727,7 @@ export const ClientLivePortal: React.FC<ClientLivePortalProps> = ({
       {/* Footer */}
       <footer className="bg-neutral-900 border-t border-neutral-800 px-4 py-3 text-center text-xs text-neutral-500">
         <p>
-          © 2026 SIDESEGUATE • Videovigilancia y Monitoreo en Vivo • Ciudad de Guatemala
+          © 2026 Proyecto de Cámaras • Videovigilancia y Monitoreo en Vivo
         </p>
       </footer>
     </div>

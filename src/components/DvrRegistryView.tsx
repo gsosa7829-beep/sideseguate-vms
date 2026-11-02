@@ -106,7 +106,7 @@ export const DvrRegistryView: React.FC<DvrRegistryViewProps> = ({
 
   const handleCopySummary = (device: ClientDeviceRequest) => {
     const text =
-      `Equipo autorizado en SIDESEGUATE\n` +
+      `Equipo autorizado en la plataforma\n` +
       `Alias: ${device.alias}\n` +
       `Cliente: ${device.clientName}\n` +
       `Serie: ${device.serialNumber}\n` +
@@ -267,7 +267,7 @@ export const DvrRegistryView: React.FC<DvrRegistryViewProps> = ({
           <div className="bg-emerald-950/50 border border-emerald-700/50 rounded-xl p-2.5 flex items-start gap-2 text-[11px] text-emerald-200">
             <Check className="w-3.5 h-3.5 shrink-0 mt-0.5 text-emerald-400" />
             <span>
-              Solicitud enviada. Un técnico de SIDESEGUATE la revisará y te avisará cuando
+              Solicitud enviada. Un técnico la revisará y te avisará cuando
               tus cámaras estén visibles.
             </span>
           </div>

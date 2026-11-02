@@ -86,7 +86,7 @@ export const AdminLoginScreen: React.FC<AdminLoginScreenProps> = ({
           <div>
             <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-sky-950/80 border border-sky-500/30 text-[10px] font-mono font-semibold text-sky-400 mb-1">
               <Server className="w-2.5 h-2.5" />
-              <span>SIDESEGUATE VMS</span>
+              <span>PROYECTO DE CÁMARAS</span>
             </div>
             <h1 className="text-lg sm:text-xl font-bold text-white tracking-tight">
               Acceso al Panel
@@ -192,7 +192,7 @@ export const AdminLoginScreen: React.FC<AdminLoginScreenProps> = ({
         {/* Security footnote */}
         <div className="text-center text-[10px] font-mono text-neutral-500 flex items-center justify-center gap-1.5 pt-1 border-t border-neutral-850">
           <Shield className="w-3 h-3 text-emerald-500" />
-          <span>SIDESEGUATE · Acceso Protegido y Cifrado</span>
+          <span>Acceso Protegido y Cifrado</span>
         </div>
       </div>
     </div>

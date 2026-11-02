@@ -89,7 +89,7 @@ export function verifyShareLink(link: ShareLink | null | undefined, providedPin?
     return {
       valid: false,
       reason: 'inactive',
-      message: 'Este enlace de transmisión fue pausado por el administrador de SIDESEGUATE. Solicita que lo reactive.'
+      message: 'Este enlace de transmisión fue pausado por el administrador. Solicita que lo reactive.'
     };
   }
 
@@ -100,7 +100,7 @@ export function verifyShareLink(link: ShareLink | null | undefined, providedPin?
       return {
         valid: false,
         reason: 'expired',
-        message: 'El enlace de acceso ha expirado. Comuníquese con SIDESEGUATE para renovarlo.'
+        message: 'El enlace de acceso ha expirado. Comuníquese con el administrador para renovarlo.'
       };
     }
   }
@@ -190,7 +190,7 @@ export function createFlashTemporaryLink(params: {
     id: `link-flash-${now}`,
     projectId: params.projectId,
     token,
-    title: params.title || `Vista Relámpago (${safeSeconds} seg) - SIDESEGUATE`,
+    title: params.title || `Vista Relámpago (${safeSeconds} seg) - Cámaras en Vivo`,
     clientName: params.clientName || 'Demostración Rápida',
     cameraIds: params.cameraIds,
     expiresAt: expiresAtIso,

@@ -50,8 +50,8 @@ export default defineConfig(() => {
         ],
         manifest: {
           id: '/',
-          name: 'SIDESEGUATE VMS - Programa de Videovigilancia PC',
-          short_name: 'SIDESEGUATE',
+          name: 'Proyecto de Cámaras - Monitoreo en Vivo',
+          short_name: 'Cámaras en Vivo',
           description:
             'Programa de monitoreo de cámaras Hikvision y generación de enlaces en vivo para clientes.',
           theme_color: '#0a0a0a',

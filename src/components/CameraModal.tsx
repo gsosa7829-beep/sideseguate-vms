@@ -197,7 +197,7 @@ export const CameraModal: React.FC<CameraModalProps> = ({
                 {initialCamera ? 'Editar Equipo de Videovigilancia' : 'Registrar Cámara / DVR (RTSP/ONVIF)'}
               </h2>
               <p className="text-xs text-neutral-400">
-                SIDESEGUATE Video Gateway • Conversión a HLS/WebRTC para streaming sin apps
+                Pasarela de Video • Conversión a HLS/WebRTC para streaming sin apps
               </p>
             </div>
           </div>
@@ -340,7 +340,7 @@ export const CameraModal: React.FC<CameraModalProps> = ({
                   required
                   value={host}
                   onChange={(e) => setHost(e.target.value)}
-                  placeholder="190.86.12.34 o dvr.sideseguate.com"
+                  placeholder="190.86.12.34 o dvr.ejemplo.com"
                   className="w-full bg-neutral-900 border border-neutral-700 rounded-lg px-3 py-1.5 text-white font-mono focus:border-sky-500 focus:outline-none"
                 />
               </div>

@@ -628,7 +628,7 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
                   <div className="flex items-center justify-between bg-neutral-900 border border-neutral-800 rounded-lg px-3 py-2">
                     <div className="min-w-0">
                       <div className="font-medium text-white truncate">
-                        {cloudUser.displayName || 'Operador SIDESEGUATE'}
+                        {cloudUser.displayName || 'Operador'}
                       </div>
                       <div className="text-[11px] text-neutral-400 font-mono truncate">
                         {cloudUser.email}

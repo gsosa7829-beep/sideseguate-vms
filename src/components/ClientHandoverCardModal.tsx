@@ -20,6 +20,7 @@ import {
   Lock,
   ExternalLink,
   ShieldCheck,
+  Video,
 } from 'lucide-react';
 
 interface ClientHandoverCardModalProps {
@@ -125,7 +126,7 @@ export const ClientHandoverCardModal: React.FC<ClientHandoverCardModalProps> = (
           <div className="flex items-center gap-2.5">
             <img
               src={LOGO_URL}
-              alt="SIDESEGUATE Logo"
+              alt="Proyecto de Cámaras"
               referrerPolicy="no-referrer"
               className="w-8 h-8 rounded-lg object-cover bg-white shrink-0 shadow-sm"
             />
@@ -180,7 +181,7 @@ export const ClientHandoverCardModal: React.FC<ClientHandoverCardModalProps> = (
                 <div className="w-8 h-8 rounded-md bg-white overflow-hidden shadow border border-neutral-200 flex items-center justify-center">
                   <img
                     src={LOGO_URL}
-                    alt="SIDESEGUATE"
+                    alt="Proyecto de Cámaras"
                     referrerPolicy="no-referrer"
                     className="w-full h-full object-cover"
                   />
@@ -192,7 +193,7 @@ export const ClientHandoverCardModal: React.FC<ClientHandoverCardModalProps> = (
             <div className="flex-1 min-w-0 space-y-2.5 text-center sm:text-left">
               <div>
                 <div className="text-[11px] text-neutral-400 font-medium">
-                  SIDESEGUATE · Videovigilancia Web
+                  Proyecto de Cámaras · Videovigilancia Web
                 </div>
                 <h3 className="text-base font-bold text-white truncate">
                   {shareLink.title}

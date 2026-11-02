@@ -896,7 +896,7 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
 
       // Watermark if required
       if (showWatermark) {
-        drawWatermarkOverlay(ctx, width, height, watermarkText || 'PORTAL CLIENTE SIDESEGUATE');
+        drawWatermarkOverlay(ctx, width, height, watermarkText || 'PROYECTO DE CÁMARAS');
       }
 
       animFrameRef.current = requestAnimationFrame(render);
@@ -954,7 +954,7 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
 
       const link = document.createElement('a');
       const dateStr = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
-      link.download = `SIDESEGUATE_${camera.name.replace(/\s+/g, '_')}_${dateStr}.jpg`;
+      link.download = `CAM_${camera.name.replace(/\s+/g, '_')}_${dateStr}.jpg`;
       link.href = dataUrl;
       link.click();
 
@@ -1822,7 +1822,7 @@ function drawOsd(
 
   const textWidth = ctx.measureText(timeString).width;
   ctx.fillText(timeString, w - textWidth - 16, h - 18);
-  ctx.fillText(`SIDESEGUATE · CH${camera.channel} · ${camera.codec}`, 16, h - 18);
+  ctx.fillText(`EN VIVO · CH${camera.channel} · ${camera.codec}`, 16, h - 18);
 
   ctx.restore();
 }
@@ -1840,7 +1840,7 @@ function drawWatermarkOverlay(
 
   ctx.translate(w / 2, h / 2);
   ctx.rotate(-Math.PI / 8);
-  ctx.fillText(`SIDESEGUATE SEGURIDAD · ${text.toUpperCase()}`, 0, -55);
+  ctx.fillText(`VIGILANCIA EN VIVO · ${text.toUpperCase()}`, 0, -55);
   ctx.fillText(`TRANSMISIÓN PRIVADA EN VIVO`, 0, 55);
 
   ctx.restore();

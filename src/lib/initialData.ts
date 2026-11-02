@@ -156,6 +156,7 @@ export const INITIAL_SHARE_LINKS: ShareLink[] = [
     showWatermark: true,
     maxConcurrentViewers: 10,
     accessCount: 0,
+    lastAccessedAt: null,
     createdAt: new Date().toISOString(),
   },
   {
@@ -173,6 +174,7 @@ export const INITIAL_SHARE_LINKS: ShareLink[] = [
     showWatermark: true,
     maxConcurrentViewers: 10,
     accessCount: 1,
+    lastAccessedAt: null,
     createdAt: new Date().toISOString(),
   },
 ];

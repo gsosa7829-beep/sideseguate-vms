@@ -236,7 +236,7 @@ export const SadpScannerView: React.FC = () => {
           <div className="grid grid-cols-2 gap-3 text-xs font-mono tabular-nums">
             <div className="bg-neutral-950 p-3 rounded-lg border border-neutral-850">
               <span className="text-[10px] text-neutral-400 block">
-                CON GATEWAY SIDESEGUATE
+                CON GATEWAY CENTRAL
               </span>
               <span className="text-base font-bold text-emerald-400">
                 {(bwReport.dvrUploadWithGatewayKbps / 1024).toFixed(1)} Mbps

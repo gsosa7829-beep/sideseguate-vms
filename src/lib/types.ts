@@ -73,7 +73,7 @@ export interface ShareLink {
   showWatermark: boolean;
   maxConcurrentViewers: number;
   accessCount: number;
-  lastAccessedAt: string | null;
+  lastAccessedAt?: string | null;
   createdAt: string;
 }
 

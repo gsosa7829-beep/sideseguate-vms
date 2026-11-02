@@ -80,7 +80,7 @@ export const DesktopProgramModal: React.FC<DesktopProgramModalProps> = ({
 
   const unifiedBatchContent = generateWindowsProgramBatch({
     appUrl,
-    companyName: 'SIDESEGUATE',
+    companyName: 'Proyecto de Cámaras',
     includeMediaMtx,
     createDesktopShortcut,
     enableWindowsAutoStart,
@@ -115,11 +115,11 @@ export const DesktopProgramModal: React.FC<DesktopProgramModalProps> = ({
     if (isInstallable) {
       const accepted = await install();
       if (accepted && onShowToast) {
-        onShowToast('Programa SIDESEGUATE instalado en el Escritorio de tu PC');
+        onShowToast('Acceso directo instalado en el Escritorio de tu PC');
       }
       return;
     }
-    triggerDownload('SIDESEGUATE-Acceso-Directo.url', shortcutContent);
+    triggerDownload('Acceso-Directo-Camaras.url', shortcutContent);
   };
 
   const handleCopyUnifiedScript = () => {
@@ -171,7 +171,7 @@ export const DesktopProgramModal: React.FC<DesktopProgramModalProps> = ({
             <div>
               <div className="flex items-center gap-2 flex-wrap">
                 <h2 className="text-sm sm:text-base font-bold text-white">
-                  SIDESEGUATE VMS — Programa Nativo Unificado para PC (Todo-en-Uno)
+                  VMS Monitoreo — Programa Nativo Unificado para PC (Todo-en-Uno)
                 </h2>
                 <span className="text-[11px] font-mono text-emerald-400 flex items-center gap-1">
                   <CheckCircle2 className="w-3.5 h-3.5" /> 1 Solo Archivo · Auto-Sync 4G sin Copiar/Pegar
@@ -205,7 +205,7 @@ export const DesktopProgramModal: React.FC<DesktopProgramModalProps> = ({
                   Un solo archivo <code className="text-sky-300 font-mono">.BAT</code> que instala, detecta el Túnel 4G y sincroniza la nube solo
                 </h3>
                 <p className="text-xs text-neutral-400 mt-0.5 leading-relaxed">
-                  Este instalador único crea la carpeta <code className="text-sky-300 font-mono">C:\Usuarios\TuUsuario\SIDESEGUATE-VMS</code>, autogenera tus {cameras.length} cámaras Hikvision, lee automáticamente la URL de <code className="text-emerald-300 font-mono">cloudflared.exe</code> sin que tengas que copiar ni pegar nada, y la sube directo a Google Cloud Firestore.
+                  Este instalador único crea la carpeta <code className="text-sky-300 font-mono">C:\Usuarios\TuUsuario\VMS-Camaras</code>, autogenera tus {cameras.length} cámaras Hikvision, lee automáticamente la URL de <code className="text-emerald-300 font-mono">cloudflared.exe</code> sin que tengas que copiar ni pegar nada, y la sube directo a Google Cloud Firestore.
                 </p>
               </div>
             </div>
@@ -215,7 +215,7 @@ export const DesktopProgramModal: React.FC<DesktopProgramModalProps> = ({
               <button
                 type="button"
                 onClick={() =>
-                  triggerDownload('SIDESEGUATE-Instalador-Unico-PC.bat', unifiedBatchContent)
+                  triggerDownload('Instalador-Camaras-PC.bat', unifiedBatchContent)
                 }
                 className="py-3 px-4 bg-sky-600 hover:bg-sky-500 text-white rounded-xl font-bold flex items-center justify-center gap-2 transition shadow-lg text-xs sm:text-sm cursor-pointer"
               >
@@ -277,7 +277,7 @@ export const DesktopProgramModal: React.FC<DesktopProgramModalProps> = ({
                       1. Icono en Escritorio + Ventana Nativa (<code className="font-mono text-sky-300">--app</code>)
                     </span>
                     <span className="text-[11px] text-neutral-400">
-                      Crea el icono <code className="font-mono text-neutral-300">SIDESEGUATE VMS</code> y abre sin barra de navegador.
+                      Crea el icono <code className="font-mono text-neutral-300">VMS Cámaras</code> y abre sin barra de navegador.
                     </span>
                   </div>
                 </label>
@@ -527,7 +527,7 @@ export const DesktopProgramModal: React.FC<DesktopProgramModalProps> = ({
           <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={() => triggerDownload('SIDESEGUATE-Acceso-Directo.url', shortcutContent)}
+              onClick={() => triggerDownload('Acceso-Directo-Camaras.url', shortcutContent)}
               className="px-3 py-1.5 bg-neutral-900 hover:bg-neutral-800 text-neutral-300 border border-neutral-800 rounded-lg font-medium flex items-center gap-1.5 transition cursor-pointer"
             >
               <Laptop className="w-3.5 h-3.5 text-sky-400" />

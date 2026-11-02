@@ -44,7 +44,7 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
     const proj: Project = {
       id: initialProject?.id || `proj-${Date.now()}`,
       name: name.trim() || 'Demo de Cámaras para Cliente',
-      clientName: clientName.trim() || 'Cliente SIDESEGUATE',
+      clientName: clientName.trim() || 'Cliente',
       clientPhone: clientPhone.trim() || '+502 ',
       location: location.trim() || 'Ciudad de Guatemala',
       status,

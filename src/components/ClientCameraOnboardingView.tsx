@@ -21,6 +21,7 @@ import {
   Wifi,
   ArrowLeft,
   Sparkles,
+  Video,
   ExternalLink,
   Layers,
   KeyRound,
@@ -56,7 +57,7 @@ export const ClientCameraOnboardingView: React.FC<ClientCameraOnboardingViewProp
   const initialProj =
     projects.find((p) => p.id === defaultProjectId) || projects[0] || {
       id: 'proj-sideseguate-01',
-      name: 'Cliente SIDESEGUATE',
+      name: 'Cliente',
       clientName: 'Cliente Autorizado',
       clientPhone: '+502',
       location: 'Guatemala',
@@ -69,7 +70,7 @@ export const ClientCameraOnboardingView: React.FC<ClientCameraOnboardingViewProp
   const currentProject = projects.find((p) => p.id === selectedProjectId) || initialProj;
 
   // Form fields for Client Self-Service Camera Registration (Pre-filled with real client hardware)
-  const [clientName, setClientName] = useState<string>(currentProject.clientName || 'Ingeniería SIDESEGUATE');
+  const [clientName, setClientName] = useState<string>(currentProject.clientName || 'Monitoreo de Cámaras');
   const [cameraNamePrefix, setCameraNamePrefix] = useState<string>('EQUIPO DE PRUEBA (FB2200254)');
   const [locationDesc, setLocationDesc] = useState<string>(currentProject.location || 'Red Local 192.168.1.41');
   const [brand, setBrand] = useState<ClientCameraSubmissionInput['brand']>('hikvision_dvr');
@@ -111,7 +112,7 @@ export const ClientCameraOnboardingView: React.FC<ClientCameraOnboardingViewProp
 
   const getWhatsAppOnboardingShareUrl = () => {
     const url = getOnboardingUrl(selectedProjectId);
-    const msg = `Hola ${currentProject.clientName}, te comparto el Portal de Auto-Registro de Cámaras de SIDESEGUATE:\n\n${url}\n\nDesde ahí puedes ingresar fácilmente la IP, usuario y canales de tus cámaras o DVR para que nuestro servidor las agregue automáticamente en vivo.`;
+    const msg = `Hola ${currentProject.clientName}, te comparto el Portal de Auto-Registro de Cámaras:\n\n${url}\n\nDesde ahí puedes ingresar fácilmente la IP, usuario y canales de tus cámaras o DVR para que nuestro servidor las agregue automáticamente en vivo.`;
     return buildWhatsAppUrl({ text: msg, phone: currentProject.clientPhone });
   };
 
@@ -181,14 +182,14 @@ export const ClientCameraOnboardingView: React.FC<ClientCameraOnboardingViewProp
               <div className="w-11 h-11 rounded-xl overflow-hidden bg-white flex items-center justify-center shrink-0 border border-sky-500/40 shadow-sm">
                 <img
                   src={LOGO_URL}
-                  alt="SIDESEGUATE"
+                  alt="Proyecto de Cámaras"
                   className="w-full h-full object-cover"
                 />
               </div>
               <div>
                 <div className="flex items-center gap-2">
                   <span className="text-xs font-mono uppercase tracking-wider text-sky-400 font-semibold">
-                    SIDESEGUATE · Portal de Autogestión
+                    Portal de Cámaras · Autogestión
                   </span>
                   <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
                 </div>

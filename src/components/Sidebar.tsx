@@ -1,5 +1,4 @@
 import React from 'react';
-import { LOGO_URL } from '../lib/assets';
 import { NavigationTab } from '../lib/types';
 import { NAV_SECTIONS, sectionOfTab, defaultTabOfSection } from '../lib/navigation';
 import {
@@ -7,6 +6,7 @@ import {
   Smartphone,
   ChevronLeft,
   ChevronRight,
+  Video,
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -63,17 +63,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
         {/* Marca */}
         <div className="h-14 border-b border-neutral-800/90 px-3 flex items-center justify-between gap-2 bg-neutral-900/40">
           <div className="flex items-center gap-2.5 overflow-hidden">
-            <div className="relative w-8 h-8 rounded-lg overflow-hidden bg-white flex items-center justify-center shrink-0 border border-sky-500/40">
-              <img
-                src={LOGO_URL}
-                alt=""
-                referrerPolicy="no-referrer"
-                className="w-full h-full object-cover"
-              />
+            <div className="w-8 h-8 rounded-lg bg-sky-950/80 border border-sky-500/40 flex items-center justify-center shrink-0 text-sky-400 shadow-sm">
+              <Video className="w-4 h-4" />
             </div>
             {!isCollapsed && (
               <span className="font-display font-bold text-sm text-white tracking-tight truncate">
-                SIDESEGUATE
+                Proyecto de Cámaras
               </span>
             )}
           </div>
