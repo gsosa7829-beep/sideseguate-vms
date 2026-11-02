@@ -214,14 +214,17 @@
   }
 }
 
-/* EZUIKit Player: Integración fluida en SIDESEGUATE Video Wall */
+/* EZUIKit Player: Integración fluida y nítida en Video Wall y Móvil */
 .ezuikit-live-player {
   position: absolute;
   inset: 0;
   width: 100% !important;
   height: 100% !important;
   overflow: hidden;
-  background: transparent;
+  background: #000;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
 }
 
 .ezuikit-live-player .ezplayer-header,
@@ -229,7 +232,12 @@
 .ezuikit-live-player .ezplayer-mobile-extend,
 .ezuikit-live-player .ezplayer-rec-footer,
 .ezuikit-live-player .ezplayer-mask,
-.ezuikit-live-player .ezplayer-control {
+.ezuikit-live-player .ezplayer-control,
+.ezuikit-live-player .ez-ptz-container-wrap,
+.ezuikit-live-player .emodal-mask,
+.ezuikit-live-player .emodal-wrap,
+.ezuikit-live-player .ezuikit-broadcast-modal,
+.ezuikit-live-player .aichat-container {
   display: none !important;
 }
 
@@ -239,11 +247,19 @@
   width: 100% !important;
   height: 100% !important;
   background-color: transparent !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
 }
 
-.ezuikit-live-player canvas {
+.ezuikit-live-player canvas,
+.ezuikit-live-player video,
+.ezuikit-live-player iframe {
   width: 100% !important;
   height: 100% !important;
-  object-fit: fill !important;
+  object-fit: contain !important;
   display: block !important;
+  max-width: 100% !important;
+  max-height: 100% !important;
+  margin: auto !important;
 }

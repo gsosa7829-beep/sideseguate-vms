@@ -465,8 +465,12 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
 
       try {
         const rect = container.getBoundingClientRect();
-        const width = Math.max(320, Math.round(rect.width || container.clientWidth || window.innerWidth || 640));
-        const height = Math.max(180, Math.round(rect.height || container.clientHeight || (width * 9) / 16 || 360));
+        const dpr = Math.min(window.devicePixelRatio || 1, 2);
+        const baseWidth = Math.round(rect.width || container.clientWidth || window.innerWidth || 640);
+        const isHd = streamQuality === '1';
+        // En HD pasar resolución nativa 16:9 nítida (1280x720) para evitar submuestreo borroso en pantallas móviles retina
+        const width = isHd ? 1280 : Math.max(320, Math.round(baseWidth * dpr));
+        const height = isHd ? 720 : Math.max(180, Math.round((width * 9) / 16));
 
         const player = new EZUIKit.EZUIKitPlayer({
           id: ezuikitContainerId,
@@ -1283,6 +1287,10 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
         </button>
 
         <div className="flex items-center gap-1 bg-black/65 backdrop-blur-md px-2.5 py-1 rounded-full border border-white/10 text-[10px] sm:text-[11px] font-mono tabular-nums text-neutral-200 whitespace-nowrap shrink-0 shadow-lg">
+          <span className="sm:hidden font-bold text-sky-300">
+            {streamQuality === '1' ? '1080p HD' : 'SD'}
+            <span className="text-neutral-500 mx-1">·</span>
+          </span>
           <span className="hidden sm:inline">
             <span>{streamQuality === '1' ? '1920x1080' : '704x480'}</span>
             <span className="text-neutral-500 mx-1">·</span>
@@ -1307,7 +1315,7 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
         onDoubleClick={toggleFullscreen}
-        className="relative w-full aspect-video bg-neutral-950 flex items-center justify-center overflow-hidden select-none cursor-pointer"
+        className={`relative w-full bg-neutral-950 flex items-center justify-center overflow-hidden select-none cursor-pointer ${isFullscreen ? "flex-1 h-full" : "aspect-video"}`}
         title="Doble toque o doble clic para Pantalla Completa · Pellizca para Zoom"
       >
         {/* Floating Zoom Reset Button */}
@@ -1404,21 +1412,32 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
           </div>
         )}
 
-        {/* Canvas de video en vivo de alta definición: SIEMPRE montado para que nunca se pierda la imagen */}
+        {/* Canvas de video en vivo de alta definición: montado como respaldo continuo sin colisión de GPU */}
         <canvas
           ref={canvasRef}
           width={1280}
           height={720}
-          className="w-full h-full object-fill select-none"
+          className={`w-full h-full object-contain select-none transition-opacity duration-300 ${
+            isContinuousLive && !isSwitchingQuality ? 'opacity-0 pointer-events-none' : 'opacity-100'
+          }`}
         />
 
-        {/* Reproductor WebAssembly EZUIKit (H.265 para Proyecto Ocós a 25 FPS fluidos) */}
+        {/* Reproductor WebAssembly EZUIKit (H.265 / H.264 a 25 FPS fluidos) */}
         {isEzopenDevice && (
           <div
             id={ezuikitContainerId}
             className={`ezuikit-live-player transition-opacity duration-300 ${
               ezuikitLiveReady ? 'opacity-100 z-10' : 'opacity-0 pointer-events-none'
             }`}
+            style={
+              digitalZoom * ptzZoom > 1 || ptzPan !== 0 || ptzTilt !== 0
+                ? {
+                    transform: `scale(${digitalZoom * ptzZoom}) translate(${ptzPan * 0.5}px, ${ptzTilt * 0.5}px)`,
+                    transformOrigin: 'center center',
+                    transition: 'transform 0.15s ease-out',
+                  }
+                : undefined
+            }
           />
         )}
 
