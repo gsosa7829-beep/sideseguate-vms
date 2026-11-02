@@ -465,12 +465,25 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
 
       try {
         const rect = container.getBoundingClientRect();
-        const dpr = Math.min(window.devicePixelRatio || 1, 2);
         const baseWidth = Math.round(rect.width || container.clientWidth || window.innerWidth || 640);
-        const isHd = streamQuality === '1';
-        // En HD pasar resolución nativa 16:9 nítida (1280x720) para evitar submuestreo y asegurar escala completa en PC y móvil
-        const width = isHd ? 1280 : Math.max(320, Math.round(baseWidth * dpr));
-        const height = isHd ? 720 : Math.max(180, Math.round((width * 9) / 16));
+        // Usar dimensiones nativas adaptadas al contenedor para evitar desbordes o zoom
+        const width = Math.max(320, baseWidth);
+        const height = Math.max(180, Math.round((width * 9) / 16));
+
+        let hdWatchdogTimer: any = null;
+        if (streamQuality === '1') {
+          // Watchdog para HD en enlace celular 4G: si tras 7s la red móvil no responde,
+          // conmutar suavemente a señal fluida en tiempo real sin congelar la pantalla.
+          hdWatchdogTimer = setTimeout(() => {
+            if (active && !ezuikitLiveReady) {
+              console.warn('HD 1080p con demora en 4G celular, pasando a SD fluido para visualización inmediata...');
+              setStreamQuality('2');
+              setIsSwitchingQuality(false);
+              setWatchdogToast('Conexión 4G optimizada: señal fluida en tiempo real');
+              setTimeout(() => setWatchdogToast(null), 3500);
+            }
+          }, 7000);
+        }
 
         const player = new EZUIKit.EZUIKitPlayer({
           id: ezuikitContainerId,
@@ -481,16 +494,17 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
           height: height,
           autoplay: true,
           audio: 0, // Cumplimiento de política autoplay móvil: siempre inicia silenciado
-          scaleMode: 2, // 1 = CONTAIN (Preserva la geometría y relación de aspecto natural 100% sin estirar en PC y móvil)
+          scaleMode: 1, // 1 = CONTAIN (Preserva la geometría y relación de aspecto natural 100% sin recortar bordes ni hacer zoom)
           handleSuccess: () => {
             if (!active) return;
+            if (hdWatchdogTimer) clearTimeout(hdWatchdogTimer);
             setEzuikitLiveReady(true);
             setIsSwitchingQuality(false);
             setIsOffline(false);
             stallCountRef.current = 0;
-            try { player.setScaleMode(2); } catch {}
+            try { player.setScaleMode(1); } catch {}
             if (player.contentControl) {
-              try { player.contentControl.setScaleMode(2); } catch {}
+              try { player.contentControl.setScaleMode(1); } catch {}
             }
             // Garantizar que NUNCA se active sonido al conectar a menos que el usuario lo haya pedido
             if (isMutedRef.current) {
@@ -508,12 +522,13 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
           handleError: (err: any) => {
             console.warn('EZUIKit stream warning:', err);
             if (!active) return;
+            if (hdWatchdogTimer) clearTimeout(hdWatchdogTimer);
             setIsSwitchingQuality(false);
             // Si HD falla en red celular débil, conmutar con gracia a SD fluido
             if (streamQuality === '1') {
               console.log('HD congestionado o en negociación. Auto-conmutando a SD fluido...');
               setStreamQuality('2');
-              setWatchdogToast('Conmutando a SD para mayor fluidez...');
+              setWatchdogToast('Conexión 4G optimizada a señal fluida');
               setTimeout(() => setWatchdogToast(null), 3000);
             } else {
               console.warn('EZopen no disponible, activando fallback HLS optimizado...');
@@ -527,15 +542,15 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
             player.closeSound();
           }
         } catch {}
-        try { player.setScaleMode(2); } catch {}
+        try { player.setScaleMode(1); } catch {}
         if (player.contentControl) {
-          try { player.contentControl.setScaleMode(2); } catch {}
+          try { player.contentControl.setScaleMode(1); } catch {}
         }
         try {
           player.on?.('videoInfo', () => {
-            try { player.setScaleMode(2); } catch {}
+            try { player.setScaleMode(1); } catch {}
             if (player.contentControl) {
-              try { player.contentControl.setScaleMode(2); } catch {}
+              try { player.contentControl.setScaleMode(1); } catch {}
             }
           });
         } catch {}
@@ -940,12 +955,15 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
         let offsetY = 0;
 
         if (imgRatio > canvasRatio) {
-          // Ajuste perfecto al marco sin bandas negras
-          drawW = height * imgRatio;
-          offsetX = (width - drawW) / 2;
-        } else {
+          drawW = width;
           drawH = width / imgRatio;
           offsetY = (height - drawH) / 2;
+          offsetX = 0;
+        } else {
+          drawH = height;
+          drawW = height * imgRatio;
+          offsetX = (width - drawW) / 2;
+          offsetY = 0;
         }
 
         ctx.drawImage(p2pImg, offsetX, offsetY, drawW, drawH);
@@ -1454,7 +1472,7 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
           ref={canvasRef}
           width={1280}
           height={720}
-          className={`w-full h-full object-cover select-none transition-opacity duration-300 ${
+          className={`w-full h-full object-contain select-none transition-opacity duration-300 ${
             isContinuousLive && !isSwitchingQuality ? 'opacity-0 pointer-events-none' : 'opacity-100'
           }`}
         />
@@ -1482,7 +1500,7 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
         {!isEzopenDevice && liveHlsUrl && !isDemoTunnelPlaceholder && (
           <video
             ref={videoRef}
-            className={hasHls ? 'absolute inset-0 w-full h-full object-cover z-10' : 'hidden'}
+            className={hasHls ? 'absolute inset-0 w-full h-full object-contain z-10' : 'hidden'}
             muted={true}
             playsInline
             autoPlay
@@ -1527,11 +1545,11 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
             style={
               digitalZoom * ptzZoom > 1 || ptzPan !== 0 || ptzTilt !== 0
                 ? {
-                    objectFit: 'cover',
+                    objectFit: 'contain',
                     transform: `scale(${digitalZoom * ptzZoom}) translate(${ptzPan * 0.5}px, ${ptzTilt * 0.5}px)`,
                     transition: 'transform 0.15s ease-out',
                   }
-                : { objectFit: 'cover' }
+                : { objectFit: 'contain' }
             }
           />
         )}

@@ -258,17 +258,24 @@
 .ezuikit-live-player video,
 .ezuikit-live-player iframe,
 .ezplayer-canvas {
+  position: absolute !important;
+  left: 0 !important;
+  top: 0 !important;
   width: 100% !important;
   height: 100% !important;
   max-width: 100% !important;
   max-height: 100% !important;
-  object-fit: cover !important;
+  object-fit: contain !important;
+  transform: none !important;
   display: block !important;
   margin: auto !important;
 }
 
 .ezplayer-content-video {
+  width: 100% !important;
+  height: 100% !important;
   display: flex !important;
   align-items: center !important;
   justify-content: center !important;
+  position: relative !important;
 }
