@@ -343,11 +343,18 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
   const hlsRef = useRef<Hls | null>(null);
   const lastPlaybackTimeRef = useRef<number>(0);
   const stallCountRef = useRef<number>(0);
+  const [useHlsFallback, setUseHlsFallback] = useState(false);
   const isEzopenDevice = Boolean(
-    camera.deviceSerial === 'FF9363270' ||
-    camera.notes?.includes('FF9363270') ||
-    camera.codec === 'H.265' ||
-    camera.id?.includes('ocos')
+    !useHlsFallback && (
+      camera.deviceSerial === 'FF9363270' ||
+      camera.deviceSerial === 'F31700438' ||
+      camera.notes?.includes('FF9363270') ||
+      camera.notes?.includes('F31700438') ||
+      camera.codec === 'H.265' ||
+      camera.id?.includes('ocos') ||
+      camera.id?.includes('cementerio') ||
+      (camera.deviceSerial && camera.verificationCode)
+    )
   );
   const ezuikitContainerId = useRef('ezuikit-live-' + Math.random().toString(36).substring(2, 9)).current;
   const ezPlayerRef = useRef<any>(null);
@@ -447,7 +454,7 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
       if (!active) return;
 
       const devSerial = camera.deviceSerial || 'FF9363270';
-      const code = camera.verificationCode || (devSerial === 'FF9363270' ? 'LBNZYU' : '');
+      const code = camera.verificationCode || (devSerial === 'FF9363270' ? 'LBNZYU' : (devSerial === 'F31700438' ? 'HELGDM' : ''));
       const codePrefix = code ? `${code}@` : '';
       const streamTypeStr = streamQuality === '1' ? '.hd.live' : '.live';
       const ezopenUrl = `ezopen://${codePrefix}open.ezviz.com/${devSerial}/${camera.channel || 1}${streamTypeStr}`;
@@ -482,10 +489,13 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
             setIsSwitchingQuality(false);
             // Si HD falla en red celular débil, conmutar con gracia a SD fluido
             if (streamQuality === '1') {
-              console.log('HD móvil congestionado. Auto-conmutando a SD fluido...');
+              console.log('HD congestionado o en negociación. Auto-conmutando a SD fluido...');
               setStreamQuality('2');
               setWatchdogToast('Conmutando a SD para mayor fluidez...');
               setTimeout(() => setWatchdogToast(null), 3000);
+            } else {
+              console.warn('EZopen no disponible, activando fallback HLS optimizado...');
+              setUseHlsFallback(true);
             }
           },
         });
@@ -730,13 +740,13 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
         const isHd = streamQuality === '1';
         hls = new Hls({
 
-          lowLatencyMode: false, // 4G celular requiere estabilidad sin drenar el búfer
+          lowLatencyMode: true, // 4G celular requiere estabilidad sin drenar el búfer
           backBufferLength: isHd ? 15 : 10,
           maxBufferLength: isHd ? 30 : 20, // Búfer amplio para absorber fluctuaciones de red móvil
           maxMaxBufferLength: isHd ? 60 : 40,
-          liveSyncDurationCount: 3, // Colchón de 3 segmentos (12s) para absorción total de jitter 4G
-          liveMaxLatencyDurationCount: 6,
-          maxLiveSyncPlaybackRate: 1.0, // 1.0x sin saltos ni aceleraciones que vacíen el búfer
+          liveSyncDurationCount: 1, // Colchón de 3 segmentos (12s) para absorción total de jitter 4G
+          liveMaxLatencyDurationCount: 3,
+          maxLiveSyncPlaybackRate: 1.15, // 1.0x sin saltos ni aceleraciones que vacíen el búfer
           enableWorker: true,
           highBufferWatchdogPeriod: 2,
           nudgeOffset: 0.1,
