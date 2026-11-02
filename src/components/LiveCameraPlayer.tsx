@@ -444,6 +444,18 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
       const container = document.getElementById(ezuikitContainerId);
       if (!container) return;
 
+      // Preservar el último fotograma visible de la cámara antes de reiniciar para transición limpia sin parpadeo
+      const existingCanvas = container.querySelector('canvas');
+      if (existingCanvas && existingCanvas.width > 0 && existingCanvas.height > 0) {
+        try {
+          const dataUrl = existingCanvas.toDataURL('image/jpeg', 0.85);
+          const snapImg = new Image();
+          snapImg.src = dataUrl;
+          nativeP2pImgRef.current = snapImg;
+          setNativeP2pReady(true);
+        } catch {}
+      }
+
       if (ezPlayerRef.current) {
         try {
           ezPlayerRef.current.stop();
@@ -454,7 +466,7 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
 
       // Purga estricta del contenedor DOM para evitar colisión de Workers y WebAssembly en móviles
       container.innerHTML = '';
-      await new Promise((r) => setTimeout(r, 80));
+      await new Promise((r) => setTimeout(r, 60));
       if (!active) return;
 
       const devSerial = camera.deviceSerial || 'FF9363270';
@@ -468,17 +480,20 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
         const width = Math.max(320, Math.round(rect.width || container.clientWidth || window.innerWidth || 640));
         const height = Math.max(180, Math.round(rect.height || container.clientHeight || (width * 9) / 16 || 360));
 
+        const isMobile = typeof window !== 'undefined' && (/Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || window.innerWidth < 768);
         let hdWatchdogTimer: any = null;
         if (streamQuality === '1') {
+          // En móvil optimizar a 5.5s para no demorar al operador en conexión celular; en PC 7s
+          const timeoutMs = isMobile ? 5500 : 7000;
           hdWatchdogTimer = setTimeout(() => {
             if (active && !ezuikitLiveReady) {
               console.warn('HD 1080p con demora en 4G celular, pasando a SD fluido para visualización inmediata...');
               setStreamQuality('2');
               setIsSwitchingQuality(false);
               setWatchdogToast('Conexión 4G optimizada: señal fluida en tiempo real');
-              setTimeout(() => setWatchdogToast(null), 3500);
+              setTimeout(() => setWatchdogToast(null), 3000);
             }
-          }, 7000);
+          }, timeoutMs);
         }
 
         const player = new EZUIKit.EZUIKitPlayer({
@@ -969,8 +984,8 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
           width,
           height
         );
-      } else {
-        // Draw simulated scene fallback
+      } else if (!isEzopenDevice && !camera.deviceSerial) {
+        // En cámaras virtuales de demostración: escena simulada
         if (camera.name.toLowerCase().includes('bodega')) {
           drawWarehouseScene(ctx, width, height, time, nightVision, aiDetection);
         } else if (camera.name.toLowerCase().includes('perímetro') || camera.name.toLowerCase().includes('parqueo')) {
@@ -982,8 +997,8 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
 
       ctx.restore();
 
-      // Digital sensor noise & synthetic OSD only when in simulated mode
-      if (!nativeP2pReady && !ivmsBridgeActive) {
+      // En cámaras reales nunca dibujar ruido artificial ni OSD sintético
+      if (!isEzopenDevice && !camera.deviceSerial && !nativeP2pReady && !ivmsBridgeActive) {
         drawSensorNoise(ctx, width, height, nightVision);
         drawOsd(ctx, width, height, camera, nightVision);
       }
@@ -1414,10 +1429,10 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
         )}
 
         
-        {/* Indicador de Transición de Calidad HD / SD sin pantalla negra */}
+        {/* Indicador de Transición de Calidad HD / SD sin pantalla negra ni desenfoque */}
         {isSwitchingQuality && (
-          <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/40 backdrop-blur-[2px] pointer-events-none animate-in fade-in duration-150">
-            <div className="bg-neutral-900/90 border border-sky-500/50 text-white text-xs font-semibold px-4 py-2 rounded-full shadow-2xl flex items-center gap-2">
+          <div className="absolute top-12 inset-x-0 z-30 flex justify-center pointer-events-none px-4 animate-in fade-in duration-150">
+            <div className="bg-neutral-900/95 border border-sky-500/50 text-white text-xs font-semibold px-4 py-2 rounded-xl shadow-2xl flex items-center gap-2">
               <RefreshCw className="w-3.5 h-3.5 text-sky-400 animate-spin" />
               <span>{streamQuality === '1' ? 'Cargando HD 1080p...' : 'Cargando SD Fluido...'}</span>
             </div>
@@ -2131,15 +2146,13 @@ function drawForklift(ctx: CanvasRenderingContext2D, x: number, y: number, isNig
 }
 
 function drawSensorNoise(
-  ctx: CanvasRenderingContext2D,
-  w: number,
-  h: number,
-  isNight: boolean
+  _ctx: CanvasRenderingContext2D,
+  _w: number,
+  _h: number,
+  _isNight: boolean
 ) {
-  ctx.fillStyle = isNight ? 'rgba(0, 30, 0, 0.08)' : 'rgba(0, 0, 0, 0.04)';
-  for (let y = 0; y < h; y += 4) {
-    ctx.fillRect(0, y, w, 1);
-  }
+  // Desactivado: evitar cualquier filtro o efecto de ruido artificial
+  return;
 }
 
 function drawOsd(
