@@ -214,17 +214,14 @@
   }
 }
 
-/* EZUIKit Player: Integración fluida y nítida en Video Wall y Móvil */
+/* EZUIKit Player: Integración fluida en Video Wall */
 .ezuikit-live-player {
   position: absolute;
   inset: 0;
   width: 100% !important;
   height: 100% !important;
   overflow: hidden;
-  background: #000;
-  display: flex !important;
-  align-items: center !important;
-  justify-content: center !important;
+  background: transparent;
 }
 
 .ezuikit-live-player .ezplayer-header,
@@ -243,39 +240,16 @@
 
 .ezuikit-live-player .ezplayer,
 .ezuikit-live-player .ezplayer-contain,
-.ezuikit-live-player .ezplayer-screen,
-.ezuikit-live-player .ezplayer-content-wrapper,
-.ezuikit-live-player .ezplayer-content {
+.ezuikit-live-player .ezplayer-screen {
   width: 100% !important;
   height: 100% !important;
   background-color: transparent !important;
-  display: flex !important;
-  align-items: center !important;
-  justify-content: center !important;
 }
 
 .ezuikit-live-player canvas,
 .ezuikit-live-player video,
-.ezuikit-live-player iframe,
-.ezplayer-canvas {
-  position: absolute !important;
-  left: 0 !important;
-  top: 0 !important;
+.ezuikit-live-player iframe {
   width: 100% !important;
   height: 100% !important;
-  max-width: 100% !important;
-  max-height: 100% !important;
-  object-fit: contain !important;
-  transform: none !important;
   display: block !important;
-  margin: auto !important;
-}
-
-.ezplayer-content-video {
-  width: 100% !important;
-  height: 100% !important;
-  display: flex !important;
-  align-items: center !important;
-  justify-content: center !important;
-  position: relative !important;
 }

@@ -465,15 +465,11 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
 
       try {
         const rect = container.getBoundingClientRect();
-        const baseWidth = Math.round(rect.width || container.clientWidth || window.innerWidth || 640);
-        // Usar dimensiones nativas adaptadas al contenedor para evitar desbordes o zoom
-        const width = Math.max(320, baseWidth);
-        const height = Math.max(180, Math.round((width * 9) / 16));
+        const width = Math.max(320, Math.round(rect.width || container.clientWidth || window.innerWidth || 640));
+        const height = Math.max(180, Math.round(rect.height || container.clientHeight || (width * 9) / 16 || 360));
 
         let hdWatchdogTimer: any = null;
         if (streamQuality === '1') {
-          // Watchdog para HD en enlace celular 4G: si tras 7s la red móvil no responde,
-          // conmutar suavemente a señal fluida en tiempo real sin congelar la pantalla.
           hdWatchdogTimer = setTimeout(() => {
             if (active && !ezuikitLiveReady) {
               console.warn('HD 1080p con demora en 4G celular, pasando a SD fluido para visualización inmediata...');
@@ -493,8 +489,7 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
           width: width,
           height: height,
           autoplay: true,
-          audio: 0, // Cumplimiento de política autoplay móvil: siempre inicia silenciado
-          scaleMode: 1, // 1 = CONTAIN (Preserva la geometría y relación de aspecto natural 100% sin recortar bordes ni hacer zoom)
+          audio: 0,
           handleSuccess: () => {
             if (!active) return;
             if (hdWatchdogTimer) clearTimeout(hdWatchdogTimer);
@@ -502,11 +497,6 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
             setIsSwitchingQuality(false);
             setIsOffline(false);
             stallCountRef.current = 0;
-            try { player.setScaleMode(1); } catch {}
-            if (player.contentControl) {
-              try { player.contentControl.setScaleMode(1); } catch {}
-            }
-            // Garantizar que NUNCA se active sonido al conectar a menos que el usuario lo haya pedido
             if (isMutedRef.current) {
               try { player.closeSound(); } catch {}
               const c = document.getElementById(ezuikitContainerId);
@@ -524,7 +514,6 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
             if (!active) return;
             if (hdWatchdogTimer) clearTimeout(hdWatchdogTimer);
             setIsSwitchingQuality(false);
-            // Si HD falla en red celular débil, conmutar con gracia a SD fluido
             if (streamQuality === '1') {
               console.log('HD congestionado o en negociación. Auto-conmutando a SD fluido...');
               setStreamQuality('2');
@@ -541,18 +530,6 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
           if (isMutedRef.current) {
             player.closeSound();
           }
-        } catch {}
-        try { player.setScaleMode(1); } catch {}
-        if (player.contentControl) {
-          try { player.contentControl.setScaleMode(1); } catch {}
-        }
-        try {
-          player.on?.('videoInfo', () => {
-            try { player.setScaleMode(1); } catch {}
-            if (player.contentControl) {
-              try { player.contentControl.setScaleMode(1); } catch {}
-            }
-          });
         } catch {}
         ezPlayerRef.current = player;
       } catch (e) {
