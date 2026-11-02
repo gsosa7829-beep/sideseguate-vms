@@ -53,7 +53,7 @@ export const StreamGatewayCard: React.FC<StreamGatewayCardProps> = ({
   const handleSave = () => {
     setError(null);
     if (baseUrl.trim() && !normalized) {
-      setError('Esa dirección no parece válida. Ejemplo: stream.sideseguate.gt');
+      setError('Esa dirección no parece válida. Ejemplo: stream.proyectosdecamaras.com');
       return;
     }
     if (webrtcBaseUrl.trim() && !normalizeGatewayUrl(webrtcBaseUrl)) {
@@ -127,7 +127,7 @@ export const StreamGatewayCard: React.FC<StreamGatewayCardProps> = ({
                 inputMode="url"
                 value={baseUrl}
                 onChange={(e) => setBaseUrl(e.target.value)}
-                placeholder="stream.sideseguate.gt"
+                placeholder="stream.proyectosdecamaras.com"
                 className="w-full bg-neutral-950 border border-neutral-800 rounded-lg pl-9 pr-3 py-2 text-xs font-mono text-white placeholder-neutral-600 focus:outline-none focus:border-sky-500"
               />
             </div>
@@ -166,7 +166,7 @@ export const StreamGatewayCard: React.FC<StreamGatewayCardProps> = ({
                 inputMode="url"
                 value={publicAppUrl}
                 onChange={(e) => setPublicAppUrl(e.target.value)}
-                placeholder="sideseguate.gt"
+                placeholder="proyectosdecamaras.com"
                 className="w-full bg-neutral-950 border border-neutral-800 rounded-lg pl-9 pr-3 py-2 text-xs font-mono text-white placeholder-neutral-600 focus:outline-none focus:border-sky-500"
               />
             </div>

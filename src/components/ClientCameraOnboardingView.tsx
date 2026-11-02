@@ -55,7 +55,7 @@ export const ClientCameraOnboardingView: React.FC<ClientCameraOnboardingViewProp
 }) => {
   const initialProj =
     projects.find((p) => p.id === defaultProjectId) || projects[0] || {
-      id: 'proj-sideseguate-01',
+      id: 'proj-camaras-01',
       name: 'Cliente',
       clientName: 'Cliente Autorizado',
       clientPhone: '+502',

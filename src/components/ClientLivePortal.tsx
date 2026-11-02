@@ -350,7 +350,7 @@ export const ClientLivePortal: React.FC<ClientLivePortalProps> = ({
       {/* Top Client Header: No Admin buttons, Clean branding & prominent countdown */}
       <header className="bg-neutral-900 border-b border-neutral-800 px-3.5 sm:px-5 py-3 sticky top-0 z-40 backdrop-blur-md">
         <div className="max-w-7xl mx-auto flex items-center justify-between gap-2.5">
-          {/* SIDESEGUATE Branding */}
+          {/* Proyecto de Cámaras Branding */}
           <div className="flex items-center gap-2.5 min-w-0 flex-1">
             <div className="w-8 h-8 rounded-lg bg-sky-950/80 border border-sky-500/40 flex items-center justify-center shrink-0 text-sky-400 shadow-sm">
               <Video className="w-4 h-4" />

@@ -24,7 +24,7 @@ import { loadGateway, normalizeGatewayUrl } from './streamGateway';
 export type PublicUrlSource = 'configured' | 'build' | 'origin' | 'preview';
 
 export interface PublicUrlInfo {
-  /** Base sin barra final, ej. `https://camaras.sideseguate.com`. */
+  /** Base sin barra final, ej. `https://proyectos-de-camaras.surge.sh`. */
   baseUrl: string;
   source: PublicUrlSource;
   /** `false` cuando el enlace NO servirá en el celular del cliente. */
@@ -58,7 +58,7 @@ export function isPrivateHost(hostname: string): boolean {
  * interno del repositorio en lugar de la marca.
  *
  * `*.surge.sh` queda fuera a propósito: el subdominio lo elige el operador
- * (`sideseguate.surge.sh`), así que no revela datos personales.
+ * (`proyectos-de-camaras.surge.sh`), así que no revela datos personales.
  */
 const PERSONAL_HOST_PATTERNS: RegExp[] = [
   /\.github\.io$/i,

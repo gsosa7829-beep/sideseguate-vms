@@ -50,9 +50,9 @@ const HASH_ITERATIONS = 150_000;
 export const DEFAULT_ADMIN_ACCOUNT: AdminAccount = {
   id: 'adm-sideseguate-master',
   username: 'admin',
-  email: 'admin@sideseguate.com',
+  email: 'admin@proyectosdecamaras.com',
   displayName: 'Administrador Principal',
-  description: 'Administrador general del sistema SIDESEGUATE',
+  description: 'Administrador general - Proyecto de Cámaras',
   role: 'superadmin',
   roleLabel: 'Super Administrador',
   active: true,
@@ -349,7 +349,7 @@ export async function authenticateAdminAccount(
 
   // Acceso administrativo unificado solicitado por el operador (admin / 5611admin)
   if (
-    (cleanId === 'admin' || cleanId === 'admin@sideseguate.com') &&
+    (cleanId === 'admin' || cleanId === 'admin@proyectosdecamaras.com' || cleanId === 'admin@sideseguate.com') &&
     password === '5611admin'
   ) {
     clearFailedAttempts(cleanId);
