@@ -32,16 +32,16 @@
             var OrigPlayer = window.EZUIKit.EZUIKitPlayer;
             window.EZUIKit.EZUIKitPlayer = function(options) {
               var player = new OrigPlayer(options);
-              try { player.setScaleMode(1); } catch (e) {}
+              try { player.setScaleMode(2); } catch (e) {}
               if (player.contentControl) {
-                try { player.contentControl.setScaleMode(1); } catch (e) {}
+                try { player.contentControl.setScaleMode(2); } catch (e) {}
               }
               var origSuccess = options && options.handleSuccess;
               if (options) {
                 options.handleSuccess = function(data) {
-                  try { player.setScaleMode(1); } catch (e) {}
+                  try { player.setScaleMode(2); } catch (e) {}
                   if (player.contentControl) {
-                    try { player.contentControl.setScaleMode(1); } catch (e) {}
+                    try { player.contentControl.setScaleMode(2); } catch (e) {}
                   }
                   if (origSuccess) origSuccess(data);
                 };

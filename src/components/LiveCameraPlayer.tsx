@@ -481,16 +481,16 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
           height: height,
           autoplay: true,
           audio: 0, // Cumplimiento de política autoplay móvil: siempre inicia silenciado
-          scaleMode: 1, // 1 = CONTAIN (Preserva la geometría y relación de aspecto natural 100% sin estirar en PC y móvil)
+          scaleMode: 2, // 1 = CONTAIN (Preserva la geometría y relación de aspecto natural 100% sin estirar en PC y móvil)
           handleSuccess: () => {
             if (!active) return;
             setEzuikitLiveReady(true);
             setIsSwitchingQuality(false);
             setIsOffline(false);
             stallCountRef.current = 0;
-            try { player.setScaleMode(1); } catch {}
+            try { player.setScaleMode(2); } catch {}
             if (player.contentControl) {
-              try { player.contentControl.setScaleMode(1); } catch {}
+              try { player.contentControl.setScaleMode(2); } catch {}
             }
             // Garantizar que NUNCA se active sonido al conectar a menos que el usuario lo haya pedido
             if (isMutedRef.current) {
@@ -527,15 +527,15 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
             player.closeSound();
           }
         } catch {}
-        try { player.setScaleMode(1); } catch {}
+        try { player.setScaleMode(2); } catch {}
         if (player.contentControl) {
-          try { player.contentControl.setScaleMode(1); } catch {}
+          try { player.contentControl.setScaleMode(2); } catch {}
         }
         try {
           player.on?.('videoInfo', () => {
-            try { player.setScaleMode(1); } catch {}
+            try { player.setScaleMode(2); } catch {}
             if (player.contentControl) {
-              try { player.contentControl.setScaleMode(1); } catch {}
+              try { player.contentControl.setScaleMode(2); } catch {}
             }
           });
         } catch {}
@@ -940,11 +940,12 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
         let offsetY = 0;
 
         if (imgRatio > canvasRatio) {
-          drawH = width / imgRatio;
-          offsetY = (height - drawH) / 2;
-        } else {
+          // Ajuste perfecto al marco sin bandas negras
           drawW = height * imgRatio;
           offsetX = (width - drawW) / 2;
+        } else {
+          drawH = width / imgRatio;
+          offsetY = (height - drawH) / 2;
         }
 
         ctx.drawImage(p2pImg, offsetX, offsetY, drawW, drawH);
@@ -1453,7 +1454,7 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
           ref={canvasRef}
           width={1280}
           height={720}
-          className={`w-full h-full object-contain select-none transition-opacity duration-300 ${
+          className={`w-full h-full object-cover select-none transition-opacity duration-300 ${
             isContinuousLive && !isSwitchingQuality ? 'opacity-0 pointer-events-none' : 'opacity-100'
           }`}
         />
@@ -1481,7 +1482,7 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
         {!isEzopenDevice && liveHlsUrl && !isDemoTunnelPlaceholder && (
           <video
             ref={videoRef}
-            className={hasHls ? 'absolute inset-0 w-full h-full object-contain z-10' : 'hidden'}
+            className={hasHls ? 'absolute inset-0 w-full h-full object-cover z-10' : 'hidden'}
             muted={true}
             playsInline
             autoPlay
@@ -1526,11 +1527,11 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
             style={
               digitalZoom * ptzZoom > 1 || ptzPan !== 0 || ptzTilt !== 0
                 ? {
-                    objectFit: 'contain',
+                    objectFit: 'cover',
                     transform: `scale(${digitalZoom * ptzZoom}) translate(${ptzPan * 0.5}px, ${ptzTilt * 0.5}px)`,
                     transition: 'transform 0.15s ease-out',
                   }
-                : { objectFit: 'contain' }
+                : { objectFit: 'cover' }
             }
           />
         )}
