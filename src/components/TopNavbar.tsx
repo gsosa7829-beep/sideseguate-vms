@@ -89,7 +89,7 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
   unreadAlertsCount = 0,
   onClearUnreadAlerts,
   onSimulateBuyerAccess,
-  audioAlertsEnabled = true,
+  audioAlertsEnabled = false,
   onToggleAudioAlerts,
   onSelectTab,
   currentAdminAccount,

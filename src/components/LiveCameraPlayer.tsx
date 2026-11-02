@@ -232,6 +232,10 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
 
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isMuted, setIsMuted] = useState(true);
+  const isMutedRef = useRef(true);
+  useEffect(() => {
+    isMutedRef.current = isMuted;
+  }, [isMuted]);
   const [digitalZoom, setDigitalZoom] = useState(1);
   const [nightVision, setNightVision] = useState(camera.nightVision || false);
   const [aiDetection, setAiDetection] = useState(true);
@@ -479,7 +483,16 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
             setIsSwitchingQuality(false);
             setIsOffline(false);
             stallCountRef.current = 0;
-            if (!isMuted) {
+            // Garantizar que NUNCA se active sonido al conectar a menos que el usuario lo haya pedido
+            if (isMutedRef.current) {
+              try { player.closeSound(); } catch {}
+              const c = document.getElementById(ezuikitContainerId);
+              c?.querySelectorAll('video, audio').forEach((el) => {
+                const media = el as HTMLMediaElement;
+                media.muted = true;
+                media.volume = 0;
+              });
+            } else {
               try { player.openSound(); } catch {}
             }
           },
@@ -500,6 +513,11 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
           },
         });
 
+        try {
+          if (isMutedRef.current) {
+            player.closeSound();
+          }
+        } catch {}
         ezPlayerRef.current = player;
       } catch (e) {
         console.warn('EZUIKit init error:', e);
@@ -961,6 +979,54 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
     return () => clearInterval(timer);
   }, [camera.fps, camera.bitrateKbps]);
 
+
+  const handleToggleAudio = () => {
+    if (!allowAudio) return;
+    const nextMuted = !isMuted;
+    setIsMuted(nextMuted);
+    isMutedRef.current = nextMuted;
+
+    // 1. Control directo en el reproductor WebAssembly EZUIKit
+    if (ezPlayerRef.current) {
+      try {
+        if (nextMuted) {
+          ezPlayerRef.current.closeSound();
+        } else {
+          ezPlayerRef.current.openSound();
+        }
+      } catch (err) {
+        console.warn('Error al alternar sonido en EZUIKit:', err);
+      }
+    }
+
+    // 2. Control estricto en elementos de audio/video internos del contenedor EZUIKit
+    const container = document.getElementById(ezuikitContainerId);
+    if (container) {
+      const mediaElements = container.querySelectorAll('video, audio');
+      mediaElements.forEach((el) => {
+        const media = el as HTMLMediaElement;
+        media.muted = nextMuted;
+        media.volume = nextMuted ? 0 : 1;
+        if (!nextMuted && media.paused) {
+          media.play().catch(() => {});
+        }
+      });
+    }
+
+    // 3. Control en reproductor HLS / nativo HTML5
+    if (videoRef.current) {
+      videoRef.current.muted = nextMuted;
+      videoRef.current.volume = nextMuted ? 0 : 1;
+      if (!nextMuted && videoRef.current.paused) {
+        videoRef.current.play().catch(() => {});
+      }
+    }
+
+    // Confirmación visual al usuario
+    setWatchdogToast(nextMuted ? 'Audio silenciado (Mute)' : 'Sonido ambiental activado');
+    setTimeout(() => setWatchdogToast(null), 2000);
+  };
+
   const toggleFullscreen = () => {
     if (!containerRef.current) return;
     if (!document.fullscreenElement) {
@@ -1096,10 +1162,16 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
             stallCountRef.current += 1;
             if (stallCountRef.current === 3) {
               ezPlayerRef.current?.play();
+              if (isMutedRef.current) {
+                try { ezPlayerRef.current?.closeSound(); } catch {}
+              }
             } else if (stallCountRef.current === 5) {
               try {
                 ezPlayerRef.current?.stop();
                 ezPlayerRef.current?.play();
+                if (isMutedRef.current) {
+                  try { ezPlayerRef.current?.closeSound(); } catch {}
+                }
               } catch {}
               setWatchdogToast('Auto-sincronizando señal 4G...');
               setTimeout(() => setWatchdogToast(null), 1800);
@@ -1355,17 +1427,42 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
           <video
             ref={videoRef}
             className={hasHls ? 'absolute inset-0 w-full h-full object-fill z-10' : 'hidden'}
-            muted={isMuted}
+            muted={true}
             playsInline
             autoPlay
+            onLoadedMetadata={() => {
+              if (videoRef.current) {
+                videoRef.current.muted = isMutedRef.current;
+                videoRef.current.volume = isMutedRef.current ? 0 : 1;
+              }
+            }}
+            onPlay={() => {
+              if (videoRef.current && isMutedRef.current) {
+                videoRef.current.muted = true;
+                videoRef.current.volume = 0;
+              }
+            }}
             onPlaying={() => {
-              if (videoRef.current && videoRef.current.videoWidth > 0) {
-                setHlsLiveReady(true);
+              if (videoRef.current) {
+                if (isMutedRef.current) {
+                  videoRef.current.muted = true;
+                  videoRef.current.volume = 0;
+                }
+                if (videoRef.current.videoWidth > 0) {
+                  setHlsLiveReady(true);
+                  setIsSwitchingQuality(false);
+                }
               }
             }}
             onLoadedData={() => {
-              if (videoRef.current && videoRef.current.videoWidth > 0) {
-                setHlsLiveReady(true);
+              if (videoRef.current) {
+                if (isMutedRef.current) {
+                  videoRef.current.muted = true;
+                  videoRef.current.volume = 0;
+                }
+                if (videoRef.current.videoWidth > 0) {
+                  setHlsLiveReady(true);
+                }
               }
             }}
             onError={() => {
@@ -1523,31 +1620,25 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
           <button
             type="button"
             disabled={!allowAudio}
-            aria-label={isMuted ? 'Activar audio' : 'Silenciar audio'}
-            onClick={() => {
-              const next = !isMuted;
-              setIsMuted(next);
-              if (ezPlayerRef.current) {
-                try {
-                  if (next) {
-                    ezPlayerRef.current.closeSound();
-                  } else {
-                    ezPlayerRef.current.openSound();
-                  }
-                } catch {}
-              }
-            }}
+            aria-label={isMuted ? 'Activar sonido ambiental' : 'Silenciar audio'}
+            onClick={handleToggleAudio}
             className={`min-h-[46px] h-[46px] px-1 sm:px-2.5 rounded-xl border text-xs transition-all flex items-center justify-center gap-1 active:scale-95 col-span-1 ${
               !allowAudio
                 ? 'opacity-30 cursor-not-allowed bg-neutral-900 border-neutral-800 text-neutral-500'
                 : isMuted 
-                ? 'bg-neutral-900 border-neutral-800 text-neutral-300 hover:text-white' 
-                : 'bg-emerald-950/80 border-emerald-500/60 text-emerald-300 shadow-sm'
+                ? 'bg-neutral-900 border-neutral-800 text-neutral-400 hover:text-white' 
+                : 'bg-emerald-950/90 border-emerald-500/80 text-emerald-300 shadow-sm shadow-emerald-950/50'
             }`}
-            title={allowAudio ? (isMuted ? 'Audio silenciado' : 'Audio ambiental activo') : 'Audio no disponible'}
+            title={allowAudio ? (isMuted ? 'Audio silenciado · Toca para activar' : 'Sonido ambiental activo · Toca para silenciar') : 'Audio no disponible'}
           >
-            {isMuted ? <VolumeX className="w-4 h-4 shrink-0" /> : <Volume2 className="w-4 h-4 shrink-0" />}
-            <span className="text-[11px] font-medium">{isMuted ? 'Mute' : 'Audio'}</span>
+            {isMuted ? (
+              <VolumeX className="w-4 h-4 text-neutral-400 shrink-0" />
+            ) : (
+              <Volume2 className="w-4 h-4 text-emerald-400 shrink-0 animate-pulse" />
+            )}
+            <span className={`text-[11px] font-bold font-mono ${isMuted ? 'text-neutral-400' : 'text-emerald-300'}`}>
+              {isMuted ? 'Mute' : 'Audio'}
+            </span>
           </button>
 
           {/* Botón 3: Foto */}

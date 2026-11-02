@@ -231,7 +231,13 @@ function AppShell() {
 
   // Real-time Buyer Notifications (Improvement #5) & Zero-Click Auto-Tunnel (Improvement #1)
   const [unreadAlertsCount, setUnreadAlertsCount] = useState<number>(0);
-  const [audioAlertsEnabled, setAudioAlertsEnabled] = useState<boolean>(true);
+  const [audioAlertsEnabled, setAudioAlertsEnabled] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('proyecto_camaras_audio_alerts') === 'true';
+    } catch {
+      return false;
+    }
+  });
   const [liveBuyerBanner, setLiveBuyerBanner] = useState<{
     headline: string;
     subline: string;
