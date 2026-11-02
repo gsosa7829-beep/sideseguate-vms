@@ -256,7 +256,8 @@
 
 .ezuikit-live-player canvas,
 .ezuikit-live-player video,
-.ezuikit-live-player iframe {
+.ezuikit-live-player iframe,
+.ezplayer-canvas {
   width: 100% !important;
   height: 100% !important;
   max-width: 100% !important;
@@ -264,4 +265,10 @@
   object-fit: contain !important;
   display: block !important;
   margin: auto !important;
+}
+
+.ezplayer-content-video {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
 }

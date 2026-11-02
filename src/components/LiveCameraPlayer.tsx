@@ -488,6 +488,10 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
             setIsSwitchingQuality(false);
             setIsOffline(false);
             stallCountRef.current = 0;
+            try { player.setScaleMode(1); } catch {}
+            if (player.contentControl) {
+              try { player.contentControl.setScaleMode(1); } catch {}
+            }
             // Garantizar que NUNCA se active sonido al conectar a menos que el usuario lo haya pedido
             if (isMutedRef.current) {
               try { player.closeSound(); } catch {}
@@ -522,6 +526,18 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
           if (isMutedRef.current) {
             player.closeSound();
           }
+        } catch {}
+        try { player.setScaleMode(1); } catch {}
+        if (player.contentControl) {
+          try { player.contentControl.setScaleMode(1); } catch {}
+        }
+        try {
+          player.on?.('videoInfo', () => {
+            try { player.setScaleMode(1); } catch {}
+            if (player.contentControl) {
+              try { player.contentControl.setScaleMode(1); } catch {}
+            }
+          });
         } catch {}
         ezPlayerRef.current = player;
       } catch (e) {

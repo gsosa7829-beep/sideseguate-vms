@@ -25,6 +25,43 @@
     <script src="https://cdn.jsdelivr.net/npm/ezuikit-js@9.0.24/ezuikit.js"></script>
     <script>
       (function() {
+        // Corrección de escala y aspecto para EZUIKit en VideoWall de Admin y Portal de Cliente
+        function patchEZUIKit() {
+          if (window.EZUIKit && window.EZUIKit.EZUIKitPlayer && !window._ezuikitScalePatched) {
+            window._ezuikitScalePatched = true;
+            var OrigPlayer = window.EZUIKit.EZUIKitPlayer;
+            window.EZUIKit.EZUIKitPlayer = function(options) {
+              var player = new OrigPlayer(options);
+              try { player.setScaleMode(1); } catch (e) {}
+              if (player.contentControl) {
+                try { player.contentControl.setScaleMode(1); } catch (e) {}
+              }
+              var origSuccess = options && options.handleSuccess;
+              if (options) {
+                options.handleSuccess = function(data) {
+                  try { player.setScaleMode(1); } catch (e) {}
+                  if (player.contentControl) {
+                    try { player.contentControl.setScaleMode(1); } catch (e) {}
+                  }
+                  if (origSuccess) origSuccess(data);
+                };
+              }
+              return player;
+            };
+            window.EZUIKit.EZUIKitPlayer.prototype = OrigPlayer.prototype;
+          }
+        }
+        patchEZUIKit();
+        var timer = setInterval(function() {
+          if (window.EZUIKit && window.EZUIKit.EZUIKitPlayer) {
+            patchEZUIKit();
+            clearInterval(timer);
+          }
+        }, 80);
+      })();
+    </script>
+    <script>
+      (function() {
         // Ensure window.fetch has both getter and setter so Chrome extensions can safely wrap/intercept it
         try {
           var originalFetch = window.fetch ? window.fetch.bind(window) : undefined;
