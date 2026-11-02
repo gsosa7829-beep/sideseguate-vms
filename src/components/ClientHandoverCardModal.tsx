@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { LOGO_URL } from '../lib/assets';
 import { Camera, Project, ShareLink } from '../lib/types';
 import { formatExpirationText } from '../lib/tokenSecurity';
 import { getPublicBaseUrl } from '../lib/publicUrl';
@@ -124,12 +123,9 @@ export const ClientHandoverCardModal: React.FC<ClientHandoverCardModalProps> = (
         {/* Top Modal Bar */}
         <div className="px-5 py-4 border-b border-neutral-800 flex items-center justify-between bg-neutral-950">
           <div className="flex items-center gap-2.5">
-            <img
-              src={LOGO_URL}
-              alt="Proyecto de Cámaras"
-              referrerPolicy="no-referrer"
-              className="w-8 h-8 rounded-lg object-cover bg-white shrink-0 shadow-sm"
-            />
+            <div className="w-8 h-8 rounded-lg bg-sky-950/80 border border-sky-500/40 flex items-center justify-center shrink-0 text-sky-400 shadow-sm">
+              <Video className="w-4 h-4" />
+            </div>
             <div>
               <h2 id="handover-modal-title" className="text-sm font-bold text-white">
                 Ficha de Entrega & Código QR Cliente
@@ -178,13 +174,8 @@ export const ClientHandoverCardModal: React.FC<ClientHandoverCardModalProps> = (
                 )}
               </svg>
               <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                <div className="w-8 h-8 rounded-md bg-white overflow-hidden shadow border border-neutral-200 flex items-center justify-center">
-                  <img
-                    src={LOGO_URL}
-                    alt="Proyecto de Cámaras"
-                    referrerPolicy="no-referrer"
-                    className="w-full h-full object-cover"
-                  />
+                <div className="w-8 h-8 rounded-md bg-sky-950 shadow border border-sky-500/40 flex items-center justify-center text-sky-400">
+                  <Video className="w-4 h-4" />
                 </div>
               </div>
             </div>

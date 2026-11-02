@@ -334,6 +334,15 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
     return getCachedHlsUrl(ch, devSerial, '2') || getCachedHlsUrl(ch, devSerial, '1');
   });
   const [streamQuality, setStreamQuality] = useState<'1' | '2'>('2');
+  const [isSwitchingQuality, setIsSwitchingQuality] = useState(false);
+  const isSwitchingQualityRef = useRef(false);
+  useEffect(() => {
+    isSwitchingQualityRef.current = isSwitchingQuality;
+  }, [isSwitchingQuality]);
+  const [watchdogToast, setWatchdogToast] = useState<string | null>(null);
+  const hlsRef = useRef<Hls | null>(null);
+  const lastPlaybackTimeRef = useRef<number>(0);
+  const stallCountRef = useRef<number>(0);
   const isEzopenDevice = Boolean(
     camera.deviceSerial === 'FF9363270' ||
     camera.notes?.includes('FF9363270') ||
@@ -432,6 +441,11 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
         ezPlayerRef.current = null;
       }
 
+      // Purga estricta del contenedor DOM para evitar colisión de Workers y WebAssembly en móviles
+      container.innerHTML = '';
+      await new Promise((r) => setTimeout(r, 80));
+      if (!active) return;
+
       const devSerial = camera.deviceSerial || 'FF9363270';
       const code = camera.verificationCode || (devSerial === 'FF9363270' ? 'LBNZYU' : '');
       const codePrefix = code ? `${code}@` : '';
@@ -439,8 +453,9 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
       const ezopenUrl = `ezopen://${codePrefix}open.ezviz.com/${devSerial}/${camera.channel || 1}${streamTypeStr}`;
 
       try {
-        const width = container.clientWidth || 640;
-        const height = container.clientHeight || 360;
+        const rect = container.getBoundingClientRect();
+        const width = Math.max(320, Math.round(rect.width || container.clientWidth || window.innerWidth || 640));
+        const height = Math.max(180, Math.round(rect.height || container.clientHeight || (width * 9) / 16 || 360));
 
         const player = new EZUIKit.EZUIKitPlayer({
           id: ezuikitContainerId,
@@ -450,22 +465,35 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
           width: width,
           height: height,
           autoplay: true,
-          audio: isMuted ? 0 : 1,
+          audio: 0, // Cumplimiento de política autoplay móvil: siempre inicia silenciado
           handleSuccess: () => {
             if (!active) return;
             setEzuikitLiveReady(true);
+            setIsSwitchingQuality(false);
             setIsOffline(false);
+            stallCountRef.current = 0;
+            if (!isMuted) {
+              try { player.openSound(); } catch {}
+            }
           },
           handleError: (err: any) => {
             console.warn('EZUIKit stream warning:', err);
             if (!active) return;
-            setEzuikitLiveReady(false);
+            setIsSwitchingQuality(false);
+            // Si HD falla en red celular débil, conmutar con gracia a SD fluido
+            if (streamQuality === '1') {
+              console.log('HD móvil congestionado. Auto-conmutando a SD fluido...');
+              setStreamQuality('2');
+              setWatchdogToast('Conmutando a SD para mayor fluidez...');
+              setTimeout(() => setWatchdogToast(null), 3000);
+            }
           },
         });
 
         ezPlayerRef.current = player;
       } catch (e) {
         console.warn('EZUIKit init error:', e);
+        setIsSwitchingQuality(false);
       }
     };
 
@@ -701,6 +729,7 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
       if (Hls.isSupported()) {
         const isHd = streamQuality === '1';
         hls = new Hls({
+
           lowLatencyMode: false, // 4G celular requiere estabilidad sin drenar el búfer
           backBufferLength: isHd ? 15 : 10,
           maxBufferLength: isHd ? 30 : 20, // Búfer amplio para absorber fluctuaciones de red móvil
@@ -717,6 +746,7 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
           levelLoadingTimeOut: 30000,
         });
 
+        hlsRef.current = hls;
         hls.loadSource(liveHlsUrl);
         hls.attachMedia(video);
 
@@ -979,6 +1009,146 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
     setPtzZoom(zoom);
   };
 
+
+  // =========================================================================
+  // WATCHDOG AUTO-ACTUALIZACIÓN 24/7 (Anti-congelamiento y auto-sincronización)
+  // =========================================================================
+  useEffect(() => {
+    if (isOffline) return;
+
+    const interval = setInterval(() => {
+      if (isSwitchingQualityRef.current || isReconnecting) return;
+
+      // 1. Verificación para flujos HLS (Hikvision DVR)
+      if (!isEzopenDevice && liveHlsUrl && hasHls && videoRef.current) {
+        const vid = videoRef.current;
+
+        // Si el navegador pausó el video inadvertidamente en móvil, reanudar
+        if (vid.paused && !vid.seeking && vid.readyState >= 2) {
+          vid.play().catch(() => {});
+        }
+
+        const curTime = vid.currentTime;
+        const delta = Math.abs(curTime - lastPlaybackTimeRef.current);
+
+        if (delta < 0.04) {
+          stallCountRef.current += 1;
+
+          if (stallCountRef.current === 2) {
+            // Nivel 1 (3s): Micro-salto suave al borde en vivo
+            if (vid.seekable && vid.seekable.length > 0) {
+              const edge = vid.seekable.end(vid.seekable.length - 1);
+              vid.currentTime = Math.max(0, edge - 0.5);
+            }
+            vid.play().catch(() => {});
+          } else if (stallCountRef.current === 4) {
+            // Nivel 2 (6s): Recuperación de búfer HLS
+            hlsRef.current?.recoverMediaError();
+            hlsRef.current?.startLoad();
+            vid.play().catch(() => {});
+            setWatchdogToast('Auto-sincronizando señal...');
+            setTimeout(() => setWatchdogToast(null), 1800);
+          } else if (stallCountRef.current >= 6) {
+            // Nivel 3 (9s): Auto-actualización completa y silenciosa
+            stallCountRef.current = 0;
+            setWatchdogToast('Cámara actualizada automáticamente');
+            setTimeout(() => setWatchdogToast(null), 2500);
+            handleForceReconnect(false);
+          }
+        } else {
+          stallCountRef.current = 0;
+          lastPlaybackTimeRef.current = curTime;
+
+          // Corrección anti-retraso: mantener a menos de 6s del vivo
+          if (vid.seekable && vid.seekable.length > 0) {
+            const edge = vid.seekable.end(vid.seekable.length - 1);
+            if (edge - curTime > 6.0) {
+              vid.currentTime = Math.max(0, edge - 1.0);
+            }
+          }
+        }
+        return;
+      }
+
+      // 2. Verificación para EZopen WebAssembly (Proyecto Ocós 4G)
+      if (isEzopenDevice && ezuikitLiveReady) {
+        const container = document.getElementById(ezuikitContainerId);
+        const innerVid = container?.querySelector('video') as HTMLVideoElement | null;
+
+        if (innerVid) {
+          if (innerVid.paused) {
+            innerVid.play().catch(() => {});
+          }
+          const curTime = innerVid.currentTime;
+          const delta = Math.abs(curTime - lastPlaybackTimeRef.current);
+
+          if (delta < 0.04) {
+            stallCountRef.current += 1;
+            if (stallCountRef.current === 3) {
+              ezPlayerRef.current?.play();
+            } else if (stallCountRef.current === 5) {
+              try {
+                ezPlayerRef.current?.stop();
+                ezPlayerRef.current?.play();
+              } catch {}
+              setWatchdogToast('Auto-sincronizando señal 4G...');
+              setTimeout(() => setWatchdogToast(null), 1800);
+            } else if (stallCountRef.current >= 8) {
+              stallCountRef.current = 0;
+              setWatchdogToast('Cámara actualizada automáticamente');
+              setTimeout(() => setWatchdogToast(null), 2500);
+              handleForceReconnect(false);
+            }
+          } else {
+            stallCountRef.current = 0;
+            lastPlaybackTimeRef.current = curTime;
+          }
+        }
+      }
+    }, 1500);
+
+    return () => clearInterval(interval);
+  }, [isOffline, isEzopenDevice, liveHlsUrl, hasHls, ezuikitLiveReady, ezuikitContainerId, isReconnecting]);
+
+  // Resincronización al desbloquear celular, volver a la pestaña o reconectar red
+  useEffect(() => {
+    const handleSyncOnVisible = () => {
+      if (document.visibilityState === 'visible') {
+        if (isEzopenDevice && ezPlayerRef.current) {
+          try {
+            ezPlayerRef.current.stop();
+            ezPlayerRef.current.play();
+          } catch {}
+        }
+        const vid = videoRef.current;
+        if (vid && hasHls) {
+          try {
+            hlsRef.current?.startLoad();
+            if (vid.seekable && vid.seekable.length > 0) {
+              const edge = vid.seekable.end(vid.seekable.length - 1);
+              vid.currentTime = Math.max(0, edge - 0.5);
+            }
+            vid.play().catch(() => {});
+          } catch {}
+        }
+      }
+    };
+
+    const handleOnline = () => {
+      handleForceReconnect(false);
+    };
+
+    document.addEventListener('visibilitychange', handleSyncOnVisible);
+    window.addEventListener('focus', handleSyncOnVisible);
+    window.addEventListener('online', handleOnline);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleSyncOnVisible);
+      window.removeEventListener('focus', handleSyncOnVisible);
+      window.removeEventListener('online', handleOnline);
+    };
+  }, [isEzopenDevice, hasHls]);
+
   return (
     <div 
       ref={containerRef}
@@ -1118,6 +1288,27 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
               <RefreshCw className={`w-4 h-4 ${isReconnecting ? 'animate-spin' : ''}`} />
               <span>Reconectar Señal Ahora</span>
             </button>
+          </div>
+        )}
+
+        
+        {/* Indicador de Transición de Calidad HD / SD sin pantalla negra */}
+        {isSwitchingQuality && (
+          <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/40 backdrop-blur-[2px] pointer-events-none animate-in fade-in duration-150">
+            <div className="bg-neutral-900/90 border border-sky-500/50 text-white text-xs font-semibold px-4 py-2 rounded-full shadow-2xl flex items-center gap-2">
+              <RefreshCw className="w-3.5 h-3.5 text-sky-400 animate-spin" />
+              <span>{streamQuality === '1' ? 'Cargando HD 1080p...' : 'Cargando SD Fluido...'}</span>
+            </div>
+          </div>
+        )}
+
+        {/* Notificación del Watchdog de Auto-Actualización */}
+        {watchdogToast && (
+          <div className="absolute top-12 inset-x-0 z-40 flex justify-center pointer-events-none px-4 animate-in fade-in duration-200">
+            <div className="bg-sky-950/95 border border-sky-500/50 text-white text-xs font-semibold px-4 py-2 rounded-xl shadow-2xl flex items-center gap-2 backdrop-blur-md">
+              <RefreshCw className="w-3.5 h-3.5 text-sky-400 animate-spin" />
+              <span>{watchdogToast}</span>
+            </div>
           </div>
         )}
 
@@ -1303,7 +1494,10 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
           <button
             type="button"
             aria-label={streamQuality === '1' ? 'Cambiar a calidad fluida SD' : 'Cambiar a calidad alta definición 1080p HD'}
-            onClick={() => setStreamQuality((q) => (q === '1' ? '2' : '1'))}
+            onClick={() => {
+              setIsSwitchingQuality(true);
+              setStreamQuality((q) => (q === '1' ? '2' : '1'));
+            }}
             className={`min-h-[46px] h-[46px] px-1 sm:px-3 rounded-xl border text-xs font-bold transition-all flex items-center justify-center gap-1 sm:gap-1.5 active:scale-95 col-span-1 ${
               streamQuality === '1'
                 ? 'bg-sky-950/80 border-sky-500/80 text-sky-300 shadow-sm shadow-sky-950/50'

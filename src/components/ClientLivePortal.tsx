@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { LOGO_URL } from '../lib/assets';
 import { Camera, ShareLink, Project } from '../lib/types';
 import { INITIAL_CAMERAS } from '../lib/initialData';
 import { verifyShareLink, formatExpirationText } from '../lib/tokenSecurity';

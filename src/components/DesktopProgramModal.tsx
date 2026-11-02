@@ -35,7 +35,7 @@ interface DesktopProgramModalProps {
   onShowToast?: (msg: string) => void;
 }
 
-const TUNNEL_STORAGE_KEY = 'sideseguate_remote_tunnel_url';
+const TUNNEL_STORAGE_KEY = 'proyecto_camaras_remote_tunnel_url';
 
 export const DesktopProgramModal: React.FC<DesktopProgramModalProps> = ({
   isOpen,
@@ -53,7 +53,7 @@ export const DesktopProgramModal: React.FC<DesktopProgramModalProps> = ({
   const [enableWatchdog24x7, setEnableWatchdog24x7] = useState(true);
   const [cloudflareTunnelToken, setCloudflareTunnelToken] = useState<string>(() => {
     try {
-      return localStorage.getItem('sideseguate_cf_tunnel_token') || '';
+      return localStorage.getItem('proyecto_camaras_cf_tunnel_token') || '';
     } catch {
       return '';
     }
@@ -133,11 +133,11 @@ export const DesktopProgramModal: React.FC<DesktopProgramModalProps> = ({
 
   const handleSaveTunnelToCloud = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
-    const cleaned = tunnelUrlInput.trim() || 'https://sideseguate-live.trycloudflare.com';
+    const cleaned = tunnelUrlInput.trim() || 'https://camaras-live.trycloudflare.com';
     setTunnelUrlInput(cleaned);
     try {
       localStorage.setItem(TUNNEL_STORAGE_KEY, cleaned);
-      localStorage.setItem('sideseguate_cf_tunnel_token', cloudflareTunnelToken.trim());
+      localStorage.setItem('proyecto_camaras_cf_tunnel_token', cloudflareTunnelToken.trim());
     } catch {
       // ignore storage errors
     }
@@ -148,7 +148,7 @@ export const DesktopProgramModal: React.FC<DesktopProgramModalProps> = ({
     setTimeout(() => setTunnelSynced(false), 6000);
   };
 
-  const previewTunnelBase = tunnelUrlInput.trim() || 'https://sideseguate-vms.trycloudflare.com';
+  const previewTunnelBase = tunnelUrlInput.trim() || 'https://camaras-vms.trycloudflare.com';
 
   return (
     <div
@@ -367,7 +367,7 @@ export const DesktopProgramModal: React.FC<DesktopProgramModalProps> = ({
                     type="text"
                     value={tunnelUrlInput}
                     onChange={(e) => setTunnelUrlInput(e.target.value)}
-                    placeholder="Ej: https://sideseguate-camaras.trycloudflare.com"
+                    placeholder="Ej: https://camaras-link.trycloudflare.com"
                     className="w-full bg-neutral-900 border border-neutral-800 focus:border-sky-500 rounded-xl px-3.5 py-2 text-xs font-mono text-white placeholder-neutral-500 focus:outline-none"
                   />
                 </div>
@@ -390,7 +390,7 @@ export const DesktopProgramModal: React.FC<DesktopProgramModalProps> = ({
               <div className="flex flex-wrap items-center justify-end gap-2">
                 <button
                   type="button"
-                  onClick={() => setTunnelUrlInput('https://sideseguate-live.trycloudflare.com')}
+                  onClick={() => setTunnelUrlInput('https://camaras-live.trycloudflare.com')}
                   className="px-3 py-2 bg-neutral-900 hover:bg-neutral-800 text-neutral-300 border border-neutral-800 rounded-xl text-xs font-medium transition shrink-0 cursor-pointer"
                 >
                   Probar URL Ejemplo
@@ -454,7 +454,7 @@ export const DesktopProgramModal: React.FC<DesktopProgramModalProps> = ({
             >
               <span className="font-mono flex items-center gap-2">
                 <FileCode className="w-3.5 h-3.5 text-sky-400" />
-                Inspeccionar código del Instalador Único (`SIDESEGUATE-Instalador-Unico-PC.bat`)
+                Inspeccionar código del Instalador Único (`Proyecto-Camaras-Instalador-PC.bat`)
               </span>
               <span className="flex items-center gap-1 text-neutral-400">
                 {showCodePreview ? (
