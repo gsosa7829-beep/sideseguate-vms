@@ -333,7 +333,7 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
     }
     const devSerial = camera.deviceSerial || cloudP2pClient.resolveDevice(camera)?.serial || 'F31700438';
     const ch = Math.min(4, Math.max(1, camera.channel || 1));
-    return getCachedHlsUrl(ch, devSerial, '2') || getCachedHlsUrl(ch, devSerial, '1');
+    return getCachedHlsUrl(ch, devSerial, '1') || getCachedHlsUrl(ch, devSerial, '2');
   });
   const isMobileClient = typeof window !== 'undefined' && (
     window.innerWidth < 640 ||
@@ -347,16 +347,14 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
   const lastPlaybackTimeRef = useRef<number>(0);
   const stallCountRef = useRef<number>(0);
   const [useHlsFallback, setUseHlsFallback] = useState(false);
+  // Reproductor nativo por aceleración de hardware (<video> con HLS) para F31700438 (H.264).
+  // Elimina colisiones de WebAssembly, DecodeWorker y puertos WebSocket en Safari iOS / iPhone.
   const isEzopenDevice = Boolean(
     !useHlsFallback && (
       camera.deviceSerial === 'FF9363270' ||
-      camera.deviceSerial === 'F31700438' ||
       camera.notes?.includes('FF9363270') ||
-      camera.notes?.includes('F31700438') ||
       camera.codec === 'H.265' ||
-      camera.id?.includes('ocos') ||
-      camera.id?.includes('cementerio') ||
-      (camera.deviceSerial && camera.verificationCode)
+      camera.id?.includes('ocos')
     )
   );
   const ezuikitContainerId = useRef('ezuikit-live-' + Math.random().toString(36).substring(2, 9)).current;
@@ -876,18 +874,39 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
           }
         });
       } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
-        // Soporte nativo para Apple iPhone / iPad Safari
+        // Soporte nativo de hardware acelerado para Apple iPhone / iPad Safari
         video.src = liveHlsUrl;
         video.onloadedmetadata = () => {
           if (cancelled) return;
           setHlsLiveReady(true);
+          setIsSwitchingQuality(false);
           try {
             if (video.seekable && video.seekable.length > 0) {
               const edge = video.seekable.end(video.seekable.length - 1);
-              video.currentTime = Math.max(0, edge - 2.0); // Colchón de 2 segundos para evitar micro-congelamientos
+              video.currentTime = Math.max(0, edge - 1.5);
             }
           } catch {}
           video.play().catch(() => {});
+        };
+        video.oncanplay = () => {
+          if (cancelled) return;
+          setHlsLiveReady(true);
+          setIsSwitchingQuality(false);
+          video.play().catch(() => {});
+        };
+        video.onplaying = () => {
+          if (cancelled) return;
+          setHlsLiveReady(true);
+          setIsSwitchingQuality(false);
+        };
+        video.onwaiting = () => {
+          try {
+            if (video.seekable && video.seekable.length > 0) {
+              const edge = video.seekable.end(video.seekable.length - 1);
+              video.currentTime = Math.max(0, edge - 1.0);
+              video.play().catch(() => {});
+            }
+          } catch {}
         };
         video.ontimeupdate = () => {
           try {
@@ -1515,7 +1534,7 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
         {!isEzopenDevice && liveHlsUrl && !isDemoTunnelPlaceholder && (
           <video
             ref={videoRef}
-            className={hasHls ? 'absolute inset-0 w-full h-full object-fill z-10' : 'hidden'}
+            className={`absolute inset-0 w-full h-full object-fill z-10 transition-opacity duration-300 ${hasHls ? 'opacity-100' : 'opacity-90'}`}
             muted={true}
             playsInline
             autoPlay
@@ -1539,7 +1558,7 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
                 }
                 if (videoRef.current.videoWidth > 0) {
                   setHlsLiveReady(true);
-                  
+                  setIsSwitchingQuality(false);
                 }
               }
             }}
@@ -1551,6 +1570,7 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
                 }
                 if (videoRef.current.videoWidth > 0) {
                   setHlsLiveReady(true);
+                  setIsSwitchingQuality(false);
                 }
               }
             }}
@@ -1560,11 +1580,11 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
             style={
               digitalZoom * ptzZoom > 1 || ptzPan !== 0 || ptzTilt !== 0
                 ? {
-                    objectFit: 'contain',
+                    objectFit: 'fill',
                     transform: `scale(${digitalZoom * ptzZoom}) translate(${ptzPan * 0.5}px, ${ptzTilt * 0.5}px)`,
                     transition: 'transform 0.15s ease-out',
                   }
-                : { objectFit: 'contain' }
+                : { objectFit: 'fill' }
             }
           />
         )}
