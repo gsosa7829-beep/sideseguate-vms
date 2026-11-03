@@ -335,7 +335,12 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
     const ch = Math.min(4, Math.max(1, camera.channel || 1));
     return getCachedHlsUrl(ch, devSerial, '2') || getCachedHlsUrl(ch, devSerial, '1');
   });
-  const [streamQuality, setStreamQuality] = useState<'1' | '2'>('1'); // Por defecto '1' (HD 1080p sin zoom, encuadre óptico completo)
+  const isMobileClient = typeof window !== 'undefined' && (
+    window.innerWidth < 640 ||
+    /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent)
+  );
+  // En móviles arranca por defecto en SD fluido (25 FPS, 0s lag) para conexión inmediata en redes 4G; en PC arranca en HD 1080p
+  const [streamQuality, setStreamQuality] = useState<'1' | '2'>(() => isMobileClient ? '2' : '1');
   const [isSwitchingQuality, setIsSwitchingQuality] = useState(false);
   const [watchdogToast, setWatchdogToast] = useState<string | null>(null);
   const hlsRef = useRef<Hls | null>(null);
@@ -493,6 +498,22 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
         const width = Math.max(320, Math.round(rect.width || container.clientWidth || window.innerWidth || 640));
         const height = Math.max(180, Math.round(rect.height || container.clientHeight || (width * 9) / 16 || 360));
 
+        const isMobileScreen = typeof window !== 'undefined' && (
+          window.innerWidth < 768 ||
+          /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent)
+        );
+
+        let mobileFallbackTimer: any = null;
+        if (isMobileScreen) {
+          // Si la red celular del móvil bloquea el puerto WebSocket de EZopen, activar respaldo automático en 4.5s
+          mobileFallbackTimer = setTimeout(() => {
+            if (active && !ezuikitLiveReady) {
+              console.warn('Conexión WebSocket móvil demorada, activando respaldo continuo...');
+              setUseHlsFallback(true);
+            }
+          }, 4500);
+        }
+
         const player = new EZUIKit.EZUIKitPlayer({
           id: ezuikitContainerId,
           accessToken: EZVIZ_ACCESS_TOKEN,
@@ -502,9 +523,12 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
           height: height,
           autoplay: true,
           audio: 0,
+          muted: true,
+          isMobile: isMobileScreen,
           scaleMode: 1,
           handleSuccess: () => {
             if (!active) return;
+            if (mobileFallbackTimer) clearTimeout(mobileFallbackTimer);
             setEzuikitLiveReady(true);
             setIsSwitchingQuality(false);
             setIsOffline(false);
@@ -1368,6 +1392,7 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
         onDoubleClick={toggleFullscreen}
+        style={{ touchAction: 'pan-y' }}
         className={`relative w-full bg-neutral-950 flex items-center justify-center overflow-hidden select-none cursor-pointer ${isFullscreen ? "flex-1 h-full" : "aspect-video"}`}
         title="Doble toque o doble clic para Pantalla Completa · Pellizca para Zoom"
       >
