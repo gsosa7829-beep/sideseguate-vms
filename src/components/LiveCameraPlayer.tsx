@@ -335,8 +335,9 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
     const ch = Math.min(4, Math.max(1, camera.channel || 1));
     return getCachedHlsUrl(ch, devSerial, '2') || getCachedHlsUrl(ch, devSerial, '1');
   });
-  const streamQuality = '2'; // Bloqueado a señal fluida 25 FPS para escala perfecta y cero fallas
-        const [watchdogToast, setWatchdogToast] = useState<string | null>(null);
+  const [streamQuality, setStreamQuality] = useState<'1' | '2'>('1'); // Por defecto '1' (HD 1080p sin zoom, encuadre óptico completo)
+  const [isSwitchingQuality, setIsSwitchingQuality] = useState(false);
+  const [watchdogToast, setWatchdogToast] = useState<string | null>(null);
   const hlsRef = useRef<Hls | null>(null);
   const lastPlaybackTimeRef = useRef<number>(0);
   const stallCountRef = useRef<number>(0);
@@ -484,15 +485,13 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
       const devSerial = camera.deviceSerial || 'FF9363270';
       const code = camera.verificationCode || (devSerial === 'FF9363270' ? 'LBNZYU' : (devSerial === 'F31700438' ? 'HELGDM' : ''));
       const codePrefix = code ? `${code}@` : '';
-      const ezopenUrl = `ezopen://${codePrefix}open.ezviz.com/${devSerial}/${camera.channel || 1}.live`;
+      const streamTypeStr = streamQuality === '1' ? '.hd.live' : '.live';
+      const ezopenUrl = `ezopen://${codePrefix}open.ezviz.com/${devSerial}/${camera.channel || 1}${streamTypeStr}`;
 
       try {
         const rect = container.getBoundingClientRect();
         const width = Math.max(320, Math.round(rect.width || container.clientWidth || window.innerWidth || 640));
         const height = Math.max(180, Math.round(rect.height || container.clientHeight || (width * 9) / 16 || 360));
-
-        const isMobile = typeof window !== 'undefined' && (/Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || window.innerWidth < 768);
-        
 
         const player = new EZUIKit.EZUIKitPlayer({
           id: ezuikitContainerId,
@@ -505,9 +504,8 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
           audio: 0,
           handleSuccess: () => {
             if (!active) return;
-            
             setEzuikitLiveReady(true);
-            
+            setIsSwitchingQuality(false);
             setIsOffline(false);
             stallCountRef.current = 0;
             if (isMutedRef.current) {
@@ -525,6 +523,7 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
           handleError: (err: any) => {
             console.warn('EZUIKit stream warning:', err);
             if (!active) return;
+            setIsSwitchingQuality(false);
             console.warn('EZopen no disponible, activando fallback HLS optimizado...');
             setUseHlsFallback(true);
           },
@@ -1325,13 +1324,13 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
               hasImage ? 'text-emerald-400' : 'text-amber-400'
             }`}
           >
-            <span className="sm:hidden">{isReconnecting ? 'CONECTANDO…' : hasImage ? 'EN VIVO' : 'RECONECTAR'}</span>
+            <span className="sm:hidden">{isReconnecting ? 'CONECTANDO…' : hasImage ? (streamQuality === '1' ? '1080p FHD' : 'SD FLUIDO') : 'RECONECTAR'}</span>
             <span className="hidden sm:inline">
               {isReconnecting
                 ? 'RECONECTANDO…'
                 : hasImage
                 ? isContinuousLive
-                  ? 'EN VIVO · 25 FPS FLUIDO'
+                  ? (streamQuality === '1' ? 'EN VIVO · 1080p FHD' : 'EN VIVO · SD FLUIDO')
                   : 'EN VIVO · RÁFAGA 4G'
                 : 'RECONECTAR SEÑAL'}
             </span>
@@ -1660,7 +1659,26 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
 
       {/* Bottom Control Bar: 1 Fila Perfecta en Móvil y Escritorio (5 Botones Simétricos) */}
       <div className="relative z-20 bg-neutral-950 border-t border-neutral-800/90 px-2 sm:px-4 py-2 text-neutral-300">
-        <div className="grid grid-cols-4 gap-2 max-w-xl mx-auto">
+        <div className="grid grid-cols-5 gap-1.5 sm:gap-2 max-w-xl mx-auto">
+          {/* Botón 1: Calidad (HD / SD) */}
+          <button
+            type="button"
+            aria-label={streamQuality === '1' ? 'Cambiar a calidad fluida SD' : 'Cambiar a calidad alta definición 1080p HD'}
+            onClick={() => {
+              setIsSwitchingQuality(true);
+              setStreamQuality((q) => (q === '1' ? '2' : '1'));
+            }}
+            className={`min-h-[46px] h-[46px] px-1 sm:px-3 rounded-xl border text-xs font-bold transition-all flex items-center justify-center gap-1 sm:gap-1.5 active:scale-95 col-span-1 ${
+              streamQuality === '1'
+                ? 'bg-sky-950/80 border-sky-500/80 text-sky-300 shadow-sm shadow-sky-950/50'
+                : 'bg-neutral-900 border-neutral-800 text-neutral-400 hover:text-white'
+            }`}
+            title={streamQuality === '1' ? 'Calidad HD 1080p activa (Encuadre óptico completo)' : 'Calidad SD fluida activa'}
+          >
+            <Sparkles className={`w-4 h-4 text-sky-400 shrink-0 ${isSwitchingQuality ? 'animate-spin' : ''}`} />
+            <span className="font-mono text-xs font-bold">{streamQuality === '1' ? 'HD' : 'SD'}</span>
+          </button>
+
           {/* Botón 2: Audio */}
           <button
             type="button"
