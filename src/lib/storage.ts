@@ -65,7 +65,7 @@ export const storage = {
           )
           .map((c: any) => {
             if (c.id === 'cam-ocos-ch1') {
-              return { ...c, codec: 'H.264' };
+              return { ...c, codec: 'H.265', bitrateKbps: 768 };
             }
             return c;
           });

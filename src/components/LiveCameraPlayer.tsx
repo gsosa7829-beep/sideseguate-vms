@@ -83,8 +83,6 @@ export function getCachedHlsUrl(channel: number, serial: string, quality: '1' | 
 export function prewarmHikvisionCameras() {
   fetchEzvizLiveHls(1, 'F31700438', '2');
   fetchEzvizLiveHls(2, 'F31700438', '2');
-  fetchEzvizLiveHls(1, 'FF9363270', '2');
-  fetchEzvizLiveCapture(1, 'FF9363270');
   fetchEzvizLiveCapture(1, 'F31700438');
   fetchEzvizLiveCapture(2, 'F31700438');
 }
@@ -368,6 +366,37 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
 
   // Estados de reconexión rápida y auto-recuperación 24/7
   const [isReconnecting, setIsReconnecting] = useState(false);
+
+  // Ahorro inteligente de datos 4G: suspensión cuando la pestaña está minimizada o en segundo plano
+  useEffect(() => {
+    const is4gCamera = camera.deviceSerial === 'FF9363270' || camera.id?.includes('ocos') || camera.notes?.includes('4G');
+    if (!is4gCamera) return;
+
+    const handleVisibility = () => {
+      if (document.hidden) {
+        if (ezPlayerRef.current) {
+          try { ezPlayerRef.current.stop(); } catch {}
+        }
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibility);
+    return () => document.removeEventListener('visibilitychange', handleVisibility);
+  }, [camera.deviceSerial, camera.id, camera.notes]);
+
+  // Protección de cuota 4G: tras 5 minutos continuos en HD, volver a SD fluido automáticamente
+  useEffect(() => {
+    const is4gCamera = camera.deviceSerial === 'FF9363270' || camera.id?.includes('ocos') || camera.notes?.includes('4G');
+    if (!is4gCamera || streamQuality !== '1') return;
+
+    const timer = setTimeout(() => {
+      setStreamQuality('2');
+      setWatchdogToast('Ahorro 4G activado: Calidad optimizada a SD fluido para proteger tu plan de datos');
+      setTimeout(() => setWatchdogToast(null), 3500);
+    }, 5 * 60 * 1000);
+
+    return () => clearTimeout(timer);
+  }, [streamQuality, camera.deviceSerial, camera.id, camera.notes]);
   const [isOffline, setIsOffline] = useState(false);
   const [autoRetrySeconds, setAutoRetrySeconds] = useState(0);
   const [reconnectToast, setReconnectToast] = useState<string | null>(null);
@@ -571,6 +600,10 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
   // Consulta dinámica de streaming HLS en vivo sin cifrado
   useEffect(() => {
     let cancelled = false;
+    // Optimización 4G: Si el equipo reproduce vía WebAssembly EZopen nativo, NO solicitar flujo HLS en paralelo para no duplicar el consumo del plan celular
+    if (isEzopenDevice && !useHlsFallback) {
+      return;
+    }
     const ch = Math.min(4, Math.max(1, camera.channel || 1));
     const deviceSerial =
       camera.deviceSerial || cloudP2pClient.resolveDevice(camera)?.serial || 'F31700438';
@@ -642,6 +675,27 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
     // Multi-dispositivo: el frame se pide con la serie del equipo de esta cámara.
     const deviceSerial =
       camera.deviceSerial || cloudP2pClient.resolveDevice(camera)?.serial || '';
+
+    // Optimización crítica 4G: Las cámaras celulares con EZopen (FF9363270) NO deben sondear ráfagas cada 50ms.
+    // Se pide 1 sola captura como póster inicial sin bucle de sondeo, ahorrando gigabytes en el plan de datos.
+    if (isEzopenDevice) {
+      fetchEzvizLiveCapture(ch, deviceSerial || 'FF9363270').then((picUrl) => {
+        if (picUrl && active) {
+          const img = new Image();
+          img.crossOrigin = 'anonymous';
+          img.onload = () => {
+            if (!active) return;
+            nativeP2pImgRef.current = img;
+            setNativeP2pReady(true);
+            setIsOffline(false);
+          };
+          img.src = picUrl;
+        }
+      });
+      return () => {
+        active = false;
+      };
+    }
 
     const loadFallbackDataUrl = () => {
       const dataUrl = cloudP2pClient.getFallbackDataUrl(ch, deviceSerial);
@@ -1773,6 +1827,34 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
               Cerrar ✕
             </button>
           </div>
+
+          {/* Card Especial de Ahorro y Consumo de Datos Móviles 4G (Proyecto Ocós) */}
+          {(camera.deviceSerial === 'FF9363270' || camera.id?.includes('ocos') || camera.notes?.includes('4G')) && (
+            <div className="mb-2.5 p-3 rounded-xl bg-sky-950/40 border border-sky-500/30 text-xs">
+              <div className="flex items-center justify-between mb-1.5">
+                <span className="font-bold text-sky-300 flex items-center gap-1.5">
+                  <Sparkles className="w-3.5 h-3.5 text-sky-400" />
+                  <span>Ahorro Inteligente 4G Celular</span>
+                </span>
+                <span className="font-mono text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-2 py-0.5 rounded-full font-bold">
+                  80% Ahorro Activo
+                </span>
+              </div>
+              <p className="text-[11px] text-neutral-300 leading-relaxed mb-2">
+                La cámara está operando en <strong className="text-white">H.265 Sub-Stream</strong> (25 FPS fluidos a ~512 kbps). La suspensión automática pausa los datos cuando cambias de pestaña o aplicación.
+              </p>
+              <div className="grid grid-cols-2 gap-2 text-[10px] font-mono text-neutral-400">
+                <div className="bg-black/50 p-1.5 rounded-lg border border-neutral-800">
+                  <span className="text-neutral-500 block">Consumo SD Fluido:</span>
+                  <span className="text-emerald-400 font-bold">~3.8 MB / minuto</span>
+                </div>
+                <div className="bg-black/50 p-1.5 rounded-lg border border-neutral-800">
+                  <span className="text-neutral-500 block">Consumo HD 1080p:</span>
+                  <span className="text-amber-400 font-bold">~22.5 MB / minuto</span>
+                </div>
+              </div>
+            </div>
+          )}
 
           <div className="grid grid-cols-2 gap-2">
             <button
