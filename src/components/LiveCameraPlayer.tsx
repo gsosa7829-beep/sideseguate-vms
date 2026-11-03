@@ -502,6 +502,7 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
           height: height,
           autoplay: true,
           audio: 0,
+          scaleMode: 1,
           handleSuccess: () => {
             if (!active) return;
             setEzuikitLiveReady(true);

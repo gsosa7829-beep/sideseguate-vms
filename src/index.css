@@ -242,8 +242,7 @@
 .ezuikit-live-player .ezplayer-contain,
 .ezuikit-live-player .ezplayer-screen,
 .ezuikit-live-player .ezplayer-content-wrapper,
-.ezuikit-live-player .ezplayer-content,
-.ezuikit-live-player .ezplayer-content-video {
+.ezuikit-live-player .ezplayer-content {
   position: absolute !important;
   inset: 0 !important;
   width: 100% !important;
@@ -255,6 +254,24 @@
   overflow: hidden !important;
 }
 
+.ezuikit-live-player .ezplayer-content-video {
+  position: absolute !important;
+  inset: 0 !important;
+  left: 0 !important;
+  top: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  max-width: 100% !important;
+  max-height: 100% !important;
+  transform: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  display: block !important;
+  overflow: hidden !important;
+}
+
 .ezuikit-live-player canvas,
 .ezuikit-live-player video,
 .ezuikit-live-player iframe,
@@ -263,6 +280,8 @@
   inset: 0 !important;
   left: 0 !important;
   top: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
   width: 100% !important;
   height: 100% !important;
   max-width: 100% !important;
@@ -271,4 +290,5 @@
   transform: none !important;
   display: block !important;
   margin: 0 !important;
+  padding: 0 !important;
 }
