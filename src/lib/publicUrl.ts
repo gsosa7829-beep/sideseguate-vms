@@ -1,3 +1,4 @@
+export const DEFAULT_PUBLIC_APP_URL = 'https://proyectos-de-camaras.surge.sh';
 import { loadGateway, normalizeGatewayUrl } from './streamGateway';
 
 /**
@@ -147,7 +148,9 @@ export function resolvePublicUrl(input: ResolvePublicUrlInput): PublicUrlInfo {
 export function getBuildPublicAppUrl(): string {
   try {
     const env = (import.meta as ImportMeta & { env?: Record<string, string | undefined> }).env;
-    return (env?.VITE_PUBLIC_APP_URL || '').trim();
+    const url = (env?.VITE_PUBLIC_APP_URL || '').trim();
+    if (url && !url.includes('sideseguate')) return url;
+    return '';
   } catch {
     return '';
   }
@@ -187,10 +190,12 @@ export function getPublicBaseUrl(): string {
 
 /** Enlace que se comparte con el cliente: `<base>?token=<token>`. */
 export function buildPublicShareUrl(token: string): string {
-  const base = (getPublicBaseUrl() || '').replace(/\/+$/, '');
+  const base = (getPublicBaseUrl() || DEFAULT_PUBLIC_APP_URL).replace(/\/+$/, '');
   const cleanToken = (token || '').trim();
-  if (!base) return cleanToken ? `?token=${cleanToken}` : '';
-  return `${base}${base.includes('?') ? '&' : '?'}token=${encodeURIComponent(cleanToken)}`;
+  const finalBase = (!base || base.includes('localhost') || base.includes('127.0.0.1') || base.includes('sideseguate'))
+    ? DEFAULT_PUBLIC_APP_URL
+    : base;
+  return `${finalBase}${finalBase.includes('?') ? '&' : '?'}token=${encodeURIComponent(cleanToken)}`;
 }
 
 /** Aviso para la interfaz cuando el enlace no sirve o revela datos personales. */

@@ -335,13 +335,8 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
     const ch = Math.min(4, Math.max(1, camera.channel || 1));
     return getCachedHlsUrl(ch, devSerial, '2') || getCachedHlsUrl(ch, devSerial, '1');
   });
-  const [streamQuality, setStreamQuality] = useState<'1' | '2'>('2');
-  const [isSwitchingQuality, setIsSwitchingQuality] = useState(false);
-  const isSwitchingQualityRef = useRef(false);
-  useEffect(() => {
-    isSwitchingQualityRef.current = isSwitchingQuality;
-  }, [isSwitchingQuality]);
-  const [watchdogToast, setWatchdogToast] = useState<string | null>(null);
+  const streamQuality = '2'; // Bloqueado a señal fluida 25 FPS para escala perfecta y cero fallas
+        const [watchdogToast, setWatchdogToast] = useState<string | null>(null);
   const hlsRef = useRef<Hls | null>(null);
   const lastPlaybackTimeRef = useRef<number>(0);
   const stallCountRef = useRef<number>(0);
@@ -384,19 +379,7 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
     return () => document.removeEventListener('visibilitychange', handleVisibility);
   }, [camera.deviceSerial, camera.id, camera.notes]);
 
-  // Protección de cuota 4G: tras 5 minutos continuos en HD, volver a SD fluido automáticamente
-  useEffect(() => {
-    const is4gCamera = camera.deviceSerial === 'FF9363270' || camera.id?.includes('ocos') || camera.notes?.includes('4G');
-    if (!is4gCamera || streamQuality !== '1') return;
 
-    const timer = setTimeout(() => {
-      setStreamQuality('2');
-      setWatchdogToast('Ahorro 4G activado: Calidad optimizada a SD fluido para proteger tu plan de datos');
-      setTimeout(() => setWatchdogToast(null), 3500);
-    }, 5 * 60 * 1000);
-
-    return () => clearTimeout(timer);
-  }, [streamQuality, camera.deviceSerial, camera.id, camera.notes]);
   const [isOffline, setIsOffline] = useState(false);
   const [autoRetrySeconds, setAutoRetrySeconds] = useState(0);
   const [reconnectToast, setReconnectToast] = useState<string | null>(null);
@@ -501,8 +484,7 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
       const devSerial = camera.deviceSerial || 'FF9363270';
       const code = camera.verificationCode || (devSerial === 'FF9363270' ? 'LBNZYU' : (devSerial === 'F31700438' ? 'HELGDM' : ''));
       const codePrefix = code ? `${code}@` : '';
-      const streamTypeStr = streamQuality === '1' ? '.hd.live' : '.live';
-      const ezopenUrl = `ezopen://${codePrefix}open.ezviz.com/${devSerial}/${camera.channel || 1}${streamTypeStr}`;
+      const ezopenUrl = `ezopen://${codePrefix}open.ezviz.com/${devSerial}/${camera.channel || 1}.live`;
 
       try {
         const rect = container.getBoundingClientRect();
@@ -510,20 +492,7 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
         const height = Math.max(180, Math.round(rect.height || container.clientHeight || (width * 9) / 16 || 360));
 
         const isMobile = typeof window !== 'undefined' && (/Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || window.innerWidth < 768);
-        let hdWatchdogTimer: any = null;
-        if (streamQuality === '1') {
-          // En móvil optimizar a 5.5s para no demorar al operador en conexión celular; en PC 7s
-          const timeoutMs = isMobile ? 5500 : 7000;
-          hdWatchdogTimer = setTimeout(() => {
-            if (active && !ezuikitLiveReady) {
-              console.warn('HD 1080p con demora en 4G celular, pasando a SD fluido para visualización inmediata...');
-              setStreamQuality('2');
-              setIsSwitchingQuality(false);
-              setWatchdogToast('Conexión 4G optimizada: señal fluida en tiempo real');
-              setTimeout(() => setWatchdogToast(null), 3000);
-            }
-          }, timeoutMs);
-        }
+        
 
         const player = new EZUIKit.EZUIKitPlayer({
           id: ezuikitContainerId,
@@ -536,9 +505,9 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
           audio: 0,
           handleSuccess: () => {
             if (!active) return;
-            if (hdWatchdogTimer) clearTimeout(hdWatchdogTimer);
+            
             setEzuikitLiveReady(true);
-            setIsSwitchingQuality(false);
+            
             setIsOffline(false);
             stallCountRef.current = 0;
             if (isMutedRef.current) {
@@ -556,17 +525,8 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
           handleError: (err: any) => {
             console.warn('EZUIKit stream warning:', err);
             if (!active) return;
-            if (hdWatchdogTimer) clearTimeout(hdWatchdogTimer);
-            setIsSwitchingQuality(false);
-            if (streamQuality === '1') {
-              console.log('HD congestionado o en negociación. Auto-conmutando a SD fluido...');
-              setStreamQuality('2');
-              setWatchdogToast('Conexión 4G optimizada a señal fluida');
-              setTimeout(() => setWatchdogToast(null), 3000);
-            } else {
-              console.warn('EZopen no disponible, activando fallback HLS optimizado...');
-              setUseHlsFallback(true);
-            }
+            console.warn('EZopen no disponible, activando fallback HLS optimizado...');
+            setUseHlsFallback(true);
           },
         });
 
@@ -578,7 +538,7 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
         ezPlayerRef.current = player;
       } catch (e) {
         console.warn('EZUIKit init error:', e);
-        setIsSwitchingQuality(false);
+        
       }
     };
 
@@ -837,7 +797,7 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
       if (cancelled) return;
 
       if (Hls.isSupported()) {
-        const isHd = streamQuality === '1';
+        const isHd = false;
         hls = new Hls({
 
           lowLatencyMode: true, // 4G celular requiere estabilidad sin drenar el búfer
@@ -1198,7 +1158,7 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
     if (isOffline) return;
 
     const interval = setInterval(() => {
-      if (isSwitchingQualityRef.current || isReconnecting) return;
+      if (isReconnecting) return;
 
       // 1. Verificación para flujos HLS (Hikvision DVR)
       if (!isEzopenDevice && liveHlsUrl && hasHls && videoRef.current) {
@@ -1371,9 +1331,7 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
                 ? 'RECONECTANDO…'
                 : hasImage
                 ? isContinuousLive
-                  ? streamQuality === '1'
-                    ? 'EN VIVO · 1080p FHD'
-                    : 'EN VIVO · SD FLUIDO'
+                  ? 'EN VIVO · 25 FPS FLUIDO'
                   : 'EN VIVO · RÁFAGA 4G'
                 : 'RECONECTAR SEÑAL'}
             </span>
@@ -1388,19 +1346,13 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
         </button>
 
         <div className="flex items-center gap-1 bg-black/65 backdrop-blur-md px-2.5 py-1 rounded-full border border-white/10 text-[10px] sm:text-[11px] font-mono tabular-nums text-neutral-200 whitespace-nowrap shrink-0 shadow-lg">
-          <span className="sm:hidden font-bold text-sky-300">
-            {streamQuality === '1' ? '1080p HD' : 'SD'}
+          <span className="font-bold text-sky-300 font-mono">
+            {camera.codec || 'H.265'}
             <span className="text-neutral-500 mx-1">·</span>
           </span>
-          <span className="hidden sm:inline">
-            <span>{streamQuality === '1' ? '1920x1080' : '704x480'}</span>
-            <span className="text-neutral-500 mx-1">·</span>
-          </span>
-          <span className="text-emerald-400 font-semibold">{isContinuousLive ? `${metrics.fps} FPS` : '4G P2P'}</span>
+          <span className="text-emerald-400 font-semibold font-mono">{isContinuousLive ? `${metrics.fps} FPS` : '4G P2P'}</span>
           <span className="text-neutral-500 mx-1">·</span>
-          <span className="text-sky-300 font-semibold">
-            {isContinuousLive ? `${streamQuality === '1' ? Math.round(metrics.bitrate * 1.5) : metrics.bitrate} kbps` : 'DIRECTO'}
-          </span>
+          <span className="text-sky-300 font-semibold font-mono">{isContinuousLive ? `${metrics.bitrate} kbps` : 'DIRECTO'}</span>
           {nightVision && (
             <>
               <span className="text-neutral-500 mx-1">·</span>
@@ -1483,15 +1435,7 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
         )}
 
         
-        {/* Indicador de Transición de Calidad HD / SD sin pantalla negra ni desenfoque */}
-        {isSwitchingQuality && (
-          <div className="absolute top-12 inset-x-0 z-30 flex justify-center pointer-events-none px-4 animate-in fade-in duration-150">
-            <div className="bg-neutral-900/95 border border-sky-500/50 text-white text-xs font-semibold px-4 py-2 rounded-xl shadow-2xl flex items-center gap-2">
-              <RefreshCw className="w-3.5 h-3.5 text-sky-400 animate-spin" />
-              <span>{streamQuality === '1' ? 'Cargando HD 1080p...' : 'Cargando SD Fluido...'}</span>
-            </div>
-          </div>
-        )}
+        
 
         {/* Notificación del Watchdog de Auto-Actualización */}
         {watchdogToast && (
@@ -1518,8 +1462,8 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
           ref={canvasRef}
           width={1280}
           height={720}
-          className={`w-full h-full object-contain select-none transition-opacity duration-300 ${
-            isContinuousLive && !isSwitchingQuality ? 'opacity-0 pointer-events-none' : 'opacity-100'
+          className={`w-full h-full object-fill select-none transition-opacity duration-300 ${
+            isContinuousLive ? 'opacity-0 pointer-events-none' : 'opacity-100'
           }`}
         />
 
@@ -1546,7 +1490,7 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
         {!isEzopenDevice && liveHlsUrl && !isDemoTunnelPlaceholder && (
           <video
             ref={videoRef}
-            className={hasHls ? 'absolute inset-0 w-full h-full object-contain z-10' : 'hidden'}
+            className={hasHls ? 'absolute inset-0 w-full h-full object-fill z-10' : 'hidden'}
             muted={true}
             playsInline
             autoPlay
@@ -1570,7 +1514,7 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
                 }
                 if (videoRef.current.videoWidth > 0) {
                   setHlsLiveReady(true);
-                  setIsSwitchingQuality(false);
+                  
                 }
               }
             }}
@@ -1716,26 +1660,7 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
 
       {/* Bottom Control Bar: 1 Fila Perfecta en Móvil y Escritorio (5 Botones Simétricos) */}
       <div className="relative z-20 bg-neutral-950 border-t border-neutral-800/90 px-2 sm:px-4 py-2 text-neutral-300">
-        <div className="grid grid-cols-5 gap-1.5 sm:gap-2 max-w-xl mx-auto">
-          {/* Botón 1: Calidad (HD / SD) */}
-          <button
-            type="button"
-            aria-label={streamQuality === '1' ? 'Cambiar a calidad fluida SD' : 'Cambiar a calidad alta definición 1080p HD'}
-            onClick={() => {
-              setIsSwitchingQuality(true);
-              setStreamQuality((q) => (q === '1' ? '2' : '1'));
-            }}
-            className={`min-h-[46px] h-[46px] px-1 sm:px-3 rounded-xl border text-xs font-bold transition-all flex items-center justify-center gap-1 sm:gap-1.5 active:scale-95 col-span-1 ${
-              streamQuality === '1'
-                ? 'bg-sky-950/80 border-sky-500/80 text-sky-300 shadow-sm shadow-sky-950/50'
-                : 'bg-neutral-900 border-neutral-800 text-neutral-400 hover:text-white'
-            }`}
-            title={streamQuality === '1' ? 'Calidad HD 1080p activa' : 'Calidad SD activa'}
-          >
-            <Sparkles className="w-4 h-4 text-sky-400 shrink-0" />
-            <span className="font-mono text-xs font-bold">{streamQuality === '1' ? 'HD' : 'SD'}</span>
-          </button>
-
+        <div className="grid grid-cols-4 gap-2 max-w-xl mx-auto">
           {/* Botón 2: Audio */}
           <button
             type="button"

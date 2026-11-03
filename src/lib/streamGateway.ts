@@ -274,7 +274,7 @@ export function loadGateway(): StreamGateway {
         return {
           baseUrl: normalizeGatewayUrl(parsed.baseUrl || ''),
           webrtcBaseUrl: normalizeGatewayUrl(parsed.webrtcBaseUrl || '') || undefined,
-          publicAppUrl: normalizeGatewayUrl(parsed.publicAppUrl || '') || undefined,
+          publicAppUrl: (parsed.publicAppUrl && !parsed.publicAppUrl.includes('sideseguate')) ? normalizeGatewayUrl(parsed.publicAppUrl) || undefined : undefined,
           updatedAt: parsed.updatedAt || new Date().toISOString(),
         };
       }

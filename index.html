@@ -74,7 +74,14 @@
           });
         }
         try {
-          var oldKeys = [
+          try {
+          var gw = localStorage.getItem('sideseguate_stream_gateway_v1');
+          if (gw && (gw.includes('sideseguate') || !gw.includes('proyectos-de-camaras'))) {
+            localStorage.removeItem('sideseguate_stream_gateway_v1');
+          }
+          localStorage.removeItem('sideseguate_domain_v1');
+        } catch(e) {}
+        var oldKeys = [
             'sideseguate_cameras_v5',
             'sideseguate_cameras_v6',
             'sideseguate_cameras_v7',
