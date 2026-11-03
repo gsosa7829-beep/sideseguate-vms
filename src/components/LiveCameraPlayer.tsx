@@ -79,10 +79,8 @@ export function getCachedHlsUrl(channel: number, serial: string, quality: '1' | 
   return null;
 }
 
-// Pre-calentamiento inteligente de transmisiones (pre-carga HD y SD para cambio instantáneo sin parpadeos)
+// Pre-calentamiento inteligente de transmisiones (usa calidad fluida 25 FPS para eliminar congelamientos)
 export function prewarmHikvisionCameras() {
-  fetchEzvizLiveHls(1, 'F31700438', '1');
-  fetchEzvizLiveHls(2, 'F31700438', '1');
   fetchEzvizLiveHls(1, 'F31700438', '2');
   fetchEzvizLiveHls(2, 'F31700438', '2');
   fetchEzvizLiveCapture(1, 'F31700438');
@@ -335,7 +333,7 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
     }
     const devSerial = camera.deviceSerial || cloudP2pClient.resolveDevice(camera)?.serial || 'F31700438';
     const ch = Math.min(4, Math.max(1, camera.channel || 1));
-    return getCachedHlsUrl(ch, devSerial, '1') || getCachedHlsUrl(ch, devSerial, '2');
+    return getCachedHlsUrl(ch, devSerial, '2') || getCachedHlsUrl(ch, devSerial, '1');
   });
   const [streamQuality, setStreamQuality] = useState<'1' | '2'>('1'); // Por defecto '1' (HD 1080p sin zoom, encuadre óptico completo)
   const [isSwitchingQuality, setIsSwitchingQuality] = useState(false);
@@ -344,14 +342,16 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
   const lastPlaybackTimeRef = useRef<number>(0);
   const stallCountRef = useRef<number>(0);
   const [useHlsFallback, setUseHlsFallback] = useState(false);
-  // Opción B (Ayer): EZopen WebAssembly se restringe estrictamente a Proyecto Ocós (H.265 / 4G).
-  // Proyecto Calle del Cementerio (F31700438 / H.264) utiliza reproductor nativo HTML5 <video> vía HLS, sin parpadeos ni deformaciones de escala.
   const isEzopenDevice = Boolean(
     !useHlsFallback && (
       camera.deviceSerial === 'FF9363270' ||
+      camera.deviceSerial === 'F31700438' ||
       camera.notes?.includes('FF9363270') ||
+      camera.notes?.includes('F31700438') ||
       camera.codec === 'H.265' ||
-      camera.id?.includes('ocos')
+      camera.id?.includes('ocos') ||
+      camera.id?.includes('cementerio') ||
+      (camera.deviceSerial && camera.verificationCode)
     )
   );
   const ezuikitContainerId = useRef('ezuikit-live-' + Math.random().toString(36).substring(2, 9)).current;
@@ -1260,18 +1260,6 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
   // Resincronización al desbloquear celular, volver a la pestaña o reconectar red
   useEffect(() => {
     const handleSyncOnVisible = () => {
-      if (document.visibilityState === 'hidden') {
-        if (isEzopenDevice && ezPlayerRef.current) {
-          try { ezPlayerRef.current.stop(); } catch {}
-        }
-        if (hlsRef.current) {
-          try { hlsRef.current.stopLoad(); } catch {}
-        }
-        if (videoRef.current) {
-          try { videoRef.current.pause(); } catch {}
-        }
-        return;
-      }
       if (document.visibilityState === 'visible') {
         if (isEzopenDevice && ezPlayerRef.current) {
           try {
@@ -1526,7 +1514,7 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
                 }
                 if (videoRef.current.videoWidth > 0) {
                   setHlsLiveReady(true);
-                  setIsSwitchingQuality(false);
+                  
                 }
               }
             }}
@@ -1538,7 +1526,6 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
                 }
                 if (videoRef.current.videoWidth > 0) {
                   setHlsLiveReady(true);
-                  setIsSwitchingQuality(false);
                 }
               }
             }}
@@ -1548,11 +1535,11 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
             style={
               digitalZoom * ptzZoom > 1 || ptzPan !== 0 || ptzTilt !== 0
                 ? {
-                    objectFit: 'fill',
+                    objectFit: 'contain',
                     transform: `scale(${digitalZoom * ptzZoom}) translate(${ptzPan * 0.5}px, ${ptzTilt * 0.5}px)`,
                     transition: 'transform 0.15s ease-out',
                   }
-                : { objectFit: 'fill' }
+                : { objectFit: 'contain' }
             }
           />
         )}
@@ -1681,7 +1668,6 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
             onClick={() => {
               setIsSwitchingQuality(true);
               setStreamQuality((q) => (q === '1' ? '2' : '1'));
-              setTimeout(() => setIsSwitchingQuality(false), 2000);
             }}
             className={`min-h-[46px] h-[46px] px-1 sm:px-3 rounded-xl border text-xs font-bold transition-all flex items-center justify-center gap-1 sm:gap-1.5 active:scale-95 col-span-1 ${
               streamQuality === '1'
