@@ -240,17 +240,35 @@
 
 .ezuikit-live-player .ezplayer,
 .ezuikit-live-player .ezplayer-contain,
-.ezuikit-live-player .ezplayer-screen {
+.ezuikit-live-player .ezplayer-screen,
+.ezuikit-live-player .ezplayer-content-wrapper,
+.ezuikit-live-player .ezplayer-content,
+.ezuikit-live-player .ezplayer-content-video {
+  position: absolute !important;
+  inset: 0 !important;
   width: 100% !important;
   height: 100% !important;
   background-color: transparent !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  overflow: hidden !important;
 }
 
 .ezuikit-live-player canvas,
 .ezuikit-live-player video,
-.ezuikit-live-player iframe {
+.ezuikit-live-player iframe,
+.ezplayer-canvas {
+  position: absolute !important;
+  inset: 0 !important;
+  left: 0 !important;
+  top: 0 !important;
   width: 100% !important;
   height: 100% !important;
+  max-width: 100% !important;
+  max-height: 100% !important;
   object-fit: fill !important;
+  transform: none !important;
   display: block !important;
+  margin: 0 !important;
 }
