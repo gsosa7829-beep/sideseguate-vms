@@ -88,14 +88,27 @@ let prewarmStarted = false;
 export function prewarmHikvisionCameras() {
   if (prewarmStarted) return;
   prewarmStarted = true;
-  // 1. Pre-calentar de inmediato el flujo fluido 25 FPS (arranque <0.4s)
-  fetchEzvizLiveHls(1, 'F31700438', '2');
-  fetchEzvizLiveHls(2, 'F31700438', '2');
-  // 2. Pre-calentar en segundo plano el flujo HD 1080p para cambio instantáneo en 1 clic
-  setTimeout(() => {
+  const isMobileClient = typeof window !== 'undefined' && (
+    window.innerWidth < 768 ||
+    /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent)
+  );
+  if (!isMobileClient) {
+    // En PC: pre-calentar prioritariamente el flujo HD 1080p ('1') para apertura instantánea en HD
     fetchEzvizLiveHls(1, 'F31700438', '1');
     fetchEzvizLiveHls(2, 'F31700438', '1');
-  }, 2200);
+    setTimeout(() => {
+      fetchEzvizLiveHls(1, 'F31700438', '2');
+      fetchEzvizLiveHls(2, 'F31700438', '2');
+    }, 2200);
+  } else {
+    // En móviles: pre-calentar flujo fluido SD ('2') para inicio veloz en redes celulares
+    fetchEzvizLiveHls(1, 'F31700438', '2');
+    fetchEzvizLiveHls(2, 'F31700438', '2');
+    setTimeout(() => {
+      fetchEzvizLiveHls(1, 'F31700438', '1');
+      fetchEzvizLiveHls(2, 'F31700438', '1');
+    }, 2200);
+  }
 }
 
 export async function fetchEzvizLiveHls(
@@ -355,20 +368,40 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
     const ch = Math.min(4, Math.max(1, camera.channel || 1));
     return getCachedHlsUrl(ch, devSerial, '2') || getCachedHlsUrl(ch, devSerial, '1');
   });
-  // Arranca por defecto en Sub-Stream Fluido 25 FPS ('2') en móvil y PC para conexión instantánea (<0.4s) y 0 retrasos; el botón HD cambia a 1080p bajo demanda
-  const [streamQuality, setStreamQuality] = useState<'1' | '2'>('2');
-  const [isSwitchingQuality, setIsSwitchingQuality] = useState(false);
-  const [watchdogToast, setWatchdogToast] = useState<string | null>(null);
-  const hlsRef = useRef<Hls | null>(null);
-  const lastPlaybackTimeRef = useRef<number>(0);
-  const stallCountRef = useRef<number>(0);
-  const [useHlsFallback, setUseHlsFallback] = useState(false);
   const is4gCamera = Boolean(
     camera.deviceSerial === 'FF9363270' ||
     camera.id?.includes('ocos') ||
     camera.notes?.includes('FF9363270') ||
     camera.notes?.includes('4G')
   );
+
+  const isCementerioCamera = Boolean(
+    camera.deviceSerial === 'F31700438' ||
+    camera.projectId === 'proj-calle-cementerio' ||
+    camera.id?.includes('cementerio') ||
+    camera.id?.includes('hilook') ||
+    camera.notes?.includes('F31700438')
+  );
+
+  // En PC las cámaras de Calle del Cementerio abren automáticamente en HD 1080p ('1')
+  // En móviles o cámaras 4G con SIM (Ocós) abren en SD fluido ('2') para proteger datos móviles
+  const [streamQuality, setStreamQuality] = useState<'1' | '2'>(() => {
+    if (typeof window === 'undefined') return '2';
+    const isMobileClient =
+      window.innerWidth < 768 ||
+      /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
+    if (!isMobileClient && isCementerioCamera) {
+      return '1';
+    }
+    return '2';
+  });
+
+  const [isSwitchingQuality, setIsSwitchingQuality] = useState(false);
+  const [watchdogToast, setWatchdogToast] = useState<string | null>(null);
+  const hlsRef = useRef<Hls | null>(null);
+  const lastPlaybackTimeRef = useRef<number>(0);
+  const stallCountRef = useRef<number>(0);
+  const [useHlsFallback, setUseHlsFallback] = useState(false);
 
   // Reproductor cloud de ultra-baja latencia (EZUIKit / WebAssembly / WSS) para todas las cámaras Hikvision / HiLook (F31700438 y FF9363270)
   // Conexión directa a 25 FPS sin depender de puertos HLS de terceros propensos a TLS renegotiation.
