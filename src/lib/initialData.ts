@@ -65,7 +65,7 @@ export const INITIAL_CAMERAS: Camera[] = [
     host: '127.0.0.1',
     port: 554,
     onvifPort: 80,
-    username: 'admin',
+    username: '5nctiv',
     password: '',
     verificationCode: 'LBNZYU',
     channel: 1,
@@ -74,15 +74,15 @@ export const INITIAL_CAMERAS: Camera[] = [
     hlsStreamUrl: '',
     webrtcUrl: '',
     status: 'online',
-    fps: 25,
-    resolution: '1920x1080 (1080p FHD)',
-    bitrateKbps: 768,
+    fps: 15,
+    resolution: '640x360 (Sub-Stream Ahorro 4G)',
+    bitrateKbps: 256,
     codec: 'H.265',
-    locationDesc: 'Canal 1 HiLookVision · PROYECTO OCOS 4G (FF9363270)',
+    locationDesc: 'Canal 1 HiLookVision (5nctiv) · PROYECTO OCOS 4G (FF9363270)',
     ptzSupported: false,
     nightVision: false,
     deviceSerial: 'FF9363270',
-    notes: 'Cámara 4G Hikvision FF9363270 | P2P Ezviz / HiLookVision | PROYECTO OCOS Activo en vivo'
+    notes: 'Cámara 4G Hikvision FF9363270 | HiLookVision: 5nctiv | Código: LBNZYU | Modo Ultra-Ahorro Datos 4G Activo'
   },
   {
     id: 'cam-hilook-ch1',
@@ -179,10 +179,21 @@ export const INITIAL_SHARE_LINKS: ShareLink[] = [
   },
 ];
 
+export function isLegacyDemoCamera(cam: Partial<Camera> | null | undefined): boolean {
+  if (!cam) return true;
+  const id = String(cam.id || '');
+  const name = String(cam.name || '');
+  const serial = String(cam.deviceSerial || '');
+  if (/^cam-0[1-9]$|^cam-demo/i.test(id)) return true;
+  if (serial === 'K26339151') return true;
+  if (/c[aá]mara\s+ip\s+hikvision\s*\(ch1\)/i.test(name)) return true;
+  return false;
+}
+
 export const INITIAL_ACCESS_LOGS: AccessLog[] = [
   {
     id: 'log-01',
-    shareLinkId: 'link-morales-vip',
+    shareLinkId: 'calle-del-cementerio',
     clientIp: '190.86.45.112',
     deviceInfo: 'Chrome 128 / Android 14 (Samsung Galaxy S24)',
     timestamp: new Date(Date.now() - 1000 * 60 * 12).toISOString(),
@@ -191,7 +202,7 @@ export const INITIAL_ACCESS_LOGS: AccessLog[] = [
   },
   {
     id: 'log-02',
-    shareLinkId: 'link-morales-vip',
+    shareLinkId: 'calle-del-cementerio',
     clientIp: '190.86.45.112',
     deviceInfo: 'Chrome 128 / Android 14',
     timestamp: new Date(Date.now() - 1000 * 60 * 10).toISOString(),
@@ -200,29 +211,20 @@ export const INITIAL_ACCESS_LOGS: AccessLog[] = [
   },
   {
     id: 'log-03',
-    shareLinkId: 'link-guardia-noche',
+    shareLinkId: 'proyecto-ocos',
     clientIp: '181.174.92.15',
     deviceInfo: 'Safari 18 / iOS 18 (iPhone 15 Pro)',
     timestamp: new Date(Date.now() - 1000 * 60 * 85).toISOString(),
-    durationSeconds: 720,
+    durationSeconds: 90,
     action: 'stream_started'
   },
   {
     id: 'log-04',
-    shareLinkId: 'link-ds7108-oficinas',
+    shareLinkId: 'calle-del-cementerio',
     clientIp: '168.234.12.80',
     deviceInfo: 'Edge 129 / Windows 11',
     timestamp: new Date(Date.now() - 1000 * 60 * 210).toISOString(),
     durationSeconds: 450,
     action: 'stream_started'
-  },
-  {
-    id: 'log-05',
-    shareLinkId: 'link-guardia-noche',
-    clientIp: '181.174.92.15',
-    deviceInfo: 'Safari 18 / iOS 18',
-    timestamp: new Date(Date.now() - 1000 * 60 * 350).toISOString(),
-    durationSeconds: 5,
-    action: 'auth_failed'
   }
 ];

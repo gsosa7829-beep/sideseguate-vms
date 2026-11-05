@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, lazy, Suspense } from 'react';
 import { Camera, Project, ShareLink, AccessLog, NavigationTab } from './lib/types';
 import { storage } from './lib/storage';
-import { INITIAL_CAMERAS } from './lib/initialData';
+import { INITIAL_CAMERAS, isLegacyDemoCamera } from './lib/initialData';
 import {
   upsertCloudProject,
   upsertCloudCamera,
@@ -57,18 +57,12 @@ const SadpScannerView = lazy(() =>
 const ZeroStorageView = lazy(() =>
   import('./components/ZeroStorageView').then((m) => ({ default: m.ZeroStorageView }))
 );
-const MobileSimulatorModal = lazy(() =>
-  import('./components/MobileSimulatorModal').then((m) => ({ default: m.MobileSimulatorModal }))
-);
+import { MobileSimulatorModal } from './components/MobileSimulatorModal';
 const ArchitectureTab = lazy(() =>
   import('./components/ArchitectureTab').then((m) => ({ default: m.ArchitectureTab }))
 );
-const ClientHandoverCardModal = lazy(() =>
-  import('./components/ClientHandoverCardModal').then((m) => ({ default: m.ClientHandoverCardModal }))
-);
-const DesktopProgramModal = lazy(() =>
-  import('./components/DesktopProgramModal').then((m) => ({ default: m.DesktopProgramModal }))
-);
+import { ClientHandoverCardModal } from './components/ClientHandoverCardModal';
+import { DesktopProgramModal } from './components/DesktopProgramModal';
 import { AdminLoginScreen } from './components/AdminLoginScreen';
 const SystemDiagnosticsCard = lazy(() =>
   import('./components/SystemDiagnosticsCard').then((m) => ({ default: m.SystemDiagnosticsCard }))
@@ -76,9 +70,8 @@ const SystemDiagnosticsCard = lazy(() =>
 const StreamGatewayCard = lazy(() =>
   import('./components/StreamGatewayCard').then((m) => ({ default: m.StreamGatewayCard }))
 );
-const AdminAccountModal = lazy(() =>
-  import('./components/AdminAccountModal').then((m) => ({ default: m.AdminAccountModal }))
-);
+import { AdminAccountModal } from './components/AdminAccountModal';
+import { AiCameraSetupAssistant } from './components/AiCameraSetupAssistant';
 import { AdminAccount, adminAuthStorage } from './lib/adminAuth';
 import { FirstRunSetup } from './components/FirstRunSetup';
 import { ErrorBoundary } from './components/ErrorBoundary';
@@ -121,7 +114,8 @@ import {
   Server,
   Play,
   RotateCw,
-  Cloud
+  Cloud,
+  Bot
 } from 'lucide-react';
 
 function AppLoadingFallback() {
@@ -142,6 +136,7 @@ function AppShell() {
   const [isMobileSimulatorOpen, setIsMobileSimulatorOpen] = useState(false);
   const [isDesktopProgramOpen, setIsDesktopProgramOpen] = useState(false);
   const [isSecurityModalOpen, setIsSecurityModalOpen] = useState(false);
+  const [isAiAssistantOpen, setIsAiAssistantOpen] = useState(false);
 
   // Corporate Admin Accounts & Login Gate State
   const [adminAccounts, setAdminAccounts] = useState<AdminAccount[]>(() =>
@@ -192,7 +187,7 @@ function AppShell() {
   }, []);
 
   // Entities
-  const [projects, setProjects] = useState<Project[]>([]);
+  const [projects, setProjects] = useState<Project[]>(() => storage.getProjects());
   const [cameras, setCameras] = useState<Camera[]>([]);
   const [shareLinks, setShareLinks] = useState<ShareLink[]>(() => storage.getShareLinks());
   // Gateway de video continuo (MediaMTX). Sin él, HLS apunta al PC del operador.
@@ -200,12 +195,27 @@ function AppShell() {
   const [accessLogs, setAccessLogs] = useState<AccessLog[]>([]);
   const [cloudSyncStatus, setCloudSyncStatus] = useState<'connecting' | 'live' | 'error'>('connecting');
 
-  // Selected camera for single camera view
+  // Selected / focused camera for single camera detail view in VideoWall
   const [selectedCameraId, setSelectedCameraId] = useState<string>('');
+  const [focusedCameraId, setFocusedCameraId] = useState<string | null>(null);
 
   // Client view simulation / token routing & standalone client camera onboarding
-  const [clientTokenView, setClientTokenView] = useState<string | null>(null);
-  const [clientOnboardingProjectId, setClientOnboardingProjectId] = useState<string | null>(null);
+  // Se resuelven de forma síncrona en el primer render para nunca mostrar destello del Login Admin a un cliente.
+  const [clientTokenView, setClientTokenView] = useState<string | null>(() => {
+    if (typeof window === 'undefined') return null;
+    const params = new URLSearchParams(window.location.search);
+    const urlToken = params.get('token') || params.get('share');
+    if (urlToken) return urlToken;
+    const hash = window.location.hash;
+    if (hash.startsWith('#token=')) return hash.replace('#token=', '');
+    if (hash.startsWith('#share=')) return hash.replace('#share=', '');
+    return null;
+  });
+  const [clientOnboardingProjectId, setClientOnboardingProjectId] = useState<string | null>(() => {
+    if (typeof window === 'undefined') return null;
+    const params = new URLSearchParams(window.location.search);
+    return params.get('onboarding');
+  });
 
   // Modals state
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
@@ -286,13 +296,7 @@ function AppShell() {
   // Load data from persistent storage + subscribe to Cloud Firestore in real time
   useEffect(() => {
     const loadedProjects = storage.getProjects();
-    let loadedCameras = storage.getCameras().filter(
-      (c) =>
-        c.id === 'cam-hilook-ch1' ||
-        c.id === 'cam-hilook-ch2' ||
-        c.id === 'cam-ocos-ch1' ||
-        c.deviceSerial === 'FF9363270'
-    );
+    let loadedCameras = storage.getCameras().filter((c) => !isLegacyDemoCamera(c));
     if (loadedCameras.length === 0) loadedCameras = INITIAL_CAMERAS;
     const loadedLinks = storage.getShareLinks();
     const loadedLogs = storage.getAccessLogs();
@@ -358,12 +362,17 @@ function AppShell() {
 
     // Check URL query param ?flash=45 or ?token=xyz or ?share=xyz or ?onboarding=xyz or hash #token=xyz
     const urlFlashSecs = params.get('flash') || params.get('previewSecs');
-    const urlToken = params.get('token') || params.get('share') || params.get('onboarding');
+    const urlOnboarding = params.get('onboarding');
+    const urlToken = params.get('token') || params.get('share');
+    const hash = window.location.hash;
+    const hashToken = hash.startsWith('#token=')
+      ? hash.replace('#token=', '')
+      : hash.startsWith('#share=')
+      ? hash.replace('#share=', '')
+      : null;
+    const isVisitorClientRoute = Boolean(urlFlashSecs || urlOnboarding || urlToken || hashToken);
 
     if (urlFlashSecs) {
-      // Antes se abría el portal con el token literal 'revoked_link', que no
-      // existe en la nube y mostraba "enlace expirado". Ahora generamos un
-      // enlace relámpago real (vigente) y lo abrimos.
       const parsedSecs = Number(urlFlashSecs);
       const durationSeconds = Number.isFinite(parsedSecs) && parsedSecs > 0 ? parsedSecs : 60;
       const flashLink = createFlashTemporaryLink({
@@ -373,29 +382,25 @@ function AppShell() {
       });
       setShareLinks((prev) => [flashLink, ...prev]);
       setClientTokenView(flashLink.token);
-    } else if (urlToken) {
-      setClientTokenView(urlToken);
-    } else {
-      const hash = window.location.hash;
-      if (hash.startsWith('#token=')) {
-        setClientTokenView(hash.replace('#token=', ''));
-      } else if (hash.startsWith('#share=')) {
-        setClientTokenView(hash.replace('#share=', ''));
-      }
+    } else if (urlOnboarding) {
+      setClientOnboardingProjectId(urlOnboarding);
+    } else if (urlToken || hashToken) {
+      setClientTokenView(urlToken || hashToken);
     }
 
-    // Seed Firestore if empty so default cameras are immediately live in the cloud
-    seedInitialCloudDataIfEmpty({
-      projects: loadedProjects,
-      cameras: loadedCameras,
-      shareLinks: loadedLinks,
-      accessLogs: loadedLogs,
-    });
+    // Solo publicar semilla/catálogo hacia Firestore cuando no es un visitante externo de solo lectura
+    if (!isVisitorClientRoute) {
+      seedInitialCloudDataIfEmpty({
+        projects: loadedProjects,
+        cameras: loadedCameras,
+        shareLinks: loadedLinks,
+        accessLogs: loadedLogs,
+      });
 
-    // Sincroniza los metadatos de las cámaras del DVR a Cloud Firestore
-    loadedCameras.forEach((cam) => {
-      upsertCloudCamera(cam).catch(() => {});
-    });
+      loadedCameras.forEach((cam) => {
+        upsertCloudCamera(cam).catch(() => {});
+      });
+    }
 
     // Subscribe to real-time Cloud Firestore collections
     const unsubCloud = subscribeToCloudState({
@@ -411,7 +416,7 @@ function AppShell() {
         // Ahora se conservan las locales y se vuelven a publicar (autorreparación).
         if (cloudCameras.length === 0) {
           const locales = storage.getCameras();
-          if (locales.length > 0 && !cloudRepairAttemptedRef.current) {
+          if (locales.length > 0 && !cloudRepairAttemptedRef.current && !isVisitorClientRoute) {
             cloudRepairAttemptedRef.current = true;
             console.warn(
               `La nube no tiene cámaras; se conservan las ${locales.length} locales y se vuelven a publicar.`
@@ -432,10 +437,15 @@ function AppShell() {
         // viajan a la nube. Al recibir cámaras desde Firestore hay que
         // re-aplicar los locales para no dejarlas sin credenciales.
         const localById = new Map(storage.getCameras().map((c) => [c.id, c]));
-        const validIds = new Set(['cam-hilook-ch1', 'cam-hilook-ch2', 'cam-ocos-ch1']);
-        const onlyRealCams = cloudCameras.filter(
-          (c) => validIds.has(c.id) || c.deviceSerial === 'FF9363270' || c.deviceSerial === 'F31700438'
-        );
+        // Purgar automáticamente de Firestore únicamente cámaras demo heredadas o eliminadas (ej. "Cámara IP Hikvision (CH1)")
+        if (!isVisitorClientRoute) {
+          cloudCameras.forEach((c) => {
+            if (isLegacyDemoCamera(c)) {
+              deleteCloudCamera(c.id).catch(() => {});
+            }
+          });
+        }
+        const onlyRealCams = cloudCameras.filter((c) => !isLegacyDemoCamera(c));
         const cloudIds = new Set(onlyRealCams.map((c) => c.id));
         const mergedCams = [...onlyRealCams, ...INITIAL_CAMERAS.filter((c) => !cloudIds.has(c.id))];
         const enriched = (mergedCams.length > 0 ? mergedCams : INITIAL_CAMERAS).map((cam) => {
@@ -456,7 +466,7 @@ function AppShell() {
         setCameras(enriched);
         storage.saveCameras(enriched);
         setSelectedCameraId((prev) =>
-          prev && cloudCameras.some((c) => c.id === prev) ? prev : cloudCameras[0]?.id || ''
+          prev && enriched.some((c) => c.id === prev) ? prev : enriched[0]?.id || ''
         );
       },
       onShareLinks: (cloudLinks) => {
@@ -815,15 +825,39 @@ function AppShell() {
     return buildWhatsAppUrl({ text, phone: project?.clientPhone });
   };
 
+  // Vista independiente de autogestión de cámaras para clientes (?onboarding=...)
+  if (clientOnboardingProjectId) {
+    return (
+      <ClientCameraOnboardingView
+        projects={projects}
+        cameras={toPublicCameras(cameras)}
+        defaultProjectId={clientOnboardingProjectId}
+        isStandaloneClientMode={true}
+        onAddCamerasBatch={handleClientAddCamerasBatch}
+        onExitStandaloneMode={
+          adminAuthStorage.isAuthorizedOwnerDevice()
+            ? () => {
+                setClientOnboardingProjectId(null);
+                window.history.pushState({}, '', window.location.pathname);
+              }
+            : undefined
+        }
+      />
+    );
+  }
+
   // If in Client Portal View directly (client opening private token link)
-  if (clientTokenView || clientOnboardingProjectId) {
+  if (clientTokenView) {
+    const matchedShareLink = shareLinks.find((l) => l.token === clientTokenView) || null;
+    const matchedProject = projects.find((p) => p.id === matchedShareLink?.projectId);
     return (
       <ClientLivePortal
-        token={clientTokenView || ''}
+        token={clientTokenView}
         // Si el token existe en este dispositivo (por ejemplo un enlace
         // relámpago recién creado o uno que aún no llegó a Firestore), se usa
         // como respaldo para no mostrar un falso "enlace expirado".
-        shareLink={shareLinks.find((l) => l.token === clientTokenView) || null}
+        shareLink={matchedShareLink}
+        project={matchedProject}
         // Sólo lo necesario para reproducir: sin usuario, contraseña ni RTSP.
         cameras={toPublicCameras(cameras)}
         isAdminPreview={adminAuthStorage.isAuthorizedOwnerDevice()}
@@ -1032,8 +1066,11 @@ function AppShell() {
           <div className={activeTab === 'videowall' ? 'block' : 'hidden'}>
             <VideoWall
               cameras={cameras}
+              focusedCameraId={focusedCameraId}
+              onClearFocus={() => setFocusedCameraId(null)}
               onSelectCamera={(id) => {
                 setSelectedCameraId(id);
+                setFocusedCameraId(id);
               }}
               onOpenNewCamera={() => {
                 setEditingCamera(null);
@@ -1044,6 +1081,7 @@ function AppShell() {
                 setShareDefaultProjectId(cam.projectId);
                 setIsShareModalOpen(true);
               }}
+              onOpenAiAssistant={() => setIsAiAssistantOpen(true)}
             />
           </div>
 
@@ -1285,6 +1323,7 @@ function AppShell() {
               onNavigateToYaml={() => setActiveTab('mediamtx_config')}
               onSelectCameraInMonitor={(camId) => {
                 setSelectedCameraId(camId);
+                setFocusedCameraId(camId);
                 setActiveTab('videowall');
               }}
             />
@@ -1563,6 +1602,7 @@ function AppShell() {
                                   aria-label="Ver cámara en monitor"
                                   onClick={() => {
                                     setSelectedCameraId(cam.id);
+                                    setFocusedCameraId(cam.id);
                                     setActiveTab('videowall');
                                   }}
                                   className="p-1.5 bg-neutral-800/80 hover:bg-neutral-700 text-neutral-400 hover:text-white rounded-lg transition"
@@ -1736,6 +1776,34 @@ function AppShell() {
           }}
         />
       )}
+
+      {/* Botón Flotante del Asistente IA para Agregar Cámaras Automáticamente */}
+      {!isAiAssistantOpen && (
+        <button
+          type="button"
+          onClick={() => setIsAiAssistantOpen(true)}
+          className="fixed bottom-20 md:bottom-6 right-4 md:right-6 z-40 px-4 py-3 rounded-2xl bg-gradient-to-r from-sky-600 via-indigo-600 to-sky-600 hover:from-sky-500 hover:to-indigo-500 text-white font-bold text-xs flex items-center gap-2.5 shadow-2xl shadow-sky-900/60 border border-sky-400/40 transition-all hover:scale-105 cursor-pointer"
+          title="Abrir Asistente IA para Agregar Cámaras Automáticamente"
+        >
+          <Bot className="w-5 h-5 text-sky-200" />
+          <span>Asistente IA · Auto-Setup</span>
+          <Sparkles className="w-4 h-4 text-amber-300 animate-pulse" />
+        </button>
+      )}
+
+      <AiCameraSetupAssistant
+        isOpen={isAiAssistantOpen}
+        onClose={() => setIsAiAssistantOpen(false)}
+        projects={projects}
+        cameras={cameras}
+        onAddCamerasBatch={handleClientAddCamerasBatch}
+        onSelectCameraAndGoToWall={(cameraId) => {
+          setSelectedCameraId(cameraId);
+          setFocusedCameraId(cameraId);
+          setActiveTab('videowall');
+        }}
+      />
+
       {/* Barra inferior móvil: 4 secciones, todo al alcance del pulgar */}
       <BottomNav currentTab={activeTab} onSelectTab={(tab) => setActiveTab(tab)} />
     </div>

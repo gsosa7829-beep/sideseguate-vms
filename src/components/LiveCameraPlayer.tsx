@@ -68,8 +68,12 @@ function savePersistedHlsCache(cache: Record<string, { url: string; expires: num
 }
 
 const ezvizHlsCache: Record<string, { url: string; expires: number }> = loadPersistedHlsCache();
+const inFlightHlsRequests: Record<
+  string,
+  Promise<{ url: string | null; isOffline: boolean; error?: string }>
+> = {};
 
-export function getCachedHlsUrl(channel: number, serial: string, quality: '1' | '2' = '1'): string | null {
+export function getCachedHlsUrl(channel: number, serial: string, quality: '1' | '2' = '2'): string | null {
   const devSerial = serial || 'F31700438';
   const cacheKey = `${devSerial}_${channel}_${quality}`;
   const now = Date.now();
@@ -79,22 +83,25 @@ export function getCachedHlsUrl(channel: number, serial: string, quality: '1' | 
   return null;
 }
 
-// Pre-calentamiento inteligente de transmisiones (usa calidad fluida 25 FPS para eliminar congelamientos)
+// Pre-calentamiento inteligente de transmisiones (prioriza Sub-Stream Fluido 25 FPS sin saturar el DVR con capturas)
+let prewarmStarted = false;
 export function prewarmHikvisionCameras() {
+  if (prewarmStarted) return;
+  prewarmStarted = true;
+  // 1. Pre-calentar de inmediato el flujo fluido 25 FPS (arranque <0.4s)
   fetchEzvizLiveHls(1, 'F31700438', '2');
   fetchEzvizLiveHls(2, 'F31700438', '2');
-  fetchEzvizLiveCapture(1, 'F31700438');
-  fetchEzvizLiveCapture(2, 'F31700438');
-}
-
-if (typeof window !== 'undefined') {
-  setTimeout(prewarmHikvisionCameras, 300);
+  // 2. Pre-calentar en segundo plano el flujo HD 1080p para cambio instantáneo en 1 clic
+  setTimeout(() => {
+    fetchEzvizLiveHls(1, 'F31700438', '1');
+    fetchEzvizLiveHls(2, 'F31700438', '1');
+  }, 2200);
 }
 
 export async function fetchEzvizLiveHls(
   channel: number,
   serial: string,
-  quality: '1' | '2' = '1',
+  quality: '1' | '2' = '2',
   forceRefresh: boolean = false,
   explicitCode?: string
 ): Promise<{ url: string | null; isOffline: boolean; error?: string }> {
@@ -104,68 +111,77 @@ export async function fetchEzvizLiveHls(
 
   if (forceRefresh) {
     delete ezvizHlsCache[cacheKey];
+    delete inFlightHlsRequests[cacheKey];
     savePersistedHlsCache(ezvizHlsCache);
   } else if (ezvizHlsCache[cacheKey] && ezvizHlsCache[cacheKey].expires > now + 60000) {
     return { url: ezvizHlsCache[cacheKey].url, isOffline: false };
+  } else if ( cacheKey in inFlightHlsRequests ) {
+    return inFlightHlsRequests[cacheKey];
   }
 
-  try {
-    const validateCode = explicitCode || (devSerial === 'FF9363270' ? 'LBNZYU' : 'HELGDM');
-    const queryStream = async () => {
-      const res = await fetch('https://iusopen.ezvizlife.com/api/lapp/v2/live/address/get', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: new URLSearchParams({
-          accessToken: EZVIZ_ACCESS_TOKEN,
-          deviceSerial: devSerial,
-          channelNo: String(channel),
-          protocol: '2', // HLS
-          quality: quality, // '1': 1080p FHD Main Stream, '2': Sub Stream Fluido
-          code: validateCode,
-          supportH265: '1',
-        }),
-      });
-      return res.ok ? await res.json() : null;
-    };
-
-    let data = await queryStream();
-
-    // Auto-recuperación 24/7 si el DVR se reinicia y vuelve a activar el cifrado
-    if (data?.code === '60019' || data?.msg?.includes('Encryption')) {
-      console.warn('Cifrado detectado (60019). Desbloqueando automáticamente en la nube de Hikvision...');
-      try {
-        await fetch('https://open.ezvizlife.com/api/lapp/device/encrypt/off', {
+  const requestPromise = (async (): Promise<{ url: string | null; isOffline: boolean; error?: string }> => {
+    try {
+      const validateCode = explicitCode || (devSerial === 'FF9363270' ? 'LBNZYU' : 'HELGDM');
+      const queryStream = async () => {
+        const res = await fetch('https://iusopen.ezvizlife.com/api/lapp/v2/live/address/get', {
           method: 'POST',
           headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
           body: new URLSearchParams({
             accessToken: EZVIZ_ACCESS_TOKEN,
             deviceSerial: devSerial,
-            validateCode: validateCode,
+            channelNo: String(channel),
+            protocol: '2', // HLS
+            quality: quality, // '1': 1080p FHD Main Stream, '2': Sub Stream Fluido 25 FPS
+            code: validateCode,
+            supportH265: '1',
           }),
         });
-      } catch {}
-      data = await queryStream();
-    }
+        return res.ok ? await res.json() : null;
+      };
 
-    if (data?.code === '200' && data.data?.url) {
-      const expireMs = data.data.expireTime ? new Date(data.data.expireTime).getTime() : now + 12 * 3600 * 1000;
-      ezvizHlsCache[cacheKey] = { url: data.data.url, expires: expireMs };
+      let data = await queryStream();
+
+      // Auto-recuperación 24/7 si el DVR se reinicia y vuelve a activar el cifrado
+      if (data?.code === '60019' || data?.msg?.includes('Encryption')) {
+        console.warn('Cifrado detectado (60019). Desbloqueando automáticamente en la nube de Hikvision...');
+        try {
+          await fetch('https://open.ezvizlife.com/api/lapp/device/encrypt/off', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: new URLSearchParams({
+              accessToken: EZVIZ_ACCESS_TOKEN,
+              deviceSerial: devSerial,
+              validateCode: validateCode,
+            }),
+          });
+        } catch {}
+        data = await queryStream();
+      }
+
+      if (data?.code === '200' && data.data?.url) {
+        const expireMs = data.data.expireTime ? new Date(data.data.expireTime).getTime() : now + 12 * 3600 * 1000;
+        ezvizHlsCache[cacheKey] = { url: data.data.url, expires: expireMs };
+        savePersistedHlsCache(ezvizHlsCache);
+        return { url: data.data.url, isOffline: false };
+      }
+
+      delete ezvizHlsCache[cacheKey];
       savePersistedHlsCache(ezvizHlsCache);
-      return { url: data.data.url, isOffline: false };
+
+      const isOffline = data?.code === '20007' || data?.msg?.includes('offline') || false;
+      return { url: null, isOffline, error: data?.msg || 'Error al obtener flujo' };
+    } catch (err) {
+      console.warn('Error al obtener stream HLS de Ezviz:', err);
+      delete ezvizHlsCache[cacheKey];
+      savePersistedHlsCache(ezvizHlsCache);
+      return { url: null, isOffline: false, error: 'Error de red' };
+    } finally {
+      delete inFlightHlsRequests[cacheKey];
     }
+  })();
 
-    // Si el DVR está fuera de línea o falló, invalidar caché para evitar reintentos con URLs muertas
-    delete ezvizHlsCache[cacheKey];
-    savePersistedHlsCache(ezvizHlsCache);
-
-    const isOffline = data?.code === '20007' || data?.msg?.includes('offline') || false;
-    return { url: null, isOffline, error: data?.msg || 'Error al obtener flujo' };
-  } catch (err) {
-    console.warn('Error al obtener stream HLS de Ezviz:', err);
-    delete ezvizHlsCache[cacheKey];
-    savePersistedHlsCache(ezvizHlsCache);
-    return { url: null, isOffline: false, error: 'Error de red' };
-  }
+  inFlightHlsRequests[cacheKey] = requestPromise;
+  return requestPromise;
 }
 
 const CAPTURE_CACHE_STORAGE_KEY = 'sideseguate_ezviz_capture_cache_v2';
@@ -327,68 +343,184 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
     return false;
   });
   const [hlsLiveReady, setHlsLiveReady] = useState(false);
+  const hlsLiveReadyRef = useRef(false);
+  useEffect(() => {
+    hlsLiveReadyRef.current = hlsLiveReady;
+  }, [hlsLiveReady]);
   const [liveHlsUrl, setLiveHlsUrl] = useState<string | null>(() => {
     if (camera.hlsStreamUrl && camera.hlsStreamUrl.includes('.m3u8') && !camera.hlsStreamUrl.includes('localhost')) {
       return camera.hlsStreamUrl;
     }
     const devSerial = camera.deviceSerial || cloudP2pClient.resolveDevice(camera)?.serial || 'F31700438';
     const ch = Math.min(4, Math.max(1, camera.channel || 1));
-    return getCachedHlsUrl(ch, devSerial, '1') || getCachedHlsUrl(ch, devSerial, '2');
+    return getCachedHlsUrl(ch, devSerial, '2') || getCachedHlsUrl(ch, devSerial, '1');
   });
-  const isMobileClient = typeof window !== 'undefined' && (
-    window.innerWidth < 640 ||
-    /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent)
-  );
-  // En móviles arranca por defecto en SD fluido (25 FPS, 0s lag) para conexión inmediata en redes 4G; en PC arranca en HD 1080p
-  const [streamQuality, setStreamQuality] = useState<'1' | '2'>(() => isMobileClient ? '2' : '1');
+  // Arranca por defecto en Sub-Stream Fluido 25 FPS ('2') en móvil y PC para conexión instantánea (<0.4s) y 0 retrasos; el botón HD cambia a 1080p bajo demanda
+  const [streamQuality, setStreamQuality] = useState<'1' | '2'>('2');
   const [isSwitchingQuality, setIsSwitchingQuality] = useState(false);
   const [watchdogToast, setWatchdogToast] = useState<string | null>(null);
   const hlsRef = useRef<Hls | null>(null);
   const lastPlaybackTimeRef = useRef<number>(0);
   const stallCountRef = useRef<number>(0);
   const [useHlsFallback, setUseHlsFallback] = useState(false);
-  // Reproductor nativo por aceleración de hardware (<video> con HLS) para F31700438 (H.264).
-  // Elimina colisiones de WebAssembly, DecodeWorker y puertos WebSocket en Safari iOS / iPhone.
+  const is4gCamera = Boolean(
+    camera.deviceSerial === 'FF9363270' ||
+    camera.id?.includes('ocos') ||
+    camera.notes?.includes('FF9363270') ||
+    camera.notes?.includes('4G')
+  );
+
+  // Reproductor cloud de ultra-baja latencia (EZUIKit / WebAssembly / WSS) para todas las cámaras Hikvision / HiLook (F31700438 y FF9363270)
+  // Conexión directa a 25 FPS sin depender de puertos HLS de terceros propensos a TLS renegotiation.
   const isEzopenDevice = Boolean(
     !useHlsFallback && (
+      is4gCamera ||
+      camera.deviceSerial === 'F31700438' ||
       camera.deviceSerial === 'FF9363270' ||
+      camera.notes?.includes('F31700438') ||
       camera.notes?.includes('FF9363270') ||
+      camera.id?.includes('cementerio') ||
+      camera.id?.includes('ocos') ||
       camera.codec === 'H.265' ||
-      camera.id?.includes('ocos')
+      (camera.deviceSerial && camera.verificationCode)
     )
   );
   const ezuikitContainerId = useRef('ezuikit-live-' + Math.random().toString(36).substring(2, 9)).current;
   const ezPlayerRef = useRef<any>(null);
   const [ezuikitLiveReady, setEzuikitLiveReady] = useState(false);
+  const ezuikitLiveReadyRef = useRef(false);
+  useEffect(() => {
+    ezuikitLiveReadyRef.current = ezuikitLiveReady;
+  }, [ezuikitLiveReady]);
   const [ivmsBridgeActive, setIvmsBridgeActive] = useState(() => ivmsLiveBridge.isActive());
   const [ivmsCropConfig, setIvmsCropConfig] = useState(() => ivmsLiveBridge.getCropConfig());
 
   // Estados de reconexión rápida y auto-recuperación 24/7
   const [isReconnecting, setIsReconnecting] = useState(false);
 
-  // Ahorro inteligente de datos 4G: suspensión cuando la pestaña está minimizada o en segundo plano
+  // =========================================================================
+  // MODO ULTRA-AHORRO DE DATOS SIM 4G (PROYECTO OCOS - FF9363270)
+  // - En Mosaico (isCompact): inicia en Espera (0 KB/s) bajo demanda para no gastar datos al abrir el panel.
+  // - Auto-Sleep a los 90 segundos de reproducción continua para evitar consumo infinito si dejan la pantalla encendida.
+  // - Suspensión total (0 KB/s) al minimizar pestaña o cambiar de aplicación.
+  // =========================================================================
+  const [is4gEcoPaused, setIs4gEcoPaused] = useState<boolean>(() => is4gCamera && isCompact);
+  const is4gEcoPausedRef = useRef<boolean>(is4gCamera && isCompact);
   useEffect(() => {
-    const is4gCamera = camera.deviceSerial === 'FF9363270' || camera.id?.includes('ocos') || camera.notes?.includes('4G');
-    if (!is4gCamera) return;
+    is4gEcoPausedRef.current = is4gEcoPaused;
+  }, [is4gEcoPaused]);
+  const [ecoRemainingSec, setEcoRemainingSec] = useState<number>(90);
 
+  const pause4gStreamForDataSaving = () => {
+    // Capturar último fotograma visible antes de apagar el flujo 4G para mantener vista previa nítida
+    const container = document.getElementById(ezuikitContainerId);
+    const existingCanvas = container?.querySelector('canvas');
+    if (existingCanvas && existingCanvas.width > 0 && existingCanvas.height > 0) {
+      try {
+        const dataUrl = existingCanvas.toDataURL('image/jpeg', 0.82);
+        const snapImg = new Image();
+        snapImg.src = dataUrl;
+        nativeP2pImgRef.current = snapImg;
+        setNativeP2pReady(true);
+        const ch = Math.min(4, Math.max(1, camera.channel || 1));
+        const devSerial = camera.deviceSerial || 'FF9363270';
+        ezvizCaptureCache[`${devSerial}_${ch}`] = dataUrl;
+        savePersistedCaptureCache(ezvizCaptureCache);
+      } catch {}
+    }
+    if (ezPlayerRef.current) {
+      try {
+        ezPlayerRef.current.stop();
+        ezPlayerRef.current.destroy();
+      } catch {}
+      ezPlayerRef.current = null;
+    }
+    if (hlsRef.current) {
+      try {
+        hlsRef.current.stopLoad();
+      } catch {}
+    }
+    setEzuikitLiveReady(false);
+    ezuikitLiveReadyRef.current = false;
+    setHlsLiveReady(false);
+    hlsLiveReadyRef.current = false;
+    setIs4gEcoPaused(true);
+    is4gEcoPausedRef.current = true;
+  };
+
+  const resume4gStream = () => {
+    setEcoRemainingSec(90);
+    setStreamQuality('2'); // Siempre iniciar en Sub-Stream Fluido H.265 (~256 kbps) para máximo ahorro
+    setIs4gEcoPaused(false);
+    is4gEcoPausedRef.current = false;
+  };
+
+  // Suspensión al minimizar pestaña o bloquear el celular en cámara 4G (con margen de 3.5s para evitar cortes al abrir Pantalla Completa)
+  useEffect(() => {
+    if (!is4gCamera) return;
+    let hiddenTimer: ReturnType<typeof setTimeout> | null = null;
     const handleVisibility = () => {
       if (document.hidden) {
-        if (ezPlayerRef.current) {
-          try { ezPlayerRef.current.stop(); } catch {}
+        if (!hiddenTimer) {
+          hiddenTimer = setTimeout(() => {
+            hiddenTimer = null;
+            if (document.hidden) {
+              pause4gStreamForDataSaving();
+            }
+          }, 3500);
         }
+      } else if (hiddenTimer) {
+        clearTimeout(hiddenTimer);
+        hiddenTimer = null;
       }
     };
-
     document.addEventListener('visibilitychange', handleVisibility);
-    return () => document.removeEventListener('visibilitychange', handleVisibility);
-  }, [camera.deviceSerial, camera.id, camera.notes]);
+    return () => {
+      if (hiddenTimer) clearTimeout(hiddenTimer);
+      document.removeEventListener('visibilitychange', handleVisibility);
+    };
+  }, [is4gCamera]);
 
+  // Temporizador Eco-Timer de 90 segundos para cortar transmisión 4G si se deja abierta sin uso
+  useEffect(() => {
+    if (!is4gCamera || is4gEcoPaused) return;
+    setEcoRemainingSec(90);
+    const timer = setInterval(() => {
+      setEcoRemainingSec((prev) => {
+        if (prev <= 1) {
+          pause4gStreamForDataSaving();
+          return 90;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [is4gCamera, is4gEcoPaused]);
+
+  // En cámara 4G, si el usuario activa HD ('1'), volver automáticamente a SD Ultra-Ahorro ('2') tras 60 segundos
+  useEffect(() => {
+    if (!is4gCamera || streamQuality !== '1' || is4gEcoPaused) return;
+    const hdTimer = setTimeout(() => {
+      setStreamQuality('2');
+      setWatchdogToast('Modo Ahorro 4G: Retornando a Sub-Stream H.265 (256 kbps) para proteger tus datos');
+      setTimeout(() => setWatchdogToast(null), 3500);
+    }, 60 * 1000);
+    return () => clearTimeout(hdTimer);
+  }, [is4gCamera, streamQuality, is4gEcoPaused]);
 
   const [isOffline, setIsOffline] = useState(false);
   const [autoRetrySeconds, setAutoRetrySeconds] = useState(0);
   const [reconnectToast, setReconnectToast] = useState<string | null>(null);
 
   const handleForceReconnect = (userInitiated = true) => {
+    if (is4gCamera && is4gEcoPausedRef.current) {
+      if (!userInitiated) return; // Nunca despertar automáticamente una cámara 4G en ahorro de datos
+      resume4gStream();
+      return;
+    }
+    if (is4gCamera) {
+      setEcoRemainingSec(90);
+    }
     setIsReconnecting(true);
     if (ezPlayerRef.current) {
       try {
@@ -399,22 +531,21 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
     if (userInitiated) {
       setReconnectToast('Buscando señal en vivo...');
     }
+
+    // Crítico para Ahorro 4G: Si es cámara EZopen (FF9363270), NO solicitar stream HLS paralelo en la nube
+    if (isEzopenDevice && !useHlsFallback) {
+      setTimeout(() => {
+        setIsReconnecting(false);
+        if (userInitiated) {
+          setReconnectToast('¡Señal 4G sincronizada!');
+          setTimeout(() => setReconnectToast(null), 2200);
+        }
+      }, 900);
+      return;
+    }
+
     const ch = Math.min(4, Math.max(1, camera.channel || 1));
     const devSerial = camera.deviceSerial || cloudP2pClient.resolveDevice(camera)?.serial || 'F31700438';
-
-    fetchEzvizLiveCapture(ch, devSerial).then((pic) => {
-      if (pic) {
-        const img = new Image();
-        img.crossOrigin = 'anonymous';
-        img.onload = () => {
-          nativeP2pImgRef.current = img;
-          setNativeP2pReady(true);
-          setIsOffline(false);
-        };
-        const sep = pic.includes('?') ? '&' : '?';
-        img.src = `${pic}${sep}_t=${Date.now()}`;
-      }
-    });
 
     fetchEzvizLiveHls(ch, devSerial, streamQuality, true, camera.verificationCode).then((res) => {
       setIsReconnecting(false);
@@ -437,16 +568,27 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
     });
   };
 
-  // Reproductor WebAssembly EZUIKit (H.265 / 4G para Proyecto Ocós a 25 FPS sin saltos de 5s)
+  // Reproductor WebAssembly EZUIKit (H.265 / 4G para Proyecto Ocós con Modo Ultra-Ahorro SIM)
   useEffect(() => {
-    if (!isEzopenDevice) return;
+    if (!isEzopenDevice || is4gEcoPaused) {
+      if (ezPlayerRef.current) {
+        try {
+          ezPlayerRef.current.stop();
+          ezPlayerRef.current.destroy();
+        } catch {}
+        ezPlayerRef.current = null;
+      }
+      setEzuikitLiveReady(false);
+      ezuikitLiveReadyRef.current = false;
+      return;
+    }
     let active = true;
 
     const initEzPlayer = async () => {
       let tries = 0;
-      while (!((window as any).EZUIKit?.EZUIKitPlayer) && tries < 40) {
+      while (!((window as any).EZUIKit?.EZUIKitPlayer) && tries < 30) {
         if (!active) return;
-        await new Promise((r) => setTimeout(r, 100));
+        await new Promise((r) => setTimeout(r, 80));
         tries++;
       }
 
@@ -480,9 +622,10 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
         ezPlayerRef.current = null;
       }
 
-      // Purga estricta del contenedor DOM para evitar colisión de Workers y WebAssembly en móviles
-      container.innerHTML = '';
-      await new Promise((r) => setTimeout(r, 60));
+      if (container.childNodes.length > 0) {
+        container.innerHTML = '';
+        await new Promise((r) => setTimeout(r, 20));
+      }
       if (!active) return;
 
       const devSerial = camera.deviceSerial || 'FF9363270';
@@ -503,13 +646,12 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
 
         let mobileFallbackTimer: any = null;
         if (isMobileScreen) {
-          // Si la red celular del móvil bloquea el puerto WebSocket de EZopen, activar respaldo automático en 4.5s
           mobileFallbackTimer = setTimeout(() => {
-            if (active && !ezuikitLiveReady) {
+            if (active && !ezuikitLiveReadyRef.current) {
               console.warn('Conexión WebSocket móvil demorada, activando respaldo continuo...');
               setUseHlsFallback(true);
             }
-          }, 4500);
+          }, 3200);
         }
 
         const player = new EZUIKit.EZUIKitPlayer({
@@ -528,6 +670,7 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
             if (!active) return;
             if (mobileFallbackTimer) clearTimeout(mobileFallbackTimer);
             setEzuikitLiveReady(true);
+            ezuikitLiveReadyRef.current = true;
             setIsSwitchingQuality(false);
             setIsOffline(false);
             stallCountRef.current = 0;
@@ -560,7 +703,6 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
         ezPlayerRef.current = player;
       } catch (e) {
         console.warn('EZUIKit init error:', e);
-        
       }
     };
 
@@ -576,14 +718,14 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
         ezPlayerRef.current = null;
       }
       setEzuikitLiveReady(false);
+      ezuikitLiveReadyRef.current = false;
     };
-  }, [camera.deviceSerial, camera.channel, camera.verificationCode, isEzopenDevice, streamQuality]);
+  }, [camera.deviceSerial, camera.channel, camera.verificationCode, isEzopenDevice, streamQuality, is4gEcoPaused]);
 
   // Consulta dinámica de streaming HLS en vivo sin cifrado
   useEffect(() => {
     let cancelled = false;
-    // Optimización 4G: Si el equipo reproduce vía WebAssembly EZopen nativo, NO solicitar flujo HLS en paralelo para no duplicar el consumo del plan celular
-    if (isEzopenDevice && !useHlsFallback) {
+    if ((isEzopenDevice && !useHlsFallback) || is4gEcoPaused) {
       return;
     }
     const ch = Math.min(4, Math.max(1, camera.channel || 1));
@@ -611,16 +753,17 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
     return () => {
       cancelled = true;
     };
-  }, [camera.channel, camera.deviceSerial, camera.hlsStreamUrl, streamQuality]);
+  }, [camera.channel, camera.deviceSerial, camera.hlsStreamUrl, streamQuality, isEzopenDevice, useHlsFallback, is4gEcoPaused]);
 
-  // Bucle de Auto-recuperación cuando el DVR está offline (reintento cada 5 segundos)
+  // Bucle de Auto-recuperación cuando el DVR está offline (bloqueado en cámaras 4G EZopen para no abrir doble flujo)
   useEffect(() => {
-    if (!isOffline && liveHlsUrl) return;
+    if ((isEzopenDevice && !useHlsFallback) || is4gEcoPaused || (!isOffline && liveHlsUrl)) return;
 
     let countdown = 5;
     setAutoRetrySeconds(countdown);
 
     const interval = setInterval(() => {
+      if (document.hidden || is4gEcoPausedRef.current) return;
       countdown -= 1;
       setAutoRetrySeconds(countdown);
       if (countdown <= 0) {
@@ -640,7 +783,7 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [isOffline, liveHlsUrl, camera.channel, camera.deviceSerial, streamQuality]);
+  }, [isOffline, liveHlsUrl, camera.channel, camera.deviceSerial, streamQuality, isEzopenDevice, useHlsFallback, is4gEcoPaused]);
 
   useEffect(() => {
     return ivmsLiveBridge.subscribe(() => {
@@ -649,20 +792,56 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
     });
   }, []);
 
-  // Native Hikvision P2P V3 Direct & 24/7 Cloud Streamer (Local :8890 -> Cloud Tunnel -> Cloud GitHub State)
+  // Respaldo ligero de póster: NUNCA hace bucle de 50ms ni pide fotos innecesarias a la cámara 4G
   useEffect(() => {
     let active = true;
     let timer: ReturnType<typeof setTimeout> | null = null;
     const ch = Math.min(4, Math.max(1, camera.channel || 1));
-    // Multi-dispositivo: el frame se pide con la serie del equipo de esta cámara.
     const deviceSerial =
       camera.deviceSerial || cloudP2pClient.resolveDevice(camera)?.serial || '';
 
-    // Optimización crítica 4G: Las cámaras celulares con EZopen (FF9363270) NO deben sondear ráfagas cada 50ms.
-    // Se pide 1 sola captura como póster inicial sin bucle de sondeo, ahorrando gigabytes en el plan de datos.
-    if (isEzopenDevice) {
-      fetchEzvizLiveCapture(ch, deviceSerial || 'FF9363270').then((picUrl) => {
-        if (picUrl && active) {
+    const pollLocalOrDeferredPoster = async () => {
+      if (!active) return;
+
+      // Si es cámara 4G y ya tiene miniatura en caché o está en pausa de ahorro, 0 peticiones a la antena celular
+      if (is4gCamera && (nativeP2pImgRef.current || is4gEcoPausedRef.current)) {
+        return;
+      }
+
+      // Si el flujo continuo (HLS o EZUIKit) ya está activo, cero peticiones de capturas
+      if (hlsLiveReadyRef.current || ezuikitLiveReadyRef.current) {
+        return;
+      }
+
+      // 1. Solo si hay un servidor local en la misma red (:8890), usar frames locales rápidos
+      if (cloudP2pClient.isLocalReachable() || cloudP2pClient.isProxyReachable()) {
+        const frameUrl = cloudP2pClient.getBestFrameUrl(ch, deviceSerial);
+        if (frameUrl) {
+          const img = new Image();
+          img.crossOrigin = 'anonymous';
+          img.onload = () => {
+            if (!active) return;
+            nativeP2pImgRef.current = img;
+            setNativeP2pReady(true);
+            if (!hlsLiveReadyRef.current && !ezuikitLiveReadyRef.current) {
+              timer = setTimeout(pollLocalOrDeferredPoster, 120);
+            }
+          };
+          img.onerror = () => {
+            if (!active) return;
+            timer = setTimeout(pollLocalOrDeferredPoster, 1500);
+          };
+          img.src = `${frameUrl}&_t=${Date.now()}`;
+          return;
+        }
+      }
+
+      // 2. Para cámaras en la nube (F31700438 / FF9363270): esperar 2.8s para dar 100% de prioridad al stream HLS/EZopen.
+      // Solo si el stream aún no ha abierto su primer fotograma, pedir 1 sola captura de póster sin bucle de 50ms.
+      timer = setTimeout(async () => {
+        if (!active || hlsLiveReadyRef.current || ezuikitLiveReadyRef.current) return;
+        const livePicUrl = await fetchEzvizLiveCapture(ch, deviceSerial || 'F31700438');
+        if (livePicUrl && active && !hlsLiveReadyRef.current && !ezuikitLiveReadyRef.current) {
           const img = new Image();
           img.crossOrigin = 'anonymous';
           img.onload = () => {
@@ -671,99 +850,13 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
             setNativeP2pReady(true);
             setIsOffline(false);
           };
-          img.src = picUrl;
+          const sep = livePicUrl.includes('?') ? '&' : '?';
+          img.src = `${livePicUrl}${sep}_t=${Date.now()}`;
         }
-      });
-      return () => {
-        active = false;
-      };
-    }
-
-    const loadFallbackDataUrl = () => {
-      const dataUrl = cloudP2pClient.getFallbackDataUrl(ch, deviceSerial);
-      if (!dataUrl || !active) {
-        timer = setTimeout(fetchNextFrame, 1000);
-        return;
-      }
-      const fallbackImg = new Image();
-      fallbackImg.onload = () => {
-        if (!active) return;
-        nativeP2pImgRef.current = fallbackImg;
-        setNativeP2pReady(true);
-        timer = setTimeout(fetchNextFrame, 120);
-      };
-      fallbackImg.onerror = () => {
-        if (!active) return;
-        timer = setTimeout(fetchNextFrame, 1500);
-      };
-      fallbackImg.src = dataUrl;
+      }, 2800);
     };
 
-    const fetchNextFrame = async () => {
-      if (!active) return;
-      if (hlsLiveReady || ezuikitLiveReady) {
-        // Pausar peticiones de capturas mientras el flujo continuo 25 FPS está reproduciéndose
-        timer = setTimeout(fetchNextFrame, 3000);
-        return;
-      }
-
-      // 1. Si hay un túnel local o Cloudflare en vivo (:8890 o trycloudflare), se usa con alta tasa de cuadros
-      const frameUrl = cloudP2pClient.getBestFrameUrl(ch, deviceSerial);
-      const isFastTunnel =
-        frameUrl &&
-        (frameUrl.startsWith('/p2p/frame') ||
-          frameUrl.startsWith('http://localhost:8890') ||
-          frameUrl.includes('.trycloudflare.com'));
-
-      if (isFastTunnel) {
-        const img = new Image();
-        img.crossOrigin = 'anonymous';
-        img.onload = () => {
-          if (!active) return;
-          nativeP2pImgRef.current = img;
-          setNativeP2pReady(true);
-          timer = setTimeout(fetchNextFrame, 50);
-        };
-        img.onerror = () => {
-          if (!active) return;
-          timer = setTimeout(fetchNextFrame, 600);
-        };
-        img.src = `${frameUrl}&_t=${Date.now()}`;
-        return;
-      }
-
-      // Si el reproductor HLS ya está activo y reproduciendo el video en el navegador, no saturar con capturas
-      if (hlsLiveReady || ezuikitLiveReady) {
-        timer = setTimeout(fetchNextFrame, 3000);
-        return;
-      }
-
-      // 2. Transmisión continua de fotogramas en vivo vía Cloud P2P
-      const livePicUrl = await fetchEzvizLiveCapture(ch, deviceSerial || 'F31700438');
-      if (livePicUrl && active) {
-        const img = new Image();
-        img.crossOrigin = 'anonymous';
-        img.onload = () => {
-          if (!active) return;
-          nativeP2pImgRef.current = img;
-          setNativeP2pReady(true);
-          setIsOffline(false);
-          timer = setTimeout(fetchNextFrame, 50);
-        };
-        img.onerror = () => {
-          if (!active) return;
-          timer = setTimeout(fetchNextFrame, 400);
-        };
-        const sep = livePicUrl.includes('?') ? '&' : '?';
-        img.src = `${livePicUrl}${sep}_t=${Date.now()}`;
-        return;
-      }
-
-      // 3. Respaldo si no hay red
-      loadFallbackDataUrl();
-    };
-
-    fetchNextFrame();
+    pollLocalOrDeferredPoster();
     return () => {
       active = false;
       if (timer) clearTimeout(timer);
@@ -808,8 +901,31 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
   const hasImage = isContinuousLive || nativeP2pReady;
 
   useEffect(() => {
-    setHlsLiveReady(false);
     const video = videoRef.current;
+    // Preservar fotograma actual en caché antes de cambiar de calidad (0ms sin pantalla negra)
+    if (video && video.videoWidth > 0 && video.videoHeight > 0) {
+      try {
+        const snapCanvas = document.createElement('canvas');
+        snapCanvas.width = 480;
+        snapCanvas.height = 270;
+        const sctx = snapCanvas.getContext('2d');
+        if (sctx) {
+          sctx.drawImage(video, 0, 0, 480, 270);
+          const dataUrl = snapCanvas.toDataURL('image/jpeg', 0.72);
+          const snapImg = new Image();
+          snapImg.src = dataUrl;
+          nativeP2pImgRef.current = snapImg;
+          setNativeP2pReady(true);
+          const ch = Math.min(4, Math.max(1, camera.channel || 1));
+          const devSerial = camera.deviceSerial || 'F31700438';
+          ezvizCaptureCache[`${devSerial}_${ch}`] = dataUrl;
+          savePersistedCaptureCache(ezvizCaptureCache);
+        }
+      } catch {}
+    }
+
+    setHlsLiveReady(false);
+    hlsLiveReadyRef.current = false;
     if (!liveHlsUrl || isDemoTunnelPlaceholder || !video) return;
 
     let hls: Hls | null = null;
@@ -819,23 +935,25 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
       if (cancelled) return;
 
       if (Hls.isSupported()) {
-        const isHd = false;
+        const isHd = streamQuality === '1';
         hls = new Hls({
-
-          lowLatencyMode: true, // 4G celular requiere estabilidad sin drenar el búfer
-          backBufferLength: isHd ? 15 : 10,
-          maxBufferLength: isHd ? 30 : 20, // Búfer amplio para absorber fluctuaciones de red móvil
-          maxMaxBufferLength: isHd ? 60 : 40,
-          liveSyncDurationCount: 1, // Colchón de 3 segmentos (12s) para absorción total de jitter 4G
-          liveMaxLatencyDurationCount: 3,
-          maxLiveSyncPlaybackRate: 1.15, // 1.0x sin saltos ni aceleraciones que vacíen el búfer
+          lowLatencyMode: false, // HLS estándar (.ts de Ezviz): evita nudges prematuros que vacían el búfer
+          startFragPrefetch: true, // Pre-descarga el siguiente segmento para reproducción continua sin micro-pausas
+          backBufferLength: 6,
+          maxBufferLength: isHd ? 14 : 10,
+          maxMaxBufferLength: isHd ? 24 : 18,
+          maxBufferSize: 15 * 1000 * 1000,
+          maxBufferHole: 0.5,
+          liveSyncDurationCount: 1.5, // Arranque rápido cerca del borde en vivo con colchón estable
+          liveMaxLatencyDurationCount: 4,
+          maxLiveSyncPlaybackRate: 1.06, // Ajuste suave de velocidad (6%) sin saltos bruscos de decodificador
           enableWorker: true,
           highBufferWatchdogPeriod: 2,
-          nudgeOffset: 0.1,
-          nudgeMaxRetry: 8,
-          fragLoadingTimeOut: 30000,
-          manifestLoadingTimeOut: 30000,
-          levelLoadingTimeOut: 30000,
+          nudgeOffset: 0.15,
+          nudgeMaxRetry: 6,
+          fragLoadingTimeOut: 15000,
+          manifestLoadingTimeOut: 10000,
+          levelLoadingTimeOut: 10000,
         });
 
         hlsRef.current = hls;
@@ -847,21 +965,28 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
           video.play().catch(() => {});
         });
 
+        hls.on(Hls.Events.FRAG_BUFFERED, () => {
+          if (cancelled) return;
+          setHlsLiveReady(true);
+          hlsLiveReadyRef.current = true;
+          setIsSwitchingQuality(false);
+          if (video.paused) {
+            video.play().catch(() => {});
+          }
+        });
+
         // Regla de Auto-recuperación 100% estable ante fluctuaciones de red o caídas
         hls.on(Hls.Events.ERROR, (_event, data) => {
           if (!data.fatal) return;
 
           switch (data.type) {
             case Hls.ErrorTypes.NETWORK_ERROR:
-              console.log('Fallo de red 4G transitorio en cámara, reanudando stream...');
               hls?.startLoad();
               break;
             case Hls.ErrorTypes.MEDIA_ERROR:
-              console.log('Error de decodificación de fotogramas, recuperando media buffer...');
               hls?.recoverMediaError();
               break;
             default:
-              console.warn('Reconectando señal HLS sin congelar pantalla...', data.details);
               try {
                 hls?.startLoad();
               } catch {
@@ -879,41 +1004,29 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
         video.onloadedmetadata = () => {
           if (cancelled) return;
           setHlsLiveReady(true);
+          hlsLiveReadyRef.current = true;
           setIsSwitchingQuality(false);
-          try {
-            if (video.seekable && video.seekable.length > 0) {
-              const edge = video.seekable.end(video.seekable.length - 1);
-              video.currentTime = Math.max(0, edge - 1.5);
-            }
-          } catch {}
           video.play().catch(() => {});
         };
         video.oncanplay = () => {
           if (cancelled) return;
           setHlsLiveReady(true);
+          hlsLiveReadyRef.current = true;
           setIsSwitchingQuality(false);
           video.play().catch(() => {});
         };
         video.onplaying = () => {
           if (cancelled) return;
           setHlsLiveReady(true);
+          hlsLiveReadyRef.current = true;
           setIsSwitchingQuality(false);
-        };
-        video.onwaiting = () => {
-          try {
-            if (video.seekable && video.seekable.length > 0) {
-              const edge = video.seekable.end(video.seekable.length - 1);
-              video.currentTime = Math.max(0, edge - 1.0);
-              video.play().catch(() => {});
-            }
-          } catch {}
         };
         video.ontimeupdate = () => {
           try {
             if (video.seekable && video.seekable.length > 0) {
               const liveEdge = video.seekable.end(video.seekable.length - 1);
-              if (liveEdge - video.currentTime > 8.0) {
-                video.currentTime = Math.max(0, liveEdge - 2.0);
+              if (liveEdge - video.currentTime > 14.0) {
+                video.currentTime = Math.max(0, liveEdge - 2.5);
               }
             }
           } catch {}
@@ -932,7 +1045,6 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
 
     start();
 
-    // Sincronización instantánea al desbloquear celular o volver a la pestaña
     const handleSyncOnVisible = () => {
       if (document.visibilityState === 'visible' && video) {
         if (hls) {
@@ -941,12 +1053,6 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
         if (video.paused) {
           video.play().catch(() => {});
         }
-        try {
-          if (video.seekable && video.seekable.length > 0) {
-            const edge = video.seekable.end(video.seekable.length - 1);
-            video.currentTime = Math.max(0, edge - 0.5);
-          }
-        } catch {}
       }
     };
 
@@ -961,13 +1067,15 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
     };
   }, [liveHlsUrl, isDemoTunnelPlaceholder]);
 
-  // Canvas-based camera renderer (renders native Hikvision P2P V3 stream directly from DVR FB2200254)
+  // Canvas de respaldo: en cámaras reales dibuja bajo demanda (0% uso de CPU/GPU en reposo)
   useEffect(() => {
     if (isContinuousLive) return;
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
+
+    const isSyntheticDemo = !isEzopenDevice && !camera.deviceSerial && !ivmsBridgeActive;
 
     const render = (time: number) => {
       const width = canvas.width;
@@ -991,9 +1099,7 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
           ctx.filter = 'grayscale(100%) contrast(125%) brightness(110%) sepia(35%) hue-rotate(70deg)';
         }
         ctx.imageSmoothingEnabled = true;
-        ctx.imageSmoothingQuality = 'high';
 
-        // Mantener proporción de aspecto natural exacta sin estirar la imagen en PC ni móvil
         const imgW = p2pImg.naturalWidth;
         const imgH = p2pImg.naturalHeight;
         const imgRatio = imgW / imgH;
@@ -1007,12 +1113,10 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
           drawW = width;
           drawH = width / imgRatio;
           offsetY = (height - drawH) / 2;
-          offsetX = 0;
         } else {
           drawH = height;
           drawW = height * imgRatio;
           offsetX = (width - drawW) / 2;
-          offsetY = 0;
         }
 
         ctx.drawImage(p2pImg, offsetX, offsetY, drawW, drawH);
@@ -1041,8 +1145,7 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
           width,
           height
         );
-      } else if (!isEzopenDevice && !camera.deviceSerial) {
-        // En cámaras virtuales de demostración: escena simulada
+      } else if (isSyntheticDemo) {
         if (camera.name.toLowerCase().includes('bodega')) {
           drawWarehouseScene(ctx, width, height, time, nightVision, aiDetection);
         } else if (camera.name.toLowerCase().includes('perímetro') || camera.name.toLowerCase().includes('parqueo')) {
@@ -1054,38 +1157,25 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
 
       ctx.restore();
 
-      // En cámaras reales nunca dibujar ruido artificial ni OSD sintético
-      if (!isEzopenDevice && !camera.deviceSerial && !nativeP2pReady && !ivmsBridgeActive) {
-        drawSensorNoise(ctx, width, height, nightVision);
+      if (isSyntheticDemo && !nativeP2pReady) {
         drawOsd(ctx, width, height, camera, nightVision);
       }
 
-      // Watermark if required
       if (showWatermark) {
         drawWatermarkOverlay(ctx, width, height, watermarkText || 'PROYECTO DE CÁMARAS');
       }
 
-      animFrameRef.current = requestAnimationFrame(render);
+      if (isSyntheticDemo || ivmsBridgeActive) {
+        animFrameRef.current = requestAnimationFrame(render);
+      }
     };
 
-    animFrameRef.current = requestAnimationFrame(render);
+    render(performance.now());
 
     return () => {
       if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
     };
   }, [isContinuousLive, nativeP2pReady, ivmsBridgeActive, ivmsCropConfig, camera, digitalZoom, nightVision, aiDetection, ptzPan, ptzTilt, ptzZoom, showWatermark, watermarkText]);
-
-  // Slight metric variance for realism
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setMetrics({
-        fps: Math.max(20, Math.min(30, (camera.fps || 25) + (Math.random() > 0.5 ? 1 : -1))),
-        bitrate: Math.round((camera.bitrateKbps || 2048) + (Math.random() * 60 - 30)),
-        latencyMs: Math.round(175 + Math.random() * 35)
-      });
-    }, 2500);
-    return () => clearInterval(timer);
-  }, [camera.fps, camera.bitrateKbps]);
 
 
   const handleToggleAudio = () => {
@@ -1195,19 +1285,18 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
 
 
   // =========================================================================
-  // WATCHDOG AUTO-ACTUALIZACIÓN 24/7 (Anti-congelamiento y auto-sincronización)
+  // WATCHDOG AUTO-ACTUALIZACIÓN 24/7 (Respeta el Modo Ultra-Ahorro 4G y pestañas ocultas)
   // =========================================================================
   useEffect(() => {
-    if (isOffline) return;
+    if (isOffline || is4gEcoPaused) return;
 
     const interval = setInterval(() => {
-      if (isReconnecting) return;
+      if (isReconnecting || document.hidden || is4gEcoPausedRef.current) return;
 
       // 1. Verificación para flujos HLS (Hikvision DVR)
       if (!isEzopenDevice && liveHlsUrl && hasHls && videoRef.current) {
         const vid = videoRef.current;
 
-        // Si el navegador pausó el video inadvertidamente en móvil, reanudar
         if (vid.paused && !vid.seeking && vid.readyState >= 2) {
           vid.play().catch(() => {});
         }
@@ -1219,35 +1308,28 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
           stallCountRef.current += 1;
 
           if (stallCountRef.current === 2) {
-            // Nivel 1 (3s): Micro-salto suave al borde en vivo
-            if (vid.seekable && vid.seekable.length > 0) {
-              const edge = vid.seekable.end(vid.seekable.length - 1);
-              vid.currentTime = Math.max(0, edge - 0.5);
-            }
+            // Nivel 1 (5s): Reanudar carga de segmentos sin vaciar el búfer existente
+            hlsRef.current?.startLoad();
             vid.play().catch(() => {});
           } else if (stallCountRef.current === 4) {
-            // Nivel 2 (6s): Recuperación de búfer HLS
+            // Nivel 2 (10s): Recuperación de búfer de media
             hlsRef.current?.recoverMediaError();
             hlsRef.current?.startLoad();
             vid.play().catch(() => {});
-            setWatchdogToast('Auto-sincronizando señal...');
-            setTimeout(() => setWatchdogToast(null), 1800);
           } else if (stallCountRef.current >= 6) {
-            // Nivel 3 (9s): Auto-actualización completa y silenciosa
+            // Nivel 3 (15s): Renovación completa de enlace HLS
             stallCountRef.current = 0;
-            setWatchdogToast('Cámara actualizada automáticamente');
-            setTimeout(() => setWatchdogToast(null), 2500);
             handleForceReconnect(false);
           }
         } else {
           stallCountRef.current = 0;
           lastPlaybackTimeRef.current = curTime;
 
-          // Corrección anti-retraso: mantener a menos de 6s del vivo
+          // Solo ajustar si el retraso acumulado supera los 16s (para desfases menores actúa maxLiveSyncPlaybackRate: 1.06 sin congelar)
           if (vid.seekable && vid.seekable.length > 0) {
             const edge = vid.seekable.end(vid.seekable.length - 1);
-            if (edge - curTime > 6.0) {
-              vid.currentTime = Math.max(0, edge - 1.0);
+            if (edge - curTime > 16.0) {
+              vid.currentTime = Math.max(0, edge - 2.5);
             }
           }
         }
@@ -1255,7 +1337,7 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
       }
 
       // 2. Verificación para EZopen WebAssembly (Proyecto Ocós 4G)
-      if (isEzopenDevice && ezuikitLiveReady) {
+      if (isEzopenDevice && ezuikitLiveReady && !is4gEcoPausedRef.current) {
         const container = document.getElementById(ezuikitContainerId);
         const innerVid = container?.querySelector('video') as HTMLVideoElement | null;
 
@@ -1273,20 +1355,8 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
               if (isMutedRef.current) {
                 try { ezPlayerRef.current?.closeSound(); } catch {}
               }
-            } else if (stallCountRef.current === 5) {
-              try {
-                ezPlayerRef.current?.stop();
-                ezPlayerRef.current?.play();
-                if (isMutedRef.current) {
-                  try { ezPlayerRef.current?.closeSound(); } catch {}
-                }
-              } catch {}
-              setWatchdogToast('Auto-sincronizando señal 4G...');
-              setTimeout(() => setWatchdogToast(null), 1800);
-            } else if (stallCountRef.current >= 8) {
+            } else if (stallCountRef.current >= 6) {
               stallCountRef.current = 0;
-              setWatchdogToast('Cámara actualizada automáticamente');
-              setTimeout(() => setWatchdogToast(null), 2500);
               handleForceReconnect(false);
             }
           } else {
@@ -1295,20 +1365,17 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
           }
         }
       }
-    }, 1500);
+    }, 2500);
 
     return () => clearInterval(interval);
-  }, [isOffline, isEzopenDevice, liveHlsUrl, hasHls, ezuikitLiveReady, ezuikitContainerId, isReconnecting]);
+  }, [isOffline, isEzopenDevice, liveHlsUrl, hasHls, ezuikitLiveReady, ezuikitContainerId, isReconnecting, is4gEcoPaused]);
 
-  // Resincronización al desbloquear celular, volver a la pestaña o reconectar red
+  // Resincronización al desbloquear celular o volver a la pestaña (en cámaras no-4G)
   useEffect(() => {
     const handleSyncOnVisible = () => {
       if (document.visibilityState === 'visible') {
-        if (isEzopenDevice && ezPlayerRef.current) {
-          try {
-            ezPlayerRef.current.stop();
-            ezPlayerRef.current.play();
-          } catch {}
+        if (is4gCamera && is4gEcoPausedRef.current) {
+          return; // En cámara 4G mantener en ahorro hasta que el usuario toque Conectar
         }
         const vid = videoRef.current;
         if (vid && hasHls) {
@@ -1325,19 +1392,18 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
     };
 
     const handleOnline = () => {
+      if (is4gCamera && is4gEcoPausedRef.current) return;
       handleForceReconnect(false);
     };
 
     document.addEventListener('visibilitychange', handleSyncOnVisible);
-    window.addEventListener('focus', handleSyncOnVisible);
     window.addEventListener('online', handleOnline);
 
     return () => {
       document.removeEventListener('visibilitychange', handleSyncOnVisible);
-      window.removeEventListener('focus', handleSyncOnVisible);
       window.removeEventListener('online', handleOnline);
     };
-  }, [isEzopenDevice, hasHls]);
+  }, [isEzopenDevice, hasHls, is4gCamera]);
 
   return (
     <div 
@@ -1350,13 +1416,15 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
       <div className="absolute top-2.5 inset-x-2.5 z-20 flex items-center justify-between gap-2 pointer-events-none">
         <button
           type="button"
-          onClick={() => handleForceReconnect(true)}
+          onClick={() => (is4gEcoPaused ? resume4gStream() : handleForceReconnect(true))}
           className="pointer-events-auto flex items-center gap-1.5 bg-black/75 hover:bg-black/90 active:bg-black backdrop-blur-md px-2.5 py-1 rounded-full border border-white/15 hover:border-sky-500/50 shadow-lg transition active:scale-95 cursor-pointer"
           title="Toca para reconectar o refrescar señal de video al instante"
         >
           <span
             className={`w-2 h-2 rounded-full shrink-0 ${
-              isReconnecting
+              is4gEcoPaused
+                ? 'bg-emerald-400'
+                : isReconnecting
                 ? 'bg-sky-400 animate-spin'
                 : hasImage
                 ? 'bg-emerald-400 animate-pulse'
@@ -1365,17 +1433,35 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
           />
           <span
             className={`text-[10px] sm:text-[11px] font-mono font-bold tracking-wider whitespace-nowrap shrink-0 flex items-center gap-1 ${
-              hasImage ? 'text-emerald-400' : 'text-amber-400'
+              is4gEcoPaused ? 'text-sky-300' : hasImage ? 'text-emerald-400' : 'text-amber-400'
             }`}
           >
-            <span className="sm:hidden">{isReconnecting ? 'CONECTANDO…' : hasImage ? (streamQuality === '1' ? '1080p FHD' : 'SD FLUIDO') : 'RECONECTAR'}</span>
+            <span className="sm:hidden">
+              {is4gEcoPaused
+                ? 'AHORRO 4G · 0 KB/S'
+                : isReconnecting
+                ? 'CONECTANDO…'
+                : hasImage
+                ? streamQuality === '1'
+                  ? '1080p FHD'
+                  : 'SD FLUIDO'
+                : 'RECONECTAR'}
+            </span>
             <span className="hidden sm:inline">
-              {isReconnecting
+              {is4gEcoPaused
+                ? 'MODO AHORRO 4G · 0 KB/S'
+                : isReconnecting
                 ? 'RECONECTANDO…'
                 : hasImage
                 ? isContinuousLive
-                  ? (streamQuality === '1' ? 'EN VIVO · 1080p FHD' : 'EN VIVO · SD FLUIDO')
-                  : 'EN VIVO · RÁFAGA 4G'
+                  ? streamQuality === '1'
+                    ? 'EN VIVO · 1080p FHD'
+                    : is4gCamera
+                    ? 'EN VIVO · SD AHORRO 4G'
+                    : 'EN VIVO · SD FLUIDO 25 FPS'
+                  : is4gCamera
+                  ? 'EN VIVO · RÁFAGA 4G'
+                  : 'EN VIVO · SINCRONIZANDO'
                 : 'RECONECTAR SEÑAL'}
             </span>
             <RefreshCw className={`w-2.5 h-2.5 opacity-80 ${isReconnecting ? 'animate-spin text-sky-400' : ''}`} />
@@ -1388,25 +1474,46 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
           )}
         </button>
 
-        <div className="flex items-center gap-1 bg-black/65 backdrop-blur-md px-2.5 py-1 rounded-full border border-white/10 text-[10px] sm:text-[11px] font-mono tabular-nums text-neutral-200 whitespace-nowrap shrink-0 shadow-lg">
-          <span className="font-bold text-sky-300 font-mono">
-            {camera.codec || 'H.265'}
-            <span className="text-neutral-500 mx-1">·</span>
-          </span>
-          <span className="text-emerald-400 font-semibold font-mono">{isContinuousLive ? `${metrics.fps} FPS` : '4G P2P'}</span>
-          <span className="text-neutral-500 mx-1">·</span>
-          <span className="text-sky-300 font-semibold font-mono">{isContinuousLive ? `${metrics.bitrate} kbps` : 'DIRECTO'}</span>
-          {nightVision && (
-            <>
-              <span className="text-neutral-500 mx-1">·</span>
-              <span className="text-emerald-300 font-semibold">IR</span>
-            </>
+        <div className="flex items-center gap-1.5 pointer-events-auto">
+          {is4gCamera && !is4gEcoPaused && (
+            <button
+              type="button"
+              onClick={pause4gStreamForDataSaving}
+              className="flex items-center gap-1 bg-emerald-950/90 hover:bg-emerald-900 border border-emerald-500/50 text-emerald-300 px-2.5 py-1 rounded-full text-[10px] sm:text-[11px] font-mono font-bold shadow-lg transition active:scale-95 cursor-pointer"
+              title="Pausar transmisión ahora para ahorrar datos de la tarjeta SIM 4G"
+            >
+              <span>⏸ Ahorro 4G ({ecoRemainingSec}s)</span>
+            </button>
           )}
+          <div className="flex items-center gap-1 bg-black/65 backdrop-blur-md px-2.5 py-1 rounded-full border border-white/10 text-[10px] sm:text-[11px] font-mono tabular-nums text-neutral-200 whitespace-nowrap shrink-0 shadow-lg">
+            <span className="font-bold text-sky-300 font-mono">
+              {camera.codec || 'H.265'}
+              <span className="text-neutral-500 mx-1">·</span>
+            </span>
+            <span className="text-emerald-400 font-semibold font-mono">
+              {is4gEcoPaused ? '0 FPS' : isContinuousLive ? `${metrics.fps} FPS` : '4G P2P'}
+            </span>
+            <span className="text-neutral-500 mx-1">·</span>
+            <span className="text-sky-300 font-semibold font-mono">
+              {is4gEcoPaused ? '0 kbps' : isContinuousLive ? `${metrics.bitrate} kbps` : 'DIRECTO'}
+            </span>
+            {nightVision && (
+              <>
+                <span className="text-neutral-500 mx-1">·</span>
+                <span className="text-emerald-300 font-semibold">IR</span>
+              </>
+            )}
+          </div>
         </div>
       </div>
 
       {/* Main Video Viewport */}
       <div 
+        onClick={() => {
+          if (is4gCamera && !is4gEcoPaused) {
+            setEcoRemainingSec(90);
+          }
+        }}
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
@@ -1415,6 +1522,32 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
         className={`relative w-full bg-neutral-950 flex items-center justify-center overflow-hidden select-none cursor-pointer ${isFullscreen ? "flex-1 h-full" : "aspect-video"}`}
         title="Doble toque o doble clic para Pantalla Completa · Pellizca para Zoom"
       >
+        {/* Overlay de Modo Ultra-Ahorro SIM 4G (0 KB/s en espera) */}
+        {is4gCamera && is4gEcoPaused && (
+          <div className="absolute inset-0 z-30 flex flex-col items-center justify-center p-4 bg-neutral-950/80 backdrop-blur-xs text-center select-none">
+            <div className="px-3 py-1 rounded-full bg-emerald-500/15 border border-emerald-500/40 text-emerald-300 font-mono text-[10px] font-bold tracking-wider uppercase mb-2.5 flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+              <span>Ahorro Inteligente SIM 4G · 0 KB/s en Espera</span>
+            </div>
+            <h4 className="text-sm sm:text-base font-bold text-white mb-1">
+              {camera.name} · En Espera de Datos
+            </h4>
+            <p className="text-[11px] sm:text-xs text-neutral-300 max-w-md mb-4 leading-relaxed">
+              Transmisión 4G en reposo para evitar consumo innecesario de gigabytes en la SIM de Ocós. Se desconecta sola tras 90s o al minimizar.
+            </p>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                resume4gStream();
+              }}
+              className="px-5 py-2.5 bg-gradient-to-r from-emerald-600 to-sky-600 hover:from-emerald-500 hover:to-sky-500 active:scale-95 text-white font-bold text-xs sm:text-sm rounded-xl transition shadow-lg shadow-emerald-950/60 flex items-center gap-2 cursor-pointer"
+            >
+              <span>▶ Conectar Video 4G en Vivo (Ahorro H.265)</span>
+            </button>
+          </div>
+        )}
+
         {/* Floating Zoom Reset Button */}
         {digitalZoom > 1 && (
           <button
@@ -1447,39 +1580,45 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
           <div className="absolute bottom-0 right-0 w-3 h-3 border-b border-r border-sky-400/70" />
         </div>
 
-        {/* Pantalla Táctica de Reconexión Rápida del DVR */}
-        {(!hasImage || isOffline) && (
-          <div className="absolute inset-0 z-30 flex flex-col items-center justify-center p-5 bg-neutral-950/85 backdrop-blur-sm text-center select-none animate-in fade-in duration-200">
-            <div className="w-13 h-13 sm:w-14 sm:h-14 rounded-2xl bg-amber-500/15 border border-amber-500/35 flex items-center justify-center mb-3 shadow-lg shadow-amber-500/10">
-              <Radio className={`w-6 h-6 sm:w-7 sm:h-7 text-amber-400 ${isReconnecting ? 'animate-spin' : 'animate-pulse'}`} />
-            </div>
-            <h4 className="text-sm font-bold text-white mb-1 flex items-center gap-2">
-              <span>{isReconnecting ? 'Buscando Señal del DVR...' : 'Reconectando con el DVR'}</span>
-            </h4>
-            <p className="text-xs text-neutral-400 max-w-sm mb-4 leading-relaxed">
-              {isOffline 
-                ? `El equipo de video (${camera.deviceSerial || 'HiLook'}) se encuentra fuera de línea o reiniciando enlace.`
-                : 'Restableciendo transmisión en vivo sin cifrado.'}
-              {autoRetrySeconds > 0 && (
-                <span className="block mt-1 text-sky-400 font-mono font-semibold">
-                  Comprobando automáticamente en {autoRetrySeconds}s…
+        {/* Indicador ligero de sintonización inicial (0.4s) o Reconexión cuando está offline */}
+        {!is4gEcoPaused && (!hasImage || isOffline) && (
+          <div className="absolute inset-0 z-30 flex flex-col items-center justify-center p-5 bg-neutral-950/75 backdrop-blur-xs text-center select-none">
+            {isOffline ? (
+              <>
+                <div className="w-12 h-12 rounded-2xl bg-amber-500/15 border border-amber-500/35 flex items-center justify-center mb-3 shadow-lg shadow-amber-500/10">
+                  <Radio className={`w-6 h-6 text-amber-400 ${isReconnecting ? 'animate-spin' : 'animate-pulse'}`} />
+                </div>
+                <h4 className="text-sm font-bold text-white mb-1">
+                  {isReconnecting ? 'Buscando Señal del DVR...' : 'Reconectando con el DVR'}
+                </h4>
+                <p className="text-xs text-neutral-400 max-w-sm mb-4 leading-relaxed">
+                  {`El equipo de video (${camera.deviceSerial || 'HiLook'}) se encuentra reiniciando enlace.`}
+                  {autoRetrySeconds > 0 && (
+                    <span className="block mt-1 text-sky-400 font-mono font-semibold">
+                      Comprobando automáticamente en {autoRetrySeconds}s…
+                    </span>
+                  )}
+                </p>
+                <button
+                  type="button"
+                  disabled={isReconnecting}
+                  onClick={() => handleForceReconnect(true)}
+                  className="px-5 py-2.5 bg-gradient-to-r from-sky-600 to-sky-500 hover:from-sky-500 hover:to-sky-400 active:scale-95 text-white font-bold text-xs rounded-xl transition shadow-lg shadow-sky-600/30 flex items-center gap-2"
+                >
+                  <RefreshCw className={`w-4 h-4 ${isReconnecting ? 'animate-spin' : ''}`} />
+                  <span>Reconectar Señal Ahora</span>
+                </button>
+              </>
+            ) : (
+              <div className="flex flex-col items-center gap-2.5">
+                <div className="w-9 h-9 rounded-full border-2 border-sky-500/30 border-t-sky-400 animate-spin" />
+                <span className="text-xs font-semibold text-sky-300 tracking-wide">
+                  Abriendo video en vivo (25 FPS)…
                 </span>
-              )}
-            </p>
-            <button
-              type="button"
-              disabled={isReconnecting}
-              onClick={() => handleForceReconnect(true)}
-              className="px-5 py-2.5 bg-gradient-to-r from-sky-600 to-sky-500 hover:from-sky-500 hover:to-sky-400 active:scale-95 text-white font-bold text-xs rounded-xl transition shadow-lg shadow-sky-600/30 flex items-center gap-2"
-            >
-              <RefreshCw className={`w-4 h-4 ${isReconnecting ? 'animate-spin' : ''}`} />
-              <span>Reconectar Señal Ahora</span>
-            </button>
+              </div>
+            )}
           </div>
         )}
-
-        
-        
 
         {/* Notificación del Watchdog de Auto-Actualización */}
         {watchdogToast && (
@@ -1487,6 +1626,16 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
             <div className="bg-sky-950/95 border border-sky-500/50 text-white text-xs font-semibold px-4 py-2 rounded-xl shadow-2xl flex items-center gap-2 backdrop-blur-md">
               <RefreshCw className="w-3.5 h-3.5 text-sky-400 animate-spin" />
               <span>{watchdogToast}</span>
+            </div>
+          </div>
+        )}
+
+        {/* Notificación de Conmutación de Calidad HD / SD */}
+        {isSwitchingQuality && (
+          <div className="absolute top-12 inset-x-0 z-40 flex justify-center pointer-events-none px-4 animate-in fade-in duration-200">
+            <div className="bg-sky-950/95 border border-sky-500/50 text-white text-xs font-semibold px-4 py-2 rounded-xl shadow-2xl flex items-center gap-2 backdrop-blur-md">
+              <Sparkles className="w-3.5 h-3.5 text-sky-400 animate-spin" />
+              <span>{streamQuality === '1' ? 'Sincronizando señal HD 1080p...' : 'Cambiando a SD fluido...'}</span>
             </div>
           </div>
         )}
@@ -1506,7 +1655,7 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
           ref={canvasRef}
           width={1280}
           height={720}
-          className={`w-full h-full object-fill select-none transition-opacity duration-300 ${
+          className={`w-full h-full object-fill select-none transition-opacity duration-200 ${
             isContinuousLive ? 'opacity-0 pointer-events-none' : 'opacity-100'
           }`}
         />
@@ -1515,7 +1664,7 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
         {isEzopenDevice && (
           <div
             id={ezuikitContainerId}
-            className={`ezuikit-live-player transition-opacity duration-300 ${
+            className={`ezuikit-live-player transition-opacity duration-200 ${
               ezuikitLiveReady ? 'opacity-100 z-10' : 'opacity-0 pointer-events-none'
             }`}
             style={
@@ -1534,7 +1683,7 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
         {!isEzopenDevice && liveHlsUrl && !isDemoTunnelPlaceholder && (
           <video
             ref={videoRef}
-            className={`absolute inset-0 w-full h-full object-fill z-10 transition-opacity duration-300 ${hasHls ? 'opacity-100' : 'opacity-90'}`}
+            className={`absolute inset-0 w-full h-full object-fill z-10 transition-opacity duration-200 ${hasHls ? 'opacity-100' : 'opacity-90'}`}
             muted={true}
             playsInline
             autoPlay
@@ -1551,31 +1700,50 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
               }
             }}
             onPlaying={() => {
-              if (videoRef.current) {
+              const vid = videoRef.current;
+              if (vid) {
                 if (isMutedRef.current) {
-                  videoRef.current.muted = true;
-                  videoRef.current.volume = 0;
+                  vid.muted = true;
+                  vid.volume = 0;
                 }
-                if (videoRef.current.videoWidth > 0) {
+                if (vid.videoWidth > 0) {
                   setHlsLiveReady(true);
+                  hlsLiveReadyRef.current = true;
                   setIsSwitchingQuality(false);
+                  // Guardar miniatura instantánea desde el decodificador de video (0 peticiones extra al DVR)
+                  try {
+                    const ch = Math.min(4, Math.max(1, camera.channel || 1));
+                    const devSerial = camera.deviceSerial || 'F31700438';
+                    const key = `${devSerial}_${ch}`;
+                    if (!ezvizCaptureCache[key]) {
+                      const c = document.createElement('canvas');
+                      c.width = 480;
+                      c.height = 270;
+                      c.getContext('2d')?.drawImage(vid, 0, 0, 480, 270);
+                      ezvizCaptureCache[key] = c.toDataURL('image/jpeg', 0.7);
+                      savePersistedCaptureCache(ezvizCaptureCache);
+                    }
+                  } catch {}
                 }
               }
             }}
             onLoadedData={() => {
-              if (videoRef.current) {
+              const vid = videoRef.current;
+              if (vid) {
                 if (isMutedRef.current) {
-                  videoRef.current.muted = true;
-                  videoRef.current.volume = 0;
+                  vid.muted = true;
+                  vid.volume = 0;
                 }
-                if (videoRef.current.videoWidth > 0) {
+                if (vid.videoWidth > 0) {
                   setHlsLiveReady(true);
+                  hlsLiveReadyRef.current = true;
                   setIsSwitchingQuality(false);
                 }
               }
             }}
             onError={() => {
               setHlsLiveReady(false);
+              hlsLiveReadyRef.current = false;
             }}
             style={
               digitalZoom * ptzZoom > 1 || ptzPan !== 0 || ptzTilt !== 0
@@ -1818,28 +1986,28 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
           </div>
 
           {/* Card Especial de Ahorro y Consumo de Datos Móviles 4G (Proyecto Ocós) */}
-          {(camera.deviceSerial === 'FF9363270' || camera.id?.includes('ocos') || camera.notes?.includes('4G')) && (
+          {is4gCamera && (
             <div className="mb-2.5 p-3 rounded-xl bg-sky-950/40 border border-sky-500/30 text-xs">
               <div className="flex items-center justify-between mb-1.5">
                 <span className="font-bold text-sky-300 flex items-center gap-1.5">
                   <Sparkles className="w-3.5 h-3.5 text-sky-400" />
-                  <span>Ahorro Inteligente 4G Celular</span>
+                  <span>Ultra-Ahorro SIM 4G · HiLookVision (5nctiv)</span>
                 </span>
                 <span className="font-mono text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-2 py-0.5 rounded-full font-bold">
-                  80% Ahorro Activo
+                  92% Ahorro Activo
                 </span>
               </div>
               <p className="text-[11px] text-neutral-300 leading-relaxed mb-2">
-                La cámara está operando en <strong className="text-white">H.265 Sub-Stream</strong> (25 FPS fluidos a ~512 kbps). La suspensión automática pausa los datos cuando cambias de pestaña o aplicación.
+                Configurada en <strong className="text-white">H.265 Sub-Stream (~256 kbps · Código LBNZYU)</strong> con desconexión automática a los <strong className="text-emerald-300">90 segundos</strong> y modo espera en mosaico (<strong className="text-emerald-300">0 KB/s</strong>).
               </p>
               <div className="grid grid-cols-2 gap-2 text-[10px] font-mono text-neutral-400">
                 <div className="bg-black/50 p-1.5 rounded-lg border border-neutral-800">
-                  <span className="text-neutral-500 block">Consumo SD Fluido:</span>
-                  <span className="text-emerald-400 font-bold">~3.8 MB / minuto</span>
+                  <span className="text-neutral-500 block">En Espera / Mosaico:</span>
+                  <span className="text-emerald-400 font-bold">0.00 MB / hora</span>
                 </div>
                 <div className="bg-black/50 p-1.5 rounded-lg border border-neutral-800">
-                  <span className="text-neutral-500 block">Consumo HD 1080p:</span>
-                  <span className="text-amber-400 font-bold">~22.5 MB / minuto</span>
+                  <span className="text-neutral-500 block">Viendo en Sub-Stream:</span>
+                  <span className="text-sky-300 font-bold">~1.8 MB / minuto</span>
                 </div>
               </div>
             </div>

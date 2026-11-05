@@ -56,7 +56,7 @@ async function syncState() {
       serial: 'F31700438',
       model: 'HiLook TurboHD (S04TURBOG2/A)',
       encryption: 'HELGDM',
-      tunnelUrl: 'https://sideseguate-streaming.surge.sh',
+      tunnelUrl: 'https://proyectos-de-camaras.surge.sh',
       updatedAt: nowIso,
       channels: {
         '1': {

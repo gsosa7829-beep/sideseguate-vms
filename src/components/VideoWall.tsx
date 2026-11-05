@@ -1,39 +1,50 @@
 import React, { useEffect, useState } from 'react';
 import { Camera } from '../lib/types';
-import { LiveCameraPlayer } from './LiveCameraPlayer';
+import { LiveCameraPlayer, prewarmHikvisionCameras } from './LiveCameraPlayer';
 import { cloudP2pClient } from '../lib/cloudP2pClient';
-import { LayoutGrid, Square, Plus, Eye, Link2, Grid3X3 } from 'lucide-react';
+import { LayoutGrid, Square, Plus, Eye, Link2, Grid3X3, Sparkles, Bot, ArrowLeft } from 'lucide-react';
 
 interface VideoWallProps {
   cameras: Camera[];
+  focusedCameraId?: string | null;
   onSelectCamera: (id: string) => void;
+  onClearFocus?: () => void;
   onOpenNewCamera: () => void;
   onGenerateLink: (camera: Camera) => void;
+  onOpenAiAssistant?: () => void;
 }
 
 export const VideoWall: React.FC<VideoWallProps> = ({
   cameras,
+  focusedCameraId,
   onSelectCamera,
+  onClearFocus,
   onOpenNewCamera,
   onGenerateLink,
+  onOpenAiAssistant,
 }) => {
   const [gridSize, setGridSize] = useState<'1' | '2' | '3'>('2');
   const [filterType, setFilterType] = useState<string>('all');
-  /**
-   * Estado del servidor, sin detalles técnicos: el operador sólo necesita
-   * saber si está activo o no. Arranca en `false` para no mostrar una
-   * falsa sensación de "todo bien" antes de la primera respuesta real.
-   */
   const [serverOnline, setServerOnline] = useState(false);
 
   useEffect(() => {
     return cloudP2pClient.subscribe((state) => setServerOnline(Boolean(state.online)));
   }, []);
 
-  const filteredCameras = cameras.filter((cam) => {
-    if (filterType === 'all') return true;
-    return cam.deviceType === filterType;
-  });
+  useEffect(() => {
+    if (cameras.some((c) => c.deviceSerial === 'F31700438' || c.id.includes('hilook'))) {
+      prewarmHikvisionCameras();
+    }
+  }, [cameras]);
+
+  const focusedCamera = focusedCameraId ? cameras.find((c) => c.id === focusedCameraId) || null : null;
+
+  const filteredCameras = focusedCamera
+    ? [focusedCamera]
+    : cameras.filter((cam) => {
+        if (filterType === 'all') return true;
+        return cam.deviceType === filterType;
+      });
 
   const onlineCameras = cameras.filter((c) => c.status === 'online');
 
@@ -46,16 +57,9 @@ export const VideoWall: React.FC<VideoWallProps> = ({
 
   return (
     <div className="space-y-5">
-      {/*
-        Estado del servidor: UNA línea.
-        Antes había cuatro tarjetas de métricas (varias con valores fijos) y un
-        panel técnico enorme con serie del DVR, IP, latencia y cifrado. No
-        aportaban nada al trabajo diario y empujaban las cámaras fuera de la
-        primera pantalla en el móvil. Tampoco se muestra ninguna vista previa
-        del servidor: basta con saber si está activo o no.
-      */}
+      {/* Estado del servidor + Acceso directo al Asistente IA Setup Wizard */}
       <div
-        className={`flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-xl border px-3.5 py-2.5 ${
+        className={`flex flex-wrap items-center justify-between gap-x-3 gap-y-2 rounded-xl border px-3.5 py-2.5 ${
           serverOnline
             ? 'border-emerald-500/30 bg-emerald-500/[0.06]'
             : 'border-neutral-800 bg-neutral-900/80'
@@ -63,34 +67,48 @@ export const VideoWall: React.FC<VideoWallProps> = ({
         role="status"
         aria-live="polite"
       >
-        <span className="flex items-center gap-2 min-w-0">
-          <span className="relative flex h-2 w-2 shrink-0" aria-hidden="true">
-            {serverOnline && (
-              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-70" />
-            )}
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+          <span className="flex items-center gap-2 min-w-0">
+            <span className="relative flex h-2 w-2 shrink-0" aria-hidden="true">
+              {serverOnline && (
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-70" />
+              )}
+              <span
+                className={`relative inline-flex h-2 w-2 rounded-full ${
+                  serverOnline ? 'bg-emerald-400' : 'bg-neutral-600'
+                }`}
+              />
+            </span>
             <span
-              className={`relative inline-flex h-2 w-2 rounded-full ${
-                serverOnline ? 'bg-emerald-400' : 'bg-neutral-600'
+              className={`text-sm font-semibold ${
+                serverOnline ? 'text-emerald-300' : 'text-neutral-400'
               }`}
-            />
+            >
+              {serverOnline ? 'Servidor activo' : 'Servidor inactivo'}
+            </span>
           </span>
-          <span
-            className={`text-sm font-semibold ${
-              serverOnline ? 'text-emerald-300' : 'text-neutral-400'
-            }`}
+
+          <span className="text-neutral-700" aria-hidden="true">
+            ·
+          </span>
+
+          <span className="text-xs text-neutral-400 tabular-nums">
+            {onlineCameras.length} de {cameras.length}{' '}
+            {cameras.length === 1 ? 'canal en línea' : 'canales en línea'}
+          </span>
+        </div>
+
+        {onOpenAiAssistant && (
+          <button
+            type="button"
+            onClick={onOpenAiAssistant}
+            className="px-3.5 py-1.5 rounded-lg bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-500 hover:to-indigo-500 text-white text-xs font-semibold flex items-center gap-1.5 shadow-md shadow-sky-950/50 transition cursor-pointer"
           >
-            {serverOnline ? 'Servidor activo' : 'Servidor inactivo'}
-          </span>
-        </span>
-
-        <span className="text-neutral-700" aria-hidden="true">
-          ·
-        </span>
-
-        <span className="text-xs text-neutral-400 tabular-nums">
-          {onlineCameras.length} de {cameras.length}{' '}
-          {cameras.length === 1 ? 'canal en línea' : 'canales en línea'}
-        </span>
+            <Bot className="w-4 h-4" />
+            <span>Asistente IA · Auto-Agregar Cámaras</span>
+            <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+          </button>
+        )}
       </div>
 
       {/* Matrix Toolbar: Segmented Hardware Filter & Grid Layout Switcher */}
@@ -102,9 +120,12 @@ export const VideoWall: React.FC<VideoWallProps> = ({
             return (
               <button
                 key={tab.id}
-                onClick={() => setFilterType(tab.id)}
+                onClick={() => {
+                  onClearFocus?.();
+                  setFilterType(tab.id);
+                }}
                 className={`px-3 py-1.5 text-xs font-medium rounded-md transition whitespace-nowrap shrink-0 ${
-                  active
+                  active && !focusedCamera
                     ? 'bg-gradient-to-r from-sky-600/30 to-sky-500/20 text-white border border-sky-500/40 font-semibold shadow-xs'
                     : 'text-neutral-400 hover:text-neutral-200 border border-transparent'
                 }`}
@@ -124,9 +145,12 @@ export const VideoWall: React.FC<VideoWallProps> = ({
           <div className="flex items-center bg-neutral-950/90 p-1 rounded-lg border border-neutral-800/90 text-xs">
             <button
               aria-label="Vista 1x1 individual"
-              onClick={() => setGridSize('1')}
+              onClick={() => {
+                onClearFocus?.();
+                setGridSize('1');
+              }}
               className={`px-2.5 py-1 rounded-md transition flex items-center gap-1.5 whitespace-nowrap ${
-                gridSize === '1'
+                gridSize === '1' || focusedCamera
                   ? 'bg-sky-500/20 text-white border border-sky-500/40 font-semibold'
                   : 'text-neutral-400 hover:text-white border border-transparent'
               }`}
@@ -137,9 +161,12 @@ export const VideoWall: React.FC<VideoWallProps> = ({
             </button>
             <button
               aria-label="Matriz 2x2 de cuatro cámaras"
-              onClick={() => setGridSize('2')}
+              onClick={() => {
+                onClearFocus?.();
+                setGridSize('2');
+              }}
               className={`px-2.5 py-1 rounded-md transition flex items-center gap-1.5 whitespace-nowrap ${
-                gridSize === '2'
+                gridSize === '2' && !focusedCamera
                   ? 'bg-sky-500/20 text-white border border-sky-500/40 font-semibold'
                   : 'text-neutral-400 hover:text-white border border-transparent'
               }`}
@@ -150,9 +177,12 @@ export const VideoWall: React.FC<VideoWallProps> = ({
             </button>
             <button
               aria-label="Matriz 3x3 de nueve cámaras"
-              onClick={() => setGridSize('3')}
+              onClick={() => {
+                onClearFocus?.();
+                setGridSize('3');
+              }}
               className={`px-2.5 py-1 rounded-md transition flex items-center gap-1.5 whitespace-nowrap ${
-                gridSize === '3'
+                gridSize === '3' && !focusedCamera
                   ? 'bg-sky-500/20 text-white border border-sky-500/40 font-semibold'
                   : 'text-neutral-400 hover:text-white border border-transparent'
               }`}
@@ -165,26 +195,57 @@ export const VideoWall: React.FC<VideoWallProps> = ({
         </div>
       </div>
 
+      {/* Barra de Retorno cuando se está inspeccionando una cámara individual */}
+      {focusedCamera && (
+        <div className="bg-sky-950/60 border border-sky-500/40 rounded-xl px-4 py-2.5 flex items-center justify-between gap-3 text-xs">
+          <div className="flex items-center gap-2 min-w-0">
+            <Eye className="w-4 h-4 text-sky-400 shrink-0" />
+            <span className="text-white font-semibold truncate">
+              Vista Detallada: {focusedCamera.name}
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={() => onClearFocus?.()}
+            className="px-3 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-500 text-white font-semibold flex items-center gap-1.5 transition shrink-0 cursor-pointer"
+          >
+            <ArrowLeft className="w-3.5 h-3.5" />
+            <span>Volver al Mosaico ({cameras.length})</span>
+          </button>
+        </div>
+      )}
+
       {/* Camera Matrix Grid */}
       {filteredCameras.length === 0 ? (
         <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-12 text-center">
           <p className="text-sm font-medium text-white mb-1">No hay cámaras en esta categoría</p>
           <p className="text-xs text-neutral-400 mb-4">
-            Agrega un nuevo canal RTSP o selecciona otro filtro de hardware.
+            Agrega un nuevo canal RTSP o usa el Asistente IA para configurarlas automáticamente.
           </p>
-          <button
-            onClick={onOpenNewCamera}
-            className="px-4 py-2 bg-sky-600 hover:bg-sky-500 text-white font-semibold rounded-lg text-xs inline-flex items-center gap-1.5 transition"
-          >
-            <Plus className="w-3.5 h-3.5" />
-            <span>Añadir Cámara</span>
-          </button>
+          <div className="flex flex-wrap items-center justify-center gap-2">
+            {onOpenAiAssistant && (
+              <button
+                onClick={onOpenAiAssistant}
+                className="px-4 py-2 bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-500 hover:to-indigo-500 text-white font-semibold rounded-lg text-xs inline-flex items-center gap-1.5 transition"
+              >
+                <Bot className="w-3.5 h-3.5" />
+                <span>Configurar con Asistente IA</span>
+              </button>
+            )}
+            <button
+              onClick={onOpenNewCamera}
+              className="px-4 py-2 bg-neutral-800 hover:bg-neutral-700 text-white font-semibold rounded-lg text-xs inline-flex items-center gap-1.5 transition"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span>Añadir Manualmente</span>
+            </button>
+          </div>
         </div>
       ) : (
         <div
           className={`grid gap-4 ${
-            gridSize === '1'
-              ? 'grid-cols-1'
+            gridSize === '1' || focusedCamera
+              ? 'grid-cols-1 max-w-5xl mx-auto'
               : gridSize === '2'
               ? 'grid-cols-1 md:grid-cols-2'
               : 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3'
@@ -227,7 +288,7 @@ export const VideoWall: React.FC<VideoWallProps> = ({
                   allowAudio={true}
                   allowSnapshot={true}
                   showWatermark={false}
-                  isCompact={gridSize !== '1'}
+                  isCompact={gridSize !== '1' && !focusedCamera}
                 />
               </div>
 
@@ -241,12 +302,21 @@ export const VideoWall: React.FC<VideoWallProps> = ({
 
                 <div className="flex items-center gap-2 shrink-0">
                   <button
-                    onClick={() => onSelectCamera(cam.id)}
-                    className="h-8 px-3 bg-neutral-900 hover:bg-neutral-850 text-neutral-200 border border-neutral-800 rounded-lg transition flex items-center gap-1.5 text-xs font-medium whitespace-nowrap"
-                    title="Inspeccionar cámara y control PTZ"
+                    onClick={() => (focusedCamera ? onClearFocus?.() : onSelectCamera(cam.id))}
+                    className="h-8 px-3 bg-neutral-900 hover:bg-neutral-850 text-neutral-200 border border-neutral-800 rounded-lg transition flex items-center gap-1.5 text-xs font-medium whitespace-nowrap cursor-pointer"
+                    title={focusedCamera ? 'Volver al mosaico de cámaras' : 'Inspeccionar cámara en vista amplia'}
                   >
-                    <Eye className="w-3.5 h-3.5 text-sky-400 shrink-0" />
-                    <span>Detalle</span>
+                    {focusedCamera ? (
+                      <>
+                        <ArrowLeft className="w-3.5 h-3.5 text-sky-400 shrink-0" />
+                        <span>Mosaico</span>
+                      </>
+                    ) : (
+                      <>
+                        <Eye className="w-3.5 h-3.5 text-sky-400 shrink-0" />
+                        <span>Detalle</span>
+                      </>
+                    )}
                   </button>
                   <button
                     onClick={() => onGenerateLink(cam)}

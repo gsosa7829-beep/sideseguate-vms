@@ -89,9 +89,6 @@ export const ClientLivePortal: React.FC<ClientLivePortalProps> = ({
   isCloudLoading = false,
   onClientAddCameras,
 }) => {
-  useEffect(() => {
-    prewarmHikvisionCameras();
-  }, []);
   const { isInstallable, isInstalled, isIOS, install } = usePWAInstall();
   const [cloudShareLink, setCloudShareLink] = useState<ShareLink | null>(null);
   const [directTokenLoading, setDirectTokenLoading] = useState<boolean>(Boolean(token && !shareLink));
@@ -174,6 +171,12 @@ export const ClientLivePortal: React.FC<ClientLivePortalProps> = ({
   const allowedCameras = pool.filter((cam) =>
     activeShareLink ? activeShareLink.cameraIds.includes(cam.id) : false
   );
+
+  useEffect(() => {
+    if (allowedCameras.some((c) => c.deviceSerial === 'F31700438' || c.id.includes('hilook'))) {
+      prewarmHikvisionCameras();
+    }
+  }, [allowedCameras]);
 
   const [selectedCameraId, setSelectedCameraId] = useState<string>(allowedCameras[0]?.id || '');
   const [viewMode, setViewMode] = useState<'single' | 'grid'>('single');

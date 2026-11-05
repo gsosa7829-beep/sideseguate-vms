@@ -2,7 +2,7 @@
  * Utility functions for RTSP URLs, ONVIF discovery, and device syntax.
  */
 
-import { Camera, DeviceType } from './types';
+import type { Camera, DeviceType } from './types.ts';
 
 export interface HikvisionParams {
   host: string;

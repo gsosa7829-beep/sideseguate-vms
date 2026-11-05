@@ -70,10 +70,10 @@ export const ClientCameraOnboardingView: React.FC<ClientCameraOnboardingViewProp
 
   // Form fields for Client Self-Service Camera Registration (Pre-filled with real client hardware)
   const [clientName, setClientName] = useState<string>(currentProject.clientName || 'Monitoreo de Cámaras');
-  const [cameraNamePrefix, setCameraNamePrefix] = useState<string>('EQUIPO DE PRUEBA (FB2200254)');
-  const [locationDesc, setLocationDesc] = useState<string>(currentProject.location || 'Red Local 192.168.1.41');
+  const [cameraNamePrefix, setCameraNamePrefix] = useState<string>('DVR Principal');
+  const [locationDesc, setLocationDesc] = useState<string>(currentProject.location || 'Red Local');
   const [brand, setBrand] = useState<ClientCameraSubmissionInput['brand']>('hikvision_dvr');
-  const [host, setHost] = useState<string>('192.168.1.41');
+  const [host, setHost] = useState<string>('192.168.1.115');
   const [port, setPort] = useState<number>(554);
   const [onvifPort, setOnvifPort] = useState<number>(8000);
   const [username, setUsername] = useState<string>('');
@@ -342,13 +342,13 @@ export const ClientCameraOnboardingView: React.FC<ClientCameraOnboardingViewProp
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
                 {[
                   {
-                    label: 'EQUIPO DE PRUEBA (FB2200254 · 4CH)',
-                    sub: 'iDS-7204HUHI-M1/S · 4 canales',
-                    prefix: 'EQUIPO DE PRUEBA (FB2200254)',
-                    ip: '192.168.1.41',
-                    ch: 4,
+                    label: 'DVR HiLook Calle del Cementerio (F31700438)',
+                    sub: 'TurboHD DVR · 2 canales activos',
+                    prefix: 'Calle del Cementerio (F31700438)',
+                    ip: '192.168.1.115',
+                    ch: 2,
                     devBrand: 'hikvision_dvr' as const,
-                    loc: 'DVR 4CH iDS-7204HUHI-M1/S (SN: FB2200254)',
+                    loc: 'Calle del Cementerio (SN: F31700438)',
                   },
                   {
                     label: 'DVR 8CH AcuSense (L18365299)',

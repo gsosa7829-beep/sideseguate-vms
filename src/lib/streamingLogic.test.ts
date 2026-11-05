@@ -1142,8 +1142,8 @@ test('multi-tenant: el tenant se resuelve por URL, subdominio o valor guardado',
   // Un subdominio reservado jamás se toma como tenant.
   assert.equal(resolveTenantId({ hostname: 'www.sideseguate.com' }), 'sideseguate');
   // Dominios de hosting público (Surge, GitHub Pages, etc.) resuelven al tenant principal
-  assert.equal(resolveTenantId({ hostname: 'sideseguate-streaming.surge.sh' }), 'sideseguate');
-  assert.equal(resolveTenantId({ hostname: 'sideseguate-cloud.surge.sh' }), 'sideseguate');
+  assert.equal(resolveTenantId({ hostname: 'proyectos-de-camaras.surge.sh' }), 'sideseguate');
+  assert.equal(resolveTenantId({ hostname: 'proyectos-de-camaras.surge.sh' }), 'sideseguate');
 });
 
 test('multi-tenant: los ids de documento quedan aislados por cliente', () => {
@@ -1219,7 +1219,7 @@ test('el dominio configurado gana al de compilación y al origen', async () => {
 
   const info = resolvePublicUrl({
     configuredUrl: 'sideseguate.gt',
-    buildUrl: 'https://sideseguate.surge.sh',
+    buildUrl: 'https://proyectos-de-camaras.surge.sh',
     origin: 'https://gsosa7829-beep.github.io',
     pathname: '/sideseguate-vms/',
     protocol: 'https:',
@@ -1267,7 +1267,7 @@ test('sin configuración, GitHub Pages se detecta como dominio personal (conserv
 test('isPersonalLookingHost distingue marca de hosting personal', () => {
   assert.equal(isPersonalLookingHost('gsosa7829-beep.github.io'), true);
   assert.equal(isPersonalLookingHost('mi-proyecto.vercel.app'), true);
-  assert.equal(isPersonalLookingHost('sideseguate.surge.sh'), false);
+  assert.equal(isPersonalLookingHost('proyectos-de-camaras.surge.sh'), false);
   assert.equal(isPersonalLookingHost('camaras.sideseguate.com'), false);
   assert.equal(isPersonalLookingHost('localhost'), false);
 });

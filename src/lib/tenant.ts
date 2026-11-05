@@ -46,8 +46,7 @@ const RESERVED_SUBDOMAINS = new Set([
   'preview',
   'localhost',
   'sideseguate',
-  'sideseguate-streaming',
-  'sideseguate-cloud',
+  'proyectos-de-camaras',
   'sideseguate-vms',
 ]);
 

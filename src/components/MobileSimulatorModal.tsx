@@ -72,7 +72,7 @@ export const MobileSimulatorModal: React.FC<MobileSimulatorModalProps> = ({
               </label>
               <select
                 id="simulate-link-select"
-                value={selectedToken}
+                value={currentLink?.token || ''}
                 onChange={(e) => setSelectedToken(e.target.value)}
                 className="w-full bg-neutral-900 border border-neutral-800 rounded-lg p-2 text-white text-xs focus:outline-none"
               >

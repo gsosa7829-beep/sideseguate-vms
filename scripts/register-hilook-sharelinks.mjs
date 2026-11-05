@@ -68,7 +68,7 @@ for (const link of links) {
     updatedAt: serverTimestamp(),
   };
   await setDoc(docRef, payload);
-  console.log(`✓ Share link registrado con éxito: https://sideseguate-streaming.surge.sh/?token=${link.token}`);
+  console.log(`✓ Share link registrado con éxito: https://proyectos-de-camaras.surge.sh/?token=${link.token}`);
 }
 
 process.exit(0);

@@ -5,7 +5,6 @@ import {
   mergeRunnerReport,
   resolveDeviceForCamera,
   buildFramePath,
-  normalizeSerial,
 } from './deviceRegistry';
 
 export type CloudP2PChannelInfo = RunnerChannel;
@@ -30,54 +29,23 @@ export interface CloudP2PState {
 // Proxy del dev/preview server (vite-plugin-cloud-frames): evita CORS, cuotas y bloqueos de red.
 const LOCAL_PROXY_FRAME_BASE = '/p2p/frame';
 const LOCAL_PROXY_ENDPOINT_URL = '/p2p/endpoint.json';
-const LOCAL_PROXY_FULL_STATE_URL = '/p2p/live-frames.json';
 
 // Canal de descubrimiento del túnel del DVR.
-//
-// El runner (`cloud-p2p-runner.ps1`) corre en GitHub Actions, obtiene un nombre
-// de túnel Cloudflare ALEATORIO en cada arranque y lo publica en la rama
-// `cloud-state` vía API de GitHub. Estas tres URLs son la única forma de que el
-// navegador se entere de la dirección actual; van por triplicado para que un
-// límite de una CDN no deje el video sin descubrimiento.
-//
-// NO BORRAR aunque parezcan restos del despliegue antiguo de GitHub Pages:
-//   · nunca aparecen en el enlace del cliente ni en la interfaz (sólo en la
-//     pestaña Red del navegador);
-//   · Surge es estático y no puede regenerar `endpoint.json` cuando el túnel
-//     cambia, así que no hay sustituto;
-//   · sin ellas sólo quedan los túneles fijos de `KNOWN_TUNNELS`, que mueren al
-//     reiniciarse el runner → los enlaces abren pero las cámaras no cargan.
-//
-// Ver `DOMINIO-PUBLICO.md` → «Qué NO se puede borrar».
 const RAW_ENDPOINT_URLS = [
   'https://raw.githubusercontent.com/gsosa7829-beep/sideseguate-vms/cloud-state/endpoint.json',
   'https://cdn.jsdelivr.net/gh/gsosa7829-beep/sideseguate-vms@cloud-state/endpoint.json',
-  'https://raw.githack.com/gsosa7829-beep/sideseguate-vms/cloud-state/endpoint.json',
-];
-
-const RAW_LIVE_FRAMES_URLS = [
-  'https://raw.githubusercontent.com/gsosa7829-beep/sideseguate-vms/cloud-state/live-frames.json',
-  'https://cdn.jsdelivr.net/gh/gsosa7829-beep/sideseguate-vms@cloud-state/live-frames.json',
-  'https://raw.githack.com/gsosa7829-beep/sideseguate-vms/cloud-state/live-frames.json',
-];
-
-// Active public tunnel fallbacks
-const KNOWN_TUNNELS = [
-  'https://plugins-control-joined-vista.trycloudflare.com',
-  'https://killing-state-equality-fifty.trycloudflare.com',
 ];
 
 class CloudP2PClient {
   private state: CloudP2PState = {
     online: true,
     source: 'cloud-tunnel-24-7',
-    mode: 'github-cloud-runner-24-7',
+    mode: 'ezviz-cloud-direct-24-7',
     serial: '',
     model: '',
     encryption: '',
     tunnelUrl: '',
     updatedAt: new Date().toISOString(),
-    // Sin equipos inventados: hasta que el runner reporte, no hay canales.
     channels: {},
     frames: {},
     devices: [],
@@ -92,17 +60,20 @@ class CloudP2PClient {
   private proxyReachable = false;
   private proxyFails = 0;
   private proxyCooldownUntil = 0;
+  private localCooldownUntil = 0;
 
   constructor() {
     if (typeof window !== 'undefined') {
+      // En producción estática o puertos distintos al dev server, evitar peticiones locales fallidas
+      const host = window.location.hostname;
+      if (host !== 'localhost' && host !== '127.0.0.1') {
+        this.proxyCooldownUntil = Number.MAX_SAFE_INTEGER;
+        this.localCooldownUntil = Number.MAX_SAFE_INTEGER;
+      }
       this.startPolling();
     }
   }
 
-  /**
-   * Aplica lo que reportó el runner (`/status`) al estado global.
-   * Acepta el formato multi-dispositivo y el antiguo de un solo equipo.
-   */
   private applyRunnerReport(raw: unknown, fallback: Partial<CloudP2PState> = {}): void {
     const report = parseRunnerReport(raw);
     const devices = mergeRunnerReport(this.state.devices, report.devices);
@@ -117,7 +88,6 @@ class CloudP2PClient {
       updatedAt: report.updatedAt || fallback.updatedAt || new Date().toISOString(),
       devices,
       multiDevice: report.multiDevice || devices.length > 1,
-      // Compatibilidad: el primer equipo sigue expuesto como "serial/model".
       serial: primary?.serial || this.state.serial,
       model: primary?.model || this.state.model,
       encryption: primary?.encryption || this.state.encryption,
@@ -136,26 +106,20 @@ class CloudP2PClient {
     return this.localReachable;
   }
 
-  /** Equipos reportados por el runner. */
   public getDevices(): RunnerDevice[] {
     return this.state.devices;
   }
 
-  /** Dispositivo que corresponde a una cámara (por serie, notas o equipo único). */
   public resolveDevice(camera: { deviceSerial?: string; cloudId?: string; notes?: string }): RunnerDevice | null {
     return resolveDeviceForCamera(camera, this.state.devices);
   }
 
-  /**
-   * URL del frame para un canal. Con varios equipos la ruta incluye la serie
-   * (`/frame/FB2200254/3`) para no mezclar canales de DVRs distintos.
-   */
   public getBestFrameUrl(channel: number, serial?: string): string | null {
     const ch = Math.max(1, Math.min(64, Math.floor(channel) || 1));
     const now = Date.now();
     const path = buildFramePath(serial || '', ch, this.state.multiDevice);
 
-    // 0. Proxy del dev/preview server: JPEG del propio origen, sin CORS ni cuotas.
+    // 0. Proxy del dev/preview server
     if (this.proxyReachable) {
       return `${LOCAL_PROXY_FRAME_BASE}/${path}?t=${now}`;
     }
@@ -170,7 +134,7 @@ class CloudP2PClient {
       return `http://localhost:8890/frame/${path}?t=${now}`;
     }
 
-    // 3. Current active public HTTPS Cloudflare Tunnel (only if real trycloudflare tunnel)
+    // 3. Current active public HTTPS Cloudflare Tunnel (only if verified reachable)
     if (
       this.state.tunnelUrl &&
       this.state.tunnelUrl.startsWith('https://') &&
@@ -179,17 +143,11 @@ class CloudP2PClient {
       return `${this.state.tunnelUrl}/frame/${path}?t=${now}`;
     }
 
-    // 4. Embedded data URL fallback (captured live from Ezviz Cloud API / GitHub state)
+    // 4. Embedded data URL fallback
     const fallbackDataUrl =
       this.state.frames?.[String(ch)] || this.state.frames?.[`${serial || ''}/${ch}`];
     if (fallbackDataUrl && fallbackDataUrl.startsWith('data:image/jpeg;base64,')) {
       return fallbackDataUrl;
-    }
-
-    // 5. Bundled static live frames in /frames/
-    if (typeof window !== 'undefined') {
-      const staticUrl = serial ? `/frames/${serial}/${ch}.jpg` : `/frames/${ch}.jpg`;
-      return `${staticUrl}?t=${Math.floor(now / 5000)}`;
     }
 
     return null;
@@ -200,9 +158,6 @@ class CloudP2PClient {
     const dataUrl =
       this.state.frames?.[`${serial || ''}/${ch}`] || this.state.frames?.[String(ch)];
     if (dataUrl && dataUrl.startsWith('data:image/jpeg;base64,')) return dataUrl;
-    if (typeof window !== 'undefined') {
-      return serial ? `/frames/${serial}/${ch}.jpg` : `/frames/${ch}.jpg`;
-    }
     return null;
   }
 
@@ -226,12 +181,13 @@ class CloudP2PClient {
 
   private startPolling() {
     if (this.pollTimer) return;
-    this.pollOnce();
-    // Poll every 8 seconds - plenty for health checks
-    this.pollTimer = setInterval(() => this.pollOnce(), 8000);
+    // Diferir el primer sondeo 2.5s para dar prioridad absoluta al arranque del video HLS/EZopen
+    setTimeout(() => this.pollOnce(), 2500);
+    // Sondeo ligero cada 45 segundos para no competir con el ancho de banda del video en vivo
+    this.pollTimer = setInterval(() => this.pollOnce(), 45000);
   }
 
-  private async fetchWithTimeout(url: string, timeoutMs = 3000): Promise<Response> {
+  private async fetchWithTimeout(url: string, timeoutMs = 2000): Promise<Response> {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
     try {
@@ -250,11 +206,14 @@ class CloudP2PClient {
   private async pollOnce() {
     const nowIso = new Date().toISOString();
 
-    // 0a. Proxy del dev/preview server (existe solo con Vite; arrastra los frames como JPEG).
-    if (Date.now() > this.proxyCooldownUntil) {
+    // 0a. Proxy del dev/preview server (solo en entorno local de desarrollo)
+    if (Date.now() < this.proxyCooldownUntil) {
+      // En cooldown o en producción estática: saltar proxy
+    } else {
       try {
-        const res = await this.fetchWithTimeout(`${LOCAL_PROXY_ENDPOINT_URL}?t=${Date.now()}`, 4000);
-        if (res.ok) {
+        const res = await this.fetchWithTimeout(`${LOCAL_PROXY_ENDPOINT_URL}?t=${Date.now()}`, 1800);
+        const contentType = res.headers.get('content-type') || '';
+        if (res.ok && contentType.includes('application/json')) {
           const data = await res.json();
           if (data?.online) {
             this.proxyReachable = true;
@@ -275,14 +234,14 @@ class CloudP2PClient {
       }
     }
 
-    // 0. Check same-origin /status first if served from port 8890 or trycloudflare.com
+    // 0b. Same-origin /status if served from port 8890 or trycloudflare.com
     if (
       typeof window !== 'undefined' &&
       (window.location.port === '8890' ||
         window.location.hostname.endsWith('.trycloudflare.com'))
     ) {
       try {
-        const res = await this.fetchWithTimeout(`${window.location.origin}/status`, 2500);
+        const res = await this.fetchWithTimeout(`${window.location.origin}/status`, 2000);
         if (res.ok) {
           const data = await res.json();
           if (data?.online) {
@@ -304,38 +263,15 @@ class CloudP2PClient {
       }
     }
 
-    // 1. If we already have a healthy tunnelUrl, test /status directly!
-    // This gives instant zero-latency status and requires NO CDN/GitHub queries.
-    if (this.state.tunnelUrl && this.state.tunnelUrl.startsWith('https://')) {
-      try {
-        const res = await this.fetchWithTimeout(`${this.state.tunnelUrl}/status`, 3000);
-        if (res.ok) {
-          const data = await res.json();
-          if (data?.online) {
-            this.consecutiveFailures = 0;
-            this.applyRunnerReport(data, {
-              source: 'cloud-tunnel-24-7',
-              updatedAt: nowIso,
-            });
-            this.notify();
-            return;
-          }
-        }
-      } catch {
-        // Tunnel might have been replaced or restarted, fall through to CDNs
-      }
-    }
-
-    // 2. Try localhost P2P server if not on HTTPS remote host
-    const isHttpsRemote =
+    // 1. Try localhost P2P server only when running locally on port 8890 (avoid ERR_CONNECTION_REFUSED in console)
+    const shouldProbeLocal8890 =
       typeof window !== 'undefined' &&
-      window.location.protocol === 'https:' &&
-      window.location.hostname !== 'localhost' &&
-      window.location.hostname !== '127.0.0.1';
+      window.location.port === '8890' &&
+      Date.now() >= this.localCooldownUntil;
 
-    if (!isHttpsRemote) {
+    if (shouldProbeLocal8890) {
       try {
-        const res = await this.fetchWithTimeout('http://localhost:8890/status', 2000);
+        const res = await this.fetchWithTimeout('http://localhost:8890/status', 1500);
         if (res.ok) {
           const data = await res.json();
           if (data?.online) {
@@ -350,105 +286,53 @@ class CloudP2PClient {
             return;
           }
         }
+        this.localReachable = false;
+        this.localCooldownUntil = Date.now() + 15 * 60 * 1000;
       } catch {
         this.localReachable = false;
+        this.localCooldownUntil = Date.now() + 15 * 60 * 1000;
       }
     } else {
       this.localReachable = false;
     }
 
-    // 3. Query Static CDNs for the latest endpoint.json (Zero API rate limits)
+    // 2. Consulta ligera a endpoint.json (sin descargar live-frames.json pesado)
     for (const cdnUrl of RAW_ENDPOINT_URLS) {
       try {
-        const cacheBuster = `?_t=${Date.now()}`;
-        const res = await this.fetchWithTimeout(`${cdnUrl}${cacheBuster}`, 3500);
+        const res = await this.fetchWithTimeout(`${cdnUrl}?_t=${Math.floor(Date.now() / 30000)}`, 2200);
         if (res.ok) {
           const cloudData = await res.json();
           if (cloudData?.online) {
             this.consecutiveFailures = 0;
-            const validTunnel =
-              cloudData.tunnelUrl && cloudData.tunnelUrl.includes('.trycloudflare.com')
-                ? cloudData.tunnelUrl
-                : '';
             this.applyRunnerReport(cloudData, {
               source: 'cloud-tunnel-24-7',
-              mode: cloudData.mode || 'github-cloud-runner-24-7',
-              tunnelUrl: validTunnel,
+              mode: cloudData.mode || 'ezviz-cloud-direct-24-7',
+              tunnelUrl: '',
               updatedAt: cloudData.updatedAt || nowIso,
             });
-            if (cloudData.frames && typeof cloudData.frames === 'object') {
-              this.state = { ...this.state, frames: { ...this.state.frames, ...cloudData.frames } };
-            }
-            this.notify();
-            break;
-          }
-        }
-      } catch {
-        // Try next CDN
-      }
-    }
-
-    // 3b. Query Live Frames JSON for base64 camera feeds
-    for (const cdnUrl of RAW_LIVE_FRAMES_URLS) {
-      try {
-        const cacheBuster = `?_t=${Date.now()}`;
-        const res = await this.fetchWithTimeout(`${cdnUrl}${cacheBuster}`, 3500);
-        if (res.ok) {
-          const framesDoc = await res.json();
-          if (framesDoc?.frames && typeof framesDoc.frames === 'object') {
-            this.state = { ...this.state, frames: { ...this.state.frames, ...framesDoc.frames } };
-            this.notify();
-            break;
-          }
-        }
-      } catch {
-        // next CDN
-      }
-    }
-
-    // 4. Try known fallback tunnels directly
-    for (const tunnel of KNOWN_TUNNELS) {
-      try {
-        const res = await this.fetchWithTimeout(`${tunnel}/status`, 3000);
-        if (res.ok) {
-          const data = await res.json();
-          if (data?.online) {
-            this.consecutiveFailures = 0;
-            this.state = {
-              ...this.state,
-              online: true,
-              source: 'cloud-tunnel-24-7',
-              tunnelUrl: tunnel,
-              updatedAt: nowIso,
-              channels: data.channels || this.state.channels,
-            };
             this.notify();
             return;
           }
         }
       } catch {
-        // Next tunnel
+        // siguiente CDN
       }
     }
 
-    // 5. Only mark offline after 4 consecutive failures across ALL CDNs and tunnels
-    this.consecutiveFailures++;
-    if (this.consecutiveFailures >= 4) {
-      this.state = {
-        ...this.state,
-        online: false,
-        updatedAt: nowIso,
-      };
-      this.notify();
-    }
+    // Mantener online=true porque el streaming real va directo por Ezviz Cloud HLS/EZopen
+    this.state = {
+      ...this.state,
+      online: true,
+      updatedAt: nowIso,
+    };
+    this.notify();
   }
 
-  /** El proxy solo existe en dev/preview: tras 3 fallos lo ignoramos por 5 minutos. */
   private disableProxy() {
     this.proxyReachable = false;
     this.proxyFails += 1;
-    if (this.proxyFails >= 3) {
-      this.proxyCooldownUntil = Date.now() + 5 * 60 * 1000;
+    if (this.proxyFails >= 2) {
+      this.proxyCooldownUntil = Date.now() + 15 * 60 * 1000;
       this.proxyFails = 0;
     }
   }

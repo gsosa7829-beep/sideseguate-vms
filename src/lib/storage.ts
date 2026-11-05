@@ -1,5 +1,5 @@
 import { Project, Camera, ShareLink, AccessLog } from './types';
-import { INITIAL_PROJECTS, INITIAL_CAMERAS, INITIAL_SHARE_LINKS, INITIAL_ACCESS_LOGS } from './initialData';
+import { INITIAL_PROJECTS, INITIAL_CAMERAS, INITIAL_SHARE_LINKS, INITIAL_ACCESS_LOGS, isLegacyDemoCamera } from './initialData';
 
 const STORAGE_KEYS = {
   PROJECTS: 'sideseguate_projects_v11_ocos',
@@ -56,16 +56,20 @@ export const storage = {
           });
         }
         const filtered = Array.from(map.values())
-          .filter(
-            (c: any) =>
-              c.id === 'cam-hilook-ch1' ||
-              c.id === 'cam-hilook-ch2' ||
-              c.id === 'cam-ocos-ch1' ||
-              c.deviceSerial === 'FF9363270'
-          )
+          .filter((c: any) => !isLegacyDemoCamera(c))
           .map((c: any) => {
-            if (c.id === 'cam-ocos-ch1') {
-              return { ...c, codec: 'H.265', bitrateKbps: 768 };
+            if (c.id === 'cam-ocos-ch1' || c.deviceSerial === 'FF9363270') {
+              return {
+                ...c,
+                username: '5nctiv',
+                verificationCode: 'LBNZYU',
+                streamType: 'sub',
+                codec: 'H.265',
+                fps: 15,
+                bitrateKbps: 256,
+                resolution: '640x360 (Sub-Stream Ahorro 4G)',
+                locationDesc: 'Canal 1 HiLookVision (5nctiv) · PROYECTO OCOS 4G (FF9363270)',
+              };
             }
             return c;
           });

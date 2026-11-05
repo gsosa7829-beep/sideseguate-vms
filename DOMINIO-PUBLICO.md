@@ -8,12 +8,12 @@ abierto el panel. Según dónde esté alojada la app, ese dominio puede ser:
 | Alojamiento | Enlace que recibe el cliente | ¿Se ve bien? |
 |---|---|---|
 | GitHub Pages | `https://gsosa7829-beep.github.io/sideseguate-vms/?token=…` | ❌ Muestra tu usuario de GitHub y el nombre interno del repo |
-| **Surge (actual)** | `https://sideseguate-streaming.surge.sh/?token=…` | ✅ Solo la marca (el sufijo `.surge.sh` es del alojamiento) |
+| **Surge (actual)** | `https://proyectos-de-camaras.surge.sh/?token=…` | ✅ Solo la marca (el sufijo `.surge.sh` es del alojamiento) |
 | Dominio propio | `https://camaras.sideseguate.com/?token=…` | ✅ Solo tu marca |
 | Preview / local | `http://localhost:3000/?token=…` | ❌ No abre en el celular del cliente |
 
-> **Dominio de producción vigente:** `https://sideseguate-streaming.surge.sh`.
-> El antiguo `sideseguate-cloud.surge.sh` quedó obsoleto y sirve una versión
+> **Dominio de producción vigente:** `https://proyectos-de-camaras.surge.sh`.
+> El antiguo `proyectos-de-camaras.surge.sh` quedó obsoleto y sirve una versión
 > anterior del panel: no lo uses ni lo compartas.
 
 El código ya no puede evitar el problema por sí solo: el nombre aparece en el
@@ -28,11 +28,11 @@ usuario personal.
 
 - **Opción A — Surge, subdominio de marca (gratis, 1 minuto).**
   Surge permite elegir el subdominio. Crea la variable `SURGE_DOMAIN` con valor
-  `sideseguate-streaming.surge.sh` y el workflow publicará ahí. No hay DNS que
+  `proyectos-de-camaras.surge.sh` y el workflow publicará ahí. No hay DNS que
   tocar. Es la opción en uso.
 - **Opción B — Dominio propio sobre Surge (plan Pro de Surge).**
   En Surge, dominio personalizado `camaras.sideseguate.com` + registro `CNAME`
-  en tu proveedor apuntando a `sideseguate-streaming.surge.sh`.
+  en tu proveedor apuntando a `proyectos-de-camaras.surge.sh`.
 - **Opción C — Dominio propio sobre GitHub Pages (gratis).**
   1. En el repo: **Settings → Pages → Custom domain** → `camaras.sideseguate.com`.
   2. En tu proveedor de dominio, registro `CNAME` para `camaras` apuntando a
@@ -46,8 +46,8 @@ New repository variable**
 
 | Variable | Valor de ejemplo | Para qué |
 |---|---|---|
-| `PUBLIC_APP_URL` | `https://sideseguate-streaming.surge.sh` | Dominio que llevan **todos** los enlaces de cliente |
-| `SURGE_DOMAIN` | `sideseguate-streaming.surge.sh` | Dónde publica el workflow de Surge |
+| `PUBLIC_APP_URL` | `https://proyectos-de-camaras.surge.sh` | Dominio que llevan **todos** los enlaces de cliente |
+| `SURGE_DOMAIN` | `proyectos-de-camaras.surge.sh` | Dónde publica el workflow de Surge |
 
 Se hornean al compilar (`VITE_PUBLIC_APP_URL`), así que funcionan en cualquier
 dispositivo sin configurar nada a mano. Después del siguiente despliegue, los
@@ -109,7 +109,7 @@ Si algún día se quiere dejar de depender de GitHub, hay que sustituir el canal
 primero (por ejemplo un proxy propio con dominio de marca que sirva
 `/p2p/endpoint.json`) y sólo después borrar estas URLs.
 
-## Desplegar en Surge (el dominio `sideseguate-streaming.surge.sh`)
+## Desplegar en Surge (el dominio `proyectos-de-camaras.surge.sh`)
 
 El dominio **solo se actualiza si el workflow tiene el secreto `SURGE_TOKEN`**.
 Si falta, el run ahora **falla en rojo** con el mensaje *«Falta el secreto

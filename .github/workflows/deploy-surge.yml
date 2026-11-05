@@ -1,15 +1,6 @@
-name: Deploy to Surge (sideseguate-streaming.surge.sh)
+name: Deploy to Surge (proyectos-de-camaras.surge.sh)
 
-# Despliegue automático del panel al dominio de Surge.
-#
-# Antes este sitio se publicaba a mano (o desde otra herramienta), así que
-# GitHub no tenía ni idea de su existencia y se quedaba desactualizado en
-# silencio: la versión publicada llegó a estar un PR por detrás del código.
-#
-# Requisito: añadir el secreto SURGE_TOKEN
-#   Settings → Secrets and variables → Actions → New repository secret
-# Se obtiene una vez con:  npx surge token   (tras `npx surge login`)
-# También se puede ingresar manualmente al disparar el workflow (workflow_dispatch).
+# Despliegue automático del panel al dominio oficial de Surge: proyectos-de-camaras.surge.sh.
 
 on:
   push:
@@ -51,23 +42,15 @@ jobs:
 
       - name: Build Production Bundle
         env:
-          # Dominio de marca de los enlaces de cliente (Settings → Variables).
-          VITE_PUBLIC_APP_URL: ${{ vars.PUBLIC_APP_URL || 'https://sideseguate-streaming.surge.sh' }}
+          VITE_PUBLIC_APP_URL: ${{ vars.PUBLIC_APP_URL || 'https://proyectos-de-camaras.surge.sh' }}
         run: npm run build
 
-      # El token es imprescindible. Si falta, el job FALLA con mensaje claro.
       - name: Comprobar el secreto SURGE_TOKEN
         env:
           SURGE_TOKEN: ${{ secrets.SURGE_TOKEN || inputs.surge_token }}
         run: |
           if [ -z "$SURGE_TOKEN" ]; then
             echo "::error title=Despliegue no configurado::Falta el secreto SURGE_TOKEN."
-            echo ""
-            echo "El dominio NO se ha actualizado. Para arreglarlo:"
-            echo "  1) En tu PC:  npx --yes surge login  &&  npx --yes surge token"
-            echo "  2) Repo → Settings → Secrets and variables → Actions → New repository secret"
-            echo "     Nombre: SURGE_TOKEN   Valor: el token del paso 1"
-            echo "     (O pásalo en el input del workflow_dispatch al pulsar 'Run workflow')."
             exit 1
           fi
           echo "SURGE_TOKEN presente."
@@ -77,12 +60,11 @@ jobs:
           SURGE_TOKEN: ${{ secrets.SURGE_TOKEN || inputs.surge_token }}
           SURGE_DOMAIN: ${{ vars.SURGE_DOMAIN }}
         run: |
-          TARGET="${SURGE_DOMAIN:-sideseguate-streaming.surge.sh}"
+          TARGET="${SURGE_DOMAIN:-proyectos-de-camaras.surge.sh}"
           echo "TARGET=$TARGET" >> "$GITHUB_ENV"
           echo "Publicando en https://$TARGET"
           npx --yes surge ./dist "$TARGET" --token "$SURGE_TOKEN"
 
-      # Compara el asset de dist/index.html con el que publica el dominio
       - name: Verificar que el dominio sirve el build nuevo
         run: |
           EXPECTED=$(grep -o 'assets/index-[A-Za-z0-9_-]*\.js' dist/index.html | head -1)

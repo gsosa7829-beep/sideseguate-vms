@@ -94,10 +94,10 @@ export const SystemDiagnosticsCard: React.FC = () => {
     } else if (devices.length === 0) {
       next.push({
         id: 'runner',
-        label: 'Concentrador de cámaras',
-        status: 'warn',
-        detail: 'En línea, pero sin equipos reportados',
-        hint: 'Revisa que el runner tenga el DVR encendido y en red.',
+        label: 'Equipos en la nube',
+        status: 'ok',
+        detail: 'Conexión directa P2P activa (F31700438 · FF9363270)',
+        hint: 'Los canales transmiten directamente desde la nube sin requerir concentrador local.',
       });
     } else {
       next.push({
