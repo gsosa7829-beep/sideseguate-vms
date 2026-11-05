@@ -13,6 +13,10 @@ import {
   subscribeToCloudState,
   syncFullCatalogToCloud,
   recordCloudShareLinkAccess,
+  hasCloudOperatorAccess,
+  signInWithGoogle,
+  signOutFromGoogle,
+  subscribeToAuth,
 } from './lib/firebase';
 import { maskRtspUrl, cloneNextDvrChannel } from './lib/rtspHelper';
 import { mergeCloudShareLinks, shareLinkListsDiffer } from './lib/shareLinkMerge';
@@ -199,18 +203,7 @@ function AppShell() {
   const [selectedCameraId, setSelectedCameraId] = useState<string>('');
   const [focusedCameraId, setFocusedCameraId] = useState<string | null>(null);
 
-  // Client view simulation / token routing & standalone client camera onboarding
-  // Se resuelven de forma síncrona en el primer render para nunca mostrar destello del Login Admin a un cliente.
-  const [clientTokenView, setClientTokenView] = useState<string | null>(() => {
-    if (typeof window === 'undefined') return null;
-    const params = new URLSearchParams(window.location.search);
-    const urlToken = params.get('token') || params.get('share');
-    if (urlToken) return urlToken;
-    const hash = window.location.hash;
-    if (hash.startsWith('#token=')) return hash.replace('#token=', '');
-    if (hash.startsWith('#share=')) return hash.replace('#share=', '');
-    return null;
-  });
+  const [clientTokenView, setClientTokenView] = useState<string | null>(null);
   const [clientOnboardingProjectId, setClientOnboardingProjectId] = useState<string | null>(() => {
     if (typeof window === 'undefined') return null;
     const params = new URLSearchParams(window.location.search);
@@ -360,17 +353,9 @@ function AppShell() {
       setSelectedCameraId(loadedCameras[0].id);
     }
 
-    // Check URL query param ?flash=45 or ?token=xyz or ?share=xyz or ?onboarding=xyz or hash #token=xyz
+    // Las vistas previas de operador se abren después de autenticar su cuenta.
     const urlFlashSecs = params.get('flash') || params.get('previewSecs');
     const urlOnboarding = params.get('onboarding');
-    const urlToken = params.get('token') || params.get('share');
-    const hash = window.location.hash;
-    const hashToken = hash.startsWith('#token=')
-      ? hash.replace('#token=', '')
-      : hash.startsWith('#share=')
-      ? hash.replace('#share=', '')
-      : null;
-    const isVisitorClientRoute = Boolean(urlFlashSecs || urlOnboarding || urlToken || hashToken);
 
     if (urlFlashSecs) {
       const parsedSecs = Number(urlFlashSecs);
@@ -384,23 +369,14 @@ function AppShell() {
       setClientTokenView(flashLink.token);
     } else if (urlOnboarding) {
       setClientOnboardingProjectId(urlOnboarding);
-    } else if (urlToken || hashToken) {
-      setClientTokenView(urlToken || hashToken);
     }
 
-    // Solo publicar semilla/catálogo hacia Firestore cuando no es un visitante externo de solo lectura
-    if (!isVisitorClientRoute) {
-      seedInitialCloudDataIfEmpty({
-        projects: loadedProjects,
-        cameras: loadedCameras,
-        shareLinks: loadedLinks,
-        accessLogs: loadedLogs,
-      });
-
-      loadedCameras.forEach((cam) => {
-        upsertCloudCamera(cam).catch(() => {});
-      });
-    }
+    seedInitialCloudDataIfEmpty({
+      projects: loadedProjects,
+      cameras: loadedCameras,
+      shareLinks: loadedLinks,
+      accessLogs: loadedLogs,
+    });
 
     // Subscribe to real-time Cloud Firestore collections
     const unsubCloud = subscribeToCloudState({
@@ -416,7 +392,7 @@ function AppShell() {
         // Ahora se conservan las locales y se vuelven a publicar (autorreparación).
         if (cloudCameras.length === 0) {
           const locales = storage.getCameras();
-          if (locales.length > 0 && !cloudRepairAttemptedRef.current && !isVisitorClientRoute) {
+          if (locales.length > 0 && !cloudRepairAttemptedRef.current) {
             cloudRepairAttemptedRef.current = true;
             console.warn(
               `La nube no tiene cámaras; se conservan las ${locales.length} locales y se vuelven a publicar.`
@@ -438,13 +414,11 @@ function AppShell() {
         // re-aplicar los locales para no dejarlas sin credenciales.
         const localById = new Map(storage.getCameras().map((c) => [c.id, c]));
         // Purgar automáticamente de Firestore únicamente cámaras demo heredadas o eliminadas (ej. "Cámara IP Hikvision (CH1)")
-        if (!isVisitorClientRoute) {
-          cloudCameras.forEach((c) => {
-            if (isLegacyDemoCamera(c)) {
-              deleteCloudCamera(c.id).catch(() => {});
-            }
-          });
-        }
+        cloudCameras.forEach((c) => {
+          if (isLegacyDemoCamera(c)) {
+            deleteCloudCamera(c.id).catch(() => {});
+          }
+        });
         const onlyRealCams = cloudCameras.filter((c) => !isLegacyDemoCamera(c));
         const cloudIds = new Set(onlyRealCams.map((c) => c.id));
         const mergedCams = [...onlyRealCams, ...INITIAL_CAMERAS.filter((c) => !cloudIds.has(c.id))];
@@ -722,27 +696,34 @@ function AppShell() {
     });
   };
 
-  const handleExpireAllLinksNow = () => {
-    setShareLinks([]);
-    storage.saveShareLinks([]);
-    purgeAllCloudShareLinks().catch((err) =>
-      console.warn('Cloud purge all links error:', err)
-    );
-    showToast('Todos los enlaces y accesos externos han sido eliminados de la nube');
+  const handleExpireAllLinksNow = async () => {
+    const tokens = new Set(shareLinks.map((link) => link.token));
+    try {
+      await purgeAllCloudShareLinks();
+      setShareLinks((previous) => {
+        const remaining = previous.filter((link) => !tokens.has(link.token));
+        storage.saveShareLinks(remaining);
+        return remaining;
+      });
+      showToast('Todos los enlaces y accesos externos han sido eliminados de la nube');
+    } catch {
+      showToast('No se pudieron revocar todos los enlaces. Inténtalo de nuevo.');
+    }
   };
 
-  const handleDeleteShareLink = (id: string) => {
-    if (confirm('¿Eliminar este enlace privado permanentemente?')) {
-      const target = shareLinks.find((l) => l.id === id);
-      const updated = shareLinks.filter((l) => l.id !== id);
-      setShareLinks(updated);
-      storage.saveShareLinks(updated);
-      if (target) {
-        deleteCloudShareLink(target.token).catch((err) =>
-          console.warn('Cloud share link delete error:', err)
-        );
-      }
+  const handleDeleteShareLink = async (id: string) => {
+    const target = shareLinks.find((l) => l.id === id);
+    if (!target || !confirm('¿Eliminar este enlace privado permanentemente?')) return;
+    try {
+      await deleteCloudShareLink(target.token);
+      setShareLinks((previous) => {
+        const updated = previous.filter((link) => link.token !== target.token);
+        storage.saveShareLinks(updated);
+        return updated;
+      });
       showToast('Enlace eliminado de la nube');
+    } catch {
+      showToast('No se pudo eliminar el enlace en la nube. Inténtalo de nuevo.');
     }
   };
 
@@ -826,7 +807,7 @@ function AppShell() {
   };
 
   // Vista independiente de autogestión de cámaras para clientes (?onboarding=...)
-  if (clientOnboardingProjectId) {
+  if (clientOnboardingProjectId && !isPanelLocked && currentAdminAccount) {
     return (
       <ClientCameraOnboardingView
         projects={projects}
@@ -834,43 +815,29 @@ function AppShell() {
         defaultProjectId={clientOnboardingProjectId}
         isStandaloneClientMode={true}
         onAddCamerasBatch={handleClientAddCamerasBatch}
-        onExitStandaloneMode={
-          adminAuthStorage.isAuthorizedOwnerDevice()
-            ? () => {
-                setClientOnboardingProjectId(null);
-                window.history.pushState({}, '', window.location.pathname);
-              }
-            : undefined
-        }
+        onExitStandaloneMode={() => {
+          setClientOnboardingProjectId(null);
+          window.history.pushState({}, '', window.location.pathname);
+        }}
       />
     );
   }
 
-  // If in Client Portal View directly (client opening private token link)
-  if (clientTokenView) {
+  if (clientTokenView && !isPanelLocked && currentAdminAccount) {
     const matchedShareLink = shareLinks.find((l) => l.token === clientTokenView) || null;
     const matchedProject = projects.find((p) => p.id === matchedShareLink?.projectId);
     return (
       <ClientLivePortal
-        token={clientTokenView}
-        // Si el token existe en este dispositivo (por ejemplo un enlace
-        // relámpago recién creado o uno que aún no llegó a Firestore), se usa
-        // como respaldo para no mostrar un falso "enlace expirado".
+        key={clientTokenView}
         shareLink={matchedShareLink}
         project={matchedProject}
         // Sólo lo necesario para reproducir: sin usuario, contraseña ni RTSP.
         cameras={toPublicCameras(cameras)}
-        isAdminPreview={adminAuthStorage.isAuthorizedOwnerDevice()}
-        isCloudLoading={false}
-        onBackToAdmin={
-          adminAuthStorage.isAuthorizedOwnerDevice()
-            ? () => {
-                setClientTokenView(null);
-                setClientOnboardingProjectId(null);
-                window.history.pushState({}, '', window.location.pathname);
-              }
-            : undefined
-        }
+        onBackToAdmin={() => {
+          setClientTokenView(null);
+          setClientOnboardingProjectId(null);
+          window.history.pushState({}, '', window.location.pathname);
+        }}
       />
     );
   }
@@ -1016,6 +983,7 @@ function AppShell() {
           onOpenSecurityModal={() => setIsSecurityModalOpen(true)}
           onLockPanelNow={() => {
             adminAuthStorage.saveCurrentSession(null);
+            void signOutFromGoogle().catch(() => showToast('No se pudo cerrar la sesión de Google.'));
             setCurrentAdminAccount(null);
             setIsPanelLocked(true);
             showToast('Sesión cerrada. Panel administrativo bloqueado.');
@@ -1771,6 +1739,7 @@ function AppShell() {
           onShowToast={showToast}
           onLockPanelNow={() => {
             adminAuthStorage.saveCurrentSession(null);
+            void signOutFromGoogle().catch(() => showToast('No se pudo cerrar la sesión de Google.'));
             setCurrentAdminAccount(null);
             setIsPanelLocked(true);
           }}
@@ -1810,12 +1779,81 @@ function AppShell() {
   );
 }
 
-// Envoltorio: las vistas con `lazy()` se descargan solo al abrirlas.
+function OperatorEntry() {
+  const [access, setAccess] = useState<'checking' | 'signed-out' | 'allowed' | 'denied' | 'error'>('checking');
+  const [signingIn, setSigningIn] = useState(false);
+  const [message, setMessage] = useState('');
+
+  useEffect(() => {
+    let revision = 0;
+    const unsubscribe = subscribeToAuth((user) => {
+      const current = ++revision;
+      if (!user) {
+        setAccess('signed-out');
+        return;
+      }
+      setAccess('checking');
+      hasCloudOperatorAccess(user).then(
+        (allowed) => {
+          if (revision === current) setAccess(allowed ? 'allowed' : 'denied');
+        },
+        () => {
+          if (revision === current) setAccess('error');
+        }
+      );
+    });
+    return () => {
+      revision++;
+      unsubscribe();
+    };
+  }, []);
+
+  if (access === 'checking') return <AppLoadingFallback />;
+  if (access === 'allowed') return <AppShell />;
+
+  const connect = async () => {
+    setMessage('');
+    setSigningIn(true);
+    try {
+      if (access !== 'signed-out') await signOutFromGoogle();
+      await signInWithGoogle();
+    } catch {
+      setMessage('No se pudo iniciar sesión con Google. Comprueba la conexión y vuelve a intentarlo.');
+    } finally {
+      setSigningIn(false);
+    }
+  };
+
+  return (
+    <main className="min-h-dvh bg-neutral-950 text-white grid place-items-center p-5">
+      <section className="w-full max-w-md rounded-2xl border border-neutral-800 bg-neutral-900 p-6">
+        <h1 className="text-xl font-semibold">Panel de administración</h1>
+        <p className="mt-2 text-sm text-neutral-300">
+          {access === 'denied'
+            ? 'Esta cuenta de Google no tiene acceso al panel.'
+            : access === 'error'
+              ? 'No se pudo comprobar el acceso de esta cuenta.'
+              : 'Inicia sesión con la cuenta de Google autorizada para administrar el sistema.'}
+        </p>
+        <button type="button" onClick={connect} disabled={signingIn}
+          className="mt-5 w-full rounded-lg bg-sky-600 px-4 py-2 font-medium disabled:opacity-50">
+          {signingIn ? 'Conectando…' : 'Iniciar sesión con Google'}
+        </button>
+        {message && <p role="alert" className="mt-3 text-sm text-red-300">{message}</p>}
+      </section>
+    </main>
+  );
+}
+
 export default function App() {
+  const params = new URLSearchParams(window.location.search);
+  const hash = new URLSearchParams(window.location.hash.slice(1));
+  const token = params.get('token') || params.get('share') || hash.get('token') || hash.get('share');
+
   return (
     <ErrorBoundary>
       <Suspense fallback={<AppLoadingFallback />}>
-        <AppShell />
+        {token ? <ClientLivePortal key={token} token={token} /> : <OperatorEntry />}
       </Suspense>
     </ErrorBoundary>
   );

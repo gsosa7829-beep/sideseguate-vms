@@ -1,4 +1,7 @@
 {
+  "functions": {
+    "source": "functions"
+  },
   "firestore": [
     {
       "database": "ai-studio-sideseguatestrea-5a99e202-b935-433a-b447-5fb4e22eff31",

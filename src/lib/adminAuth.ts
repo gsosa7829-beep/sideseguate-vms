@@ -47,23 +47,7 @@ export const LOCKOUT_MS = 15 * 60 * 1000;
 export const SESSION_TTL_MS = 12 * 60 * 60 * 1000;
 const HASH_ITERATIONS = 150_000;
 
-export const DEFAULT_ADMIN_ACCOUNT: AdminAccount = {
-  id: 'adm-sideseguate-master',
-  username: 'admin',
-  email: 'admin@proyectosdecamaras.com',
-  displayName: 'Administrador Principal',
-  description: 'Administrador general - Proyecto de Cámaras',
-  role: 'superadmin',
-  roleLabel: 'Super Administrador',
-  active: true,
-  createdAt: '2026-10-30T00:00:00.000Z',
-  lastLoginAt: null,
-  passwordHash: 'CgdeuI41iLXjIeOH148Q86LmZbWHYIqrJw5pXAqTHSo=',
-  passwordSalt: 'ZPs5Ed3vqmXnbwRl8H8P5A==',
-  hashIterations: 150000,
-  hashAlgorithm: 'PBKDF2-SHA256',
-};
-
+const RETIRED_FACTORY_ACCOUNT_ID = 'adm-sideseguate-master';
 
 const STORAGE_KEY_ACCOUNTS = 'sideseguate_admin_accounts_v2';
 const STORAGE_KEY_SESSION = 'sideseguate_admin_session_v2';
@@ -347,20 +331,6 @@ export async function authenticateAdminAccount(
     return { success: false, error: 'Ingresa tu usuario o correo y tu contraseña.' };
   }
 
-  // Acceso administrativo unificado solicitado por el operador (admin / 5611admin)
-  if (
-    (cleanId === 'admin' || cleanId === 'admin@proyectosdecamaras.com' || cleanId === 'admin@sideseguate.com') &&
-    password === '5611admin'
-  ) {
-    clearFailedAttempts(cleanId);
-    clearFailedAttempts('admin');
-    const allAccounts = accounts && accounts.length > 0 ? accounts : [DEFAULT_ADMIN_ACCOUNT];
-    const adminAcc = allAccounts.find((a) => a.username === 'admin') || DEFAULT_ADMIN_ACCOUNT;
-    return {
-      success: true,
-      account: { ...adminAcc, lastLoginAt: new Date().toISOString() },
-    };
-  }
 
   const lock = getLockoutState(cleanId);
   if (lock.locked) {
@@ -602,23 +572,23 @@ export const adminAuthStorage = {
         if (Array.isArray(parsed) && parsed.length > 0) {
           const valid = parsed.filter(
             (a): a is AdminAccount =>
-              !!a && typeof a.id === 'string' && typeof a.passwordHash === 'string'
+              !!a && typeof a.id === 'string' && a.id !== RETIRED_FACTORY_ACCOUNT_ID &&
+              typeof a.passwordHash === 'string'
           );
           if (valid.length > 0) return valid;
         }
       }
     } catch {
-      // fallback a cuenta por defecto
+      // Permite crear una nueva cuenta local tras autenticar al operador.
     }
-    return [DEFAULT_ADMIN_ACCOUNT];
+    return [];
   },
 
   saveAccounts: (accounts: AdminAccount[]): void => {
     safeStorage.setItem(STORAGE_KEY_ACCOUNTS, JSON.stringify(accounts));
   },
 
-  /** El sistema ya viene con su cuenta de administrador configurada (admin / 5611admin). */
-  needsFirstRunSetup: (): boolean => false,
+  needsFirstRunSetup: (): boolean => adminAuthStorage.getAccounts().length === 0,
 
   getCurrentSession: (): AdminAccount | null => {
     if (typeof window === 'undefined') return null;
@@ -627,7 +597,7 @@ export const adminAuthStorage = {
       if (!raw) return null;
       const parsed = JSON.parse(raw) as StoredSession;
       if (!parsed?.account || typeof parsed.expiresAt !== 'number') return null;
-      if (Date.now() > parsed.expiresAt) {
+      if (parsed.account.id === RETIRED_FACTORY_ACCOUNT_ID || Date.now() >= parsed.expiresAt) {
         localStorage.removeItem(STORAGE_KEY_SESSION);
         return null;
       }

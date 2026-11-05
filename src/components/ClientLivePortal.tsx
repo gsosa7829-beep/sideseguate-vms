@@ -1,17 +1,12 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Camera, ShareLink, Project } from '../lib/types';
-import { INITIAL_CAMERAS } from '../lib/initialData';
 import { verifyShareLink, formatExpirationText } from '../lib/tokenSecurity';
-import {
-  subscribeToSingleShareLinkByToken,
-  recordCloudShareLinkAccess,
-} from '../lib/firebase';
+import { useClientLinkAccess, type ClientLinkFailure } from '../lib/clientLinkAccess';
 import { LiveCameraPlayer, prewarmHikvisionCameras } from './LiveCameraPlayer';
 import { buildWhatsAppUrl } from '../lib/whatsapp';
 import { usePWAInstall } from '../lib/usePWAInstall';
 import { 
   ShieldCheck, 
-  Lock, 
   AlertCircle, 
   Grid2X2, 
   Square, 
@@ -25,10 +20,8 @@ import {
   Video,
 } from 'lucide-react';
 
-type FailureReason = 'expired' | 'inactive' | 'invalid_pin' | 'pin_required' | 'not_found';
-
 const FAILURE_COPY: Record<
-  FailureReason,
+  ClientLinkFailure,
   { eyebrow: string; title: string; hint?: string; tone: 'red' | 'amber' | 'sky' }
 > = {
   not_found: {
@@ -55,6 +48,24 @@ const FAILURE_COPY: Record<
     hint: 'Verifica el PIN de acceso e inténtalo de nuevo.',
     tone: 'red',
   },
+  pin_locked: {
+    eyebrow: 'Demasiados intentos',
+    title: 'Espera antes de volver a intentar',
+    hint: 'Intenta de nuevo en unos minutos o consulta al administrador.',
+    tone: 'amber',
+  },
+  full: {
+    eyebrow: 'Límite de espectadores',
+    title: 'Todas las plazas están ocupadas',
+    hint: 'Intenta de nuevo cuando otro espectador cierre el enlace.',
+    tone: 'amber',
+  },
+  unavailable: {
+    eyebrow: 'Conexión interrumpida',
+    title: 'No se pudo comprobar el acceso',
+    hint: 'Revisa tu conexión e inténtalo de nuevo.',
+    tone: 'sky',
+  },
   pin_required: {
     eyebrow: 'Acceso protegido',
     title: 'Este canal requiere PIN',
@@ -70,62 +81,26 @@ const TONE_CLASSES: Record<'red' | 'amber' | 'sky', { box: string; text: string;
 
 interface ClientLivePortalProps {
   token?: string;
-  shareLink: ShareLink | null | undefined;
-  cameras: Camera[];
+  shareLink?: ShareLink | null;
+  cameras?: Camera[];
   project?: Project;
   onBackToAdmin?: () => void;
-  isAdminPreview?: boolean;
-  isCloudLoading?: boolean;
-  onClientAddCameras?: (newCameras: Camera[], clientName: string) => void;
 }
+
+const EMPTY_CAMERAS: Camera[] = [];
 
 export const ClientLivePortal: React.FC<ClientLivePortalProps> = ({
   token,
   shareLink,
-  cameras,
+  cameras = EMPTY_CAMERAS,
   project,
   onBackToAdmin,
-  isAdminPreview = false,
-  isCloudLoading = false,
-  onClientAddCameras,
 }) => {
   const { isInstallable, isInstalled, isIOS, install } = usePWAInstall();
-  const [cloudShareLink, setCloudShareLink] = useState<ShareLink | null>(null);
-  const [directTokenLoading, setDirectTokenLoading] = useState<boolean>(Boolean(token && !shareLink));
+  const { access, submitPin } = useClientLinkAccess(token);
   const [pinInput, setPinInput] = useState('');
   const [pinVerified, setPinVerified] = useState(false);
   const [pinError, setPinError] = useState<string | null>(null);
-  const recordedAccessTokenRef = useRef<string | null>(null);
-  const [gracePeriodOver, setGracePeriodOver] = useState(false);
-
-  // Subscribe directly to Firestore document for this token so mobile clients on 4G/Wi-Fi get real-time updates
-  useEffect(() => {
-    const activeToken = token || shareLink?.token;
-    if (!activeToken) {
-      setDirectTokenLoading(false);
-      return;
-    }
-
-    const unsub = subscribeToSingleShareLinkByToken(activeToken, (remoteLink, loading) => {
-      if (remoteLink) {
-        setCloudShareLink(remoteLink);
-      }
-      setDirectTokenLoading(loading);
-    });
-
-    return () => unsub();
-  }, [token, shareLink?.token]);
-
-  const activeShareLink = cloudShareLink || shareLink;
-
-  useEffect(() => {
-    if (activeShareLink) {
-      setGracePeriodOver(false);
-      return;
-    }
-    const timer = setTimeout(() => setGracePeriodOver(true), 4000);
-    return () => clearTimeout(timer);
-  }, [activeShareLink]);
 
   // Limpiar cachés viejas del Service Worker para garantizar video en vivo sin imágenes congeladas
   useEffect(() => {
@@ -153,30 +128,26 @@ export const ClientLivePortal: React.FC<ClientLivePortalProps> = ({
     return () => clearInterval(interval);
   }, []);
 
-  const verification = verifyShareLink(activeShareLink, pinInput);
-  const needsPin = Boolean(activeShareLink?.pinCode && !pinVerified);
+  const remoteLink = access.status === 'allowed' && access.deadline > nowTick ? access.link : null;
+  const activeShareLink = token ? remoteLink : shareLink;
+  const localVerification = verifyShareLink(shareLink, pinInput);
+  const localNeedsPin = Boolean(shareLink?.pinCode && !pinVerified &&
+    (localVerification.valid || localVerification.reason === 'pin_required' || localVerification.reason === 'invalid_pin'));
+  const needsPin = token
+    ? access.status === 'pin_required' || access.status === 'invalid_pin'
+    : localNeedsPin;
+  const canPlay = token ? Boolean(remoteLink) : localVerification.valid && !localNeedsPin;
+  const pool = token && access.status === 'allowed' ? access.cameras : cameras;
+  const allowedCameras = useMemo(() =>
+    canPlay && activeShareLink ? pool.filter((cam) => activeShareLink.cameraIds.includes(cam.id)) : EMPTY_CAMERAS,
+  [canPlay, activeShareLink, pool]);
 
+  const shouldPrewarm = allowedCameras.some((c) => c.deviceSerial === 'F31700438' || c.id.includes('hilook'));
   useEffect(() => {
-    if (verification.valid && activeShareLink?.token && recordedAccessTokenRef.current !== activeShareLink.token) {
-      recordedAccessTokenRef.current = activeShareLink.token;
-      recordCloudShareLinkAccess(activeShareLink, 'stream_started').catch((err) => {
-        console.warn('No se pudo registrar telemetría de acceso:', err?.message || err);
-      });
-    }
-  }, [verification.valid, activeShareLink?.token]);
-
-  // Si 'cameras' aún no ha terminado de cargar desde Firestore o localStorage,
-  // usamos INITIAL_CAMERAS para que la vista del cliente nunca quede en blanco.
-  const pool = cameras.length > 0 ? cameras : INITIAL_CAMERAS;
-  const allowedCameras = pool.filter((cam) =>
-    activeShareLink ? activeShareLink.cameraIds.includes(cam.id) : false
-  );
-
-  useEffect(() => {
-    if (allowedCameras.some((c) => c.deviceSerial === 'F31700438' || c.id.includes('hilook'))) {
+    if (shouldPrewarm) {
       prewarmHikvisionCameras();
     }
-  }, [allowedCameras]);
+  }, [shouldPrewarm]);
 
   const [selectedCameraId, setSelectedCameraId] = useState<string>(allowedCameras[0]?.id || '');
   const [viewMode, setViewMode] = useState<'single' | 'grid'>('single');
@@ -189,6 +160,10 @@ export const ClientLivePortal: React.FC<ClientLivePortalProps> = ({
 
   const handlePinSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (token) {
+      submitPin(pinInput);
+      return;
+    }
     if (!activeShareLink?.pinCode) return;
     if (pinInput.trim() === activeShareLink.pinCode.trim()) {
       setPinVerified(true);
@@ -199,7 +174,7 @@ export const ClientLivePortal: React.FC<ClientLivePortalProps> = ({
   };
 
   // State: Loading
-  if ((isCloudLoading || directTokenLoading || (!activeShareLink && !gracePeriodOver)) && !activeShareLink) {
+  if (token && access.status === 'loading') {
     return (
       <div className="min-h-dvh bg-neutral-950 text-neutral-100 flex flex-col items-center justify-center p-6">
         <div className="flex flex-col items-center gap-4">
@@ -213,16 +188,19 @@ export const ClientLivePortal: React.FC<ClientLivePortalProps> = ({
     );
   }
 
-  // State: Link not found
-  if (!activeShareLink) {
-    const copy = FAILURE_COPY.not_found;
+  if ((!activeShareLink || !canPlay) && !needsPin) {
+    const reason = token
+      ? (access.status === 'allowed' || access.status === 'loading' ? 'unavailable' : access.status)
+      : localVerification.reason || 'not_found';
+    const copy = FAILURE_COPY[reason] || FAILURE_COPY.not_found;
+    const FailureIcon = reason === 'inactive' ? PauseCircle : reason === 'expired' ? Clock : AlertCircle;
     const tone = TONE_CLASSES[copy.tone];
 
     return (
       <div className="min-h-dvh bg-neutral-950 text-neutral-100 flex flex-col items-center justify-center p-6">
         <div className="max-w-md w-full bg-neutral-900 border border-neutral-800 rounded-2xl p-8 text-center shadow-2xl">
           <div className={`w-16 h-16 ${tone.box} ${tone.text} border rounded-2xl flex items-center justify-center mx-auto mb-4`}>
-            <AlertCircle className="w-8 h-8" />
+            <FailureIcon className="w-8 h-8" />
           </div>
           <div className={`text-xs font-mono font-semibold ${tone.eyebrow} mb-2 uppercase`}>
             {copy.eyebrow}
@@ -237,38 +215,6 @@ export const ClientLivePortal: React.FC<ClientLivePortalProps> = ({
             <RefreshCw className="w-4 h-4" />
             Reintentar
           </button>
-        </div>
-      </div>
-    );
-  }
-
-  // State: Expired / Paused / Bad PIN
-  if (!verification.valid && !needsPin) {
-    const reason = (verification.reason || 'not_found') as FailureReason;
-    const copy = FAILURE_COPY[reason] || FAILURE_COPY.not_found;
-    const tone = TONE_CLASSES[copy.tone];
-    const FailureIcon =
-      reason === 'inactive' ? PauseCircle : reason === 'expired' ? Clock : Lock;
-
-    return (
-      <div className="min-h-dvh bg-neutral-950 text-neutral-100 flex flex-col items-center justify-center p-6">
-        <div className="max-w-md w-full bg-neutral-900 border border-neutral-800 rounded-2xl p-8 text-center shadow-2xl">
-          <div className={`w-16 h-16 ${tone.box} ${tone.text} border rounded-2xl flex items-center justify-center mx-auto mb-4`}>
-            <FailureIcon className="w-8 h-8" />
-          </div>
-          <div className={`text-xs font-mono font-semibold ${tone.eyebrow} mb-2 uppercase`}>
-            {copy.eyebrow}
-          </div>
-          <h2 className="text-xl font-bold text-white mb-2">{copy.title}</h2>
-          <p className="text-sm text-neutral-400 mb-2 leading-relaxed">{verification.message}</p>
-          {copy.hint && (
-            <p className="text-xs text-neutral-500 mb-6 leading-relaxed">{copy.hint}</p>
-          )}
-
-          <div className="pt-2 border-t border-neutral-800 text-[11px] text-neutral-500 flex items-center justify-center gap-1.5">
-            <ShieldCheck className="w-4 h-4 text-emerald-500" />
-            <span>Monitoreo de Cámaras en Vivo</span>
-          </div>
         </div>
       </div>
     );
@@ -289,7 +235,7 @@ export const ClientLivePortal: React.FC<ClientLivePortalProps> = ({
             Acceso Protegido
           </div>
           <h2 className="text-xl font-bold text-white mb-2 text-center">
-            {activeShareLink.title || 'Cámara en Vivo'}
+            {activeShareLink?.title || 'Cámara en Vivo'}
           </h2>
           <p className="text-sm text-neutral-400 mb-6 text-center">
             Ingrese el código PIN de seguridad proporcionado para ver la transmisión.
@@ -302,7 +248,7 @@ export const ClientLivePortal: React.FC<ClientLivePortalProps> = ({
                 id="pin-input"
                 type="password"
                 inputMode="numeric"
-                maxLength={6}
+                maxLength={16}
                 value={pinInput}
                 onChange={(e) => setPinInput(e.target.value)}
                 placeholder="PIN"
@@ -311,9 +257,9 @@ export const ClientLivePortal: React.FC<ClientLivePortalProps> = ({
               />
             </div>
 
-            {pinError && (
+            {(pinError || access.status === 'invalid_pin') && (
               <div className="text-xs text-red-400 bg-red-950/50 border border-red-800/50 rounded-lg p-2.5 text-center">
-                {pinError}
+                {pinError || 'Código PIN incorrecto. Verifícalo e inténtalo de nuevo.'}
               </div>
             )}
 
@@ -328,6 +274,8 @@ export const ClientLivePortal: React.FC<ClientLivePortalProps> = ({
       </div>
     );
   }
+
+  if (!activeShareLink) return null;
 
   // Active Authenticated Client Portal View: STRICTLY FOCUSED ON CAMERA
   const selectedCamera = allowedCameras.find((c) => c.id === selectedCameraId) || allowedCameras[0];

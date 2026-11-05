@@ -30,23 +30,9 @@ service cloud.firestore {
       );
     }
 
-    // Multi-tenant: el tenant original conserva 'sideseguate_cloud_v1' y los
-    // demás usan 'tenant_<slug>'. El panel no usa Firebase Auth (es una app
-    // interna protegida por la cuenta de administrador), por eso el espacio de
-    // cada cliente se identifica con este prefijo.
-    function isTenantOwnerId(ownerId) {
-      return isValidId(ownerId) && (
-        ownerId == 'sideseguate_cloud_v1' ||
-        ownerId.matches('^tenant_[a-z0-9_]{1,60}$')
-      );
-    }
-
-    function isAuthorizedOperator(ownerId) {
-      return isValidId(ownerId) && (
-        isTenantOwnerId(ownerId) ||
-        (isSignedIn() && ownerId == request.auth.uid) ||
-        isAdmin()
-      );
+    function matchesCatalogId(documentId, data) {
+      return documentId == data.id ||
+        ('tenantId' in data && documentId == data.tenantId + '__' + data.id);
     }
 
     function hasValidTenant(data) {
@@ -132,7 +118,7 @@ service cloud.firestore {
           'updatedAt'
         ]) &&
         isValidId(data.id) &&
-        isAuthorizedOperator(data.ownerId) &&
+        isValidId(data.ownerId) &&
         hasValidTenant(data) &&
         data.name is string && data.name.size() >= 1 && data.name.size() <= 200 &&
         data.clientName is string && data.clientName.size() >= 1 && data.clientName.size() <= 150 &&
@@ -201,7 +187,7 @@ service cloud.firestore {
           'updatedAt'
         ]) &&
         isValidId(data.id) &&
-        isAuthorizedOperator(data.ownerId) &&
+        isValidId(data.ownerId) &&
         hasValidTenant(data) &&
         isValidId(data.projectId) &&
         data.name is string && data.name.size() >= 1 && data.name.size() <= 200 &&
@@ -276,7 +262,7 @@ service cloud.firestore {
           'updatedAt'
         ]) &&
         isValidId(data.id) &&
-        isAuthorizedOperator(data.ownerId) &&
+        isValidId(data.ownerId) &&
         hasValidTenant(data) &&
         isValidId(data.projectId) &&
         isValidId(data.token) &&
@@ -324,7 +310,7 @@ service cloud.firestore {
           'createdAt'
         ]) &&
         isValidId(data.id) &&
-        isAuthorizedOperator(data.ownerId) &&
+        isValidId(data.ownerId) &&
         hasValidTenant(data) &&
         isValidId(data.shareLinkId) &&
         data.clientIp is string && data.clientIp.size() >= 1 && data.clientIp.size() <= 100 &&
@@ -390,154 +376,67 @@ service cloud.firestore {
       allow delete: if isSignedIn() && isValidId(workspaceId) && (existing().ownerId == request.auth.uid || isAdmin());
     }
 
-    // 6. Collection Rules: /cloud_projects/{projectId}
+    // El portal público usa la función de acceso. Las colecciones completas
+    // quedan reservadas al operador autenticado, incluido el PIN de cada enlace.
     match /cloud_projects/{projectId} {
-      allow get: if isValidId(projectId) && (resource == null || isAuthorizedOperator(existing().ownerId));
-      allow list: if isAuthorizedOperator(existing().ownerId);
-      allow create: if isValidId(projectId) &&
-        projectId == incoming().id &&
+      allow read, delete: if isAdmin();
+      allow create: if isAdmin() &&
+        isValidId(projectId) && matchesCatalogId(projectId, incoming()) &&
         isValidCloudProject(incoming()) &&
-        incoming().createdAt == request.time &&
-        incoming().updatedAt == request.time;
-      allow update: if isValidId(projectId) &&
-        isValidCloudProject(incoming()) &&
+        incoming().createdAt == request.time && incoming().updatedAt == request.time;
+      allow update: if isAdmin() && isValidCloudProject(incoming()) &&
         incoming().id == existing().id &&
         incoming().ownerId == existing().ownerId &&
         incoming().createdAtIso == existing().createdAtIso &&
         incoming().createdAt == existing().createdAt &&
-        incoming().updatedAt == request.time &&
-        (
-          isAdmin() ||
-          incoming().diff(existing()).affectedKeys().hasOnly([
-            'name',
-            'clientName',
-            'clientPhone',
-            'location',
-            'status',
-            'equipmentNotes',
-            'updatedAt'
-          ])
-        );
-      allow delete: if isValidId(projectId) && isAuthorizedOperator(existing().ownerId);
+        incoming().updatedAt == request.time;
     }
 
-    // 7. Collection Rules: /cloud_cameras/{cameraId}
     match /cloud_cameras/{cameraId} {
-      allow get: if isValidId(cameraId) && (resource == null || isAuthorizedOperator(existing().ownerId));
-      allow list: if isAuthorizedOperator(existing().ownerId);
-      allow create: if isValidId(cameraId) &&
-        cameraId == incoming().id &&
+      allow read, delete: if isAdmin();
+      allow create: if isAdmin() &&
+        isValidId(cameraId) && matchesCatalogId(cameraId, incoming()) &&
         isValidCloudCamera(incoming()) &&
-        incoming().createdAt == request.time &&
-        incoming().updatedAt == request.time;
-      allow update: if isValidId(cameraId) &&
-        isValidCloudCamera(incoming()) &&
+        incoming().createdAt == request.time && incoming().updatedAt == request.time;
+      allow update: if isAdmin() && isValidCloudCamera(incoming()) &&
         incoming().id == existing().id &&
         incoming().ownerId == existing().ownerId &&
+        incoming().createdAtIso == existing().createdAtIso &&
         incoming().createdAt == existing().createdAt &&
-        incoming().updatedAt == request.time &&
-        (
-          isAdmin() ||
-          incoming().diff(existing()).affectedKeys().hasOnly([
-            'projectId',
-            'name',
-            'deviceType',
-            'host',
-            'port',
-            'onvifPort',
-            'channel',
-            'streamType',
-            'hlsStreamUrl',
-            'webrtcUrl',
-            'status',
-            'fps',
-            'resolution',
-            'bitrateKbps',
-            'codec',
-            'locationDesc',
-            'ptzSupported',
-            'nightVision',
-            'cloudId',
-            'deviceSerial',
-            'tenantId',
-            'notes',
-            'updatedAt'
-          ]) ||
-          // Action 3: Limpieza de credenciales heredadas.
-          // Permite QUITAR los cuatro campos antiguos (password, username,
-          // rtspUrl, verificationCode). No permite escribirlos: isValidCloudCamera
-          // exige `keys().hasOnly([...])` sin esos campos, así que el documento
-          // resultante nunca puede contenerlos. Sólo sirve para borrarlos.
-          // Sin esta rama, cualquier intento de limpieza se rechazaba y el
-          // script de mantenimiento acababa borrando documentos enteros.
-          incoming().diff(existing()).affectedKeys().hasOnly([
-            'password',
-            'username',
-            'rtspUrl',
-            'verificationCode',
-            'updatedAt'
-          ])
-        );
-      allow delete: if isValidId(cameraId) && isAuthorizedOperator(existing().ownerId);
+        incoming().updatedAt == request.time;
     }
 
-    // 8. Collection Rules: /cloud_share_links/{token}
     match /cloud_share_links/{token} {
-      allow get: if isValidId(token) && (resource == null || isAuthorizedOperator(existing().ownerId));
-      allow list: if isAuthorizedOperator(existing().ownerId);
-      allow create: if isValidId(token) &&
-        token == incoming().token &&
+      allow read: if isAdmin();
+      allow delete: if isAdmin() &&
+        existsAfter(/databases/$(database)/documents/cloud_revoked_links/$(token));
+      allow create: if isAdmin() &&
+        !existsAfter(/databases/$(database)/documents/cloud_revoked_links/$(token)) &&
+        isValidId(token) && token == incoming().token &&
         isValidCloudShareLink(incoming()) &&
-        incoming().createdAt == request.time &&
-        incoming().updatedAt == request.time;
-      allow update: if isValidId(token) &&
-        isValidCloudShareLink(incoming()) &&
+        incoming().createdAt == request.time && incoming().updatedAt == request.time;
+      allow update: if isAdmin() && isValidCloudShareLink(incoming()) &&
         incoming().id == existing().id &&
         incoming().token == existing().token &&
         incoming().ownerId == existing().ownerId &&
         incoming().createdAtIso == existing().createdAtIso &&
         incoming().createdAt == existing().createdAt &&
-        incoming().updatedAt == request.time &&
-        (
-          isAdmin() ||
-          // Action 1: Buyer / Viewer Telemetry Increment
-          incoming().diff(existing()).affectedKeys().hasOnly([
-            'accessCount',
-            'lastAccessedAtIso',
-            'updatedAt'
-          ]) ||
-          // Action 2: Operator Link Configuration Update
-          incoming().diff(existing()).affectedKeys().hasOnly([
-            'projectId',
-            'title',
-            'clientName',
-            'cameraIds',
-            'pinCode',
-            'expiresAtIso',
-            'isActive',
-            'allowPtz',
-            'allowAudio',
-            'allowSnapshot',
-            'showWatermark',
-            'maxConcurrentViewers',
-            'accessCount',
-            'lastAccessedAtIso',
-            'updatedAt'
-          ])
-        );
-      allow delete: if isValidId(token) && isAuthorizedOperator(existing().ownerId);
+        incoming().updatedAt == request.time;
     }
 
-    // 9. Collection Rules: /cloud_access_logs/{logId}
+    match /cloud_revoked_links/{token} {
+      allow get: if isAdmin();
+      allow create: if isAdmin() && isValidId(token) &&
+        incoming().keys().hasOnly(['revokedAt']) && incoming().revokedAt == request.time &&
+        !existsAfter(/databases/$(database)/documents/cloud_share_links/$(token));
+    }
+
     match /cloud_access_logs/{logId} {
-      allow get: if isValidId(logId) && (resource == null || isAuthorizedOperator(existing().ownerId));
-      allow list: if isAuthorizedOperator(existing().ownerId);
-      allow create: if isValidId(logId) &&
-        logId == incoming().id &&
-        isValidCloudAccessLog(incoming()) &&
-        incoming().createdAt == request.time;
+      allow read, delete: if isAdmin();
+      allow create: if isAdmin() &&
+        isValidId(logId) && matchesCatalogId(logId, incoming()) &&
+        isValidCloudAccessLog(incoming()) && incoming().createdAt == request.time;
       allow update: if false;
-      allow delete: if isValidId(logId) && isAuthorizedOperator(existing().ownerId);
     }
   }
 }

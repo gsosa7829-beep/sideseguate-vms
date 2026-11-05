@@ -14,7 +14,6 @@ import {
   CheckCircle2,
   Copy,
   Check,
-  MessageCircle,
   Server,
   ShieldCheck,
   Wifi,
@@ -28,7 +27,6 @@ import {
   FileCode,
   Eye,
 } from 'lucide-react';
-import { buildWhatsAppUrl } from '../lib/whatsapp';
 
 interface ClientCameraOnboardingViewProps {
   projects: Project[];
@@ -107,12 +105,6 @@ export const ClientCameraOnboardingView: React.FC<ClientCameraOnboardingViewProp
     navigator.clipboard.writeText(url);
     setCopiedOnboardingUrl(true);
     setTimeout(() => setCopiedOnboardingUrl(false), 2500);
-  };
-
-  const getWhatsAppOnboardingShareUrl = () => {
-    const url = getOnboardingUrl(selectedProjectId);
-    const msg = `Hola ${currentProject.clientName}, te comparto el Portal de Auto-Registro de Cámaras:\n\n${url}\n\nDesde ahí puedes ingresar fácilmente la IP, usuario y canales de tus cámaras o DVR para que nuestro servidor las agregue automáticamente en vivo.`;
-    return buildWhatsAppUrl({ text: msg, phone: currentProject.clientPhone });
   };
 
   // Preview RTSP URLs before submitting
@@ -252,18 +244,8 @@ export const ClientCameraOnboardingView: React.FC<ClientCameraOnboardingViewProp
                   ) : (
                     <Copy className="w-3.5 h-3.5 text-sky-400" />
                   )}
-                  <span>{copiedOnboardingUrl ? 'Enlace Copiado' : 'Copiar Enlace Directo a este Formulario'}</span>
+                  <span>{copiedOnboardingUrl ? 'Enlace Copiado' : 'Copiar enlace para el operador'}</span>
                 </button>
-
-                <a
-                  href={getWhatsAppOnboardingShareUrl()}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="px-3 py-2 bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/30 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition"
-                >
-                  <MessageCircle className="w-3.5 h-3.5 text-emerald-400" />
-                  <span>Compartir por WhatsApp</span>
-                </a>
 
                 {onOpenStandalonePreview && (
                   <button
