@@ -10,7 +10,7 @@
     "preview": "vite preview",
     "clean": "rm -rf dist server.js",
     "lint": "tsc --noEmit",
-    "test": "tsx --test src/lib/streamingLogic.test.ts",
+    "test": "tsx --test src/lib/streamingLogic.test.ts functions/viewerSessions.test.js",
     "deploy:surge": "npm run build && npx --yes surge ./dist proyectos-de-camaras.surge.sh",
     "cloud:verify": "node scripts/cleanup-cloud-secrets.mjs --verify",
     "cloud:cleanup": "node scripts/cleanup-cloud-secrets.mjs",

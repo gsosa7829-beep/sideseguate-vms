@@ -134,7 +134,7 @@ export const ShareLinkModal: React.FC<ShareLinkModalProps> = ({
       allowAudio,
       allowSnapshot,
       showWatermark,
-      maxConcurrentViewers: 3,
+      maxConcurrentViewers: initialLink?.maxConcurrentViewers ?? 3,
       accessCount: initialLink?.accessCount || 0,
       lastAccessedAt: initialLink?.lastAccessedAt || null,
       createdAt: initialLink?.createdAt || new Date().toISOString()

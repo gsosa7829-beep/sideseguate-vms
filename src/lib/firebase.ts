@@ -2,7 +2,7 @@ import { initializeApp } from 'firebase/app';
 import {
   getAuth,
   initializeAuth,
-  inMemoryPersistence,
+  browserLocalPersistence,
   Auth,
   GoogleAuthProvider,
   signInWithPopup,
@@ -18,11 +18,13 @@ import {
   where,
   getDoc,
   getDocs,
+  getDocsFromServer,
   getDocFromServer,
   setDoc,
   updateDoc,
   deleteDoc,
   onSnapshot,
+  runTransaction,
   serverTimestamp
 } from 'firebase/firestore';
 import firebaseConfig from '../../firebase-applet-config.json';
@@ -32,7 +34,7 @@ const app = initializeApp(firebaseConfig);
 export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
 let authInstance: Auth;
 try {
-  authInstance = initializeAuth(app, { persistence: inMemoryPersistence });
+  authInstance = initializeAuth(app, { persistence: browserLocalPersistence });
 } catch {
   authInstance = getAuth(app);
 }
@@ -95,6 +97,7 @@ export function handleFirestoreError(
 }
 
 const googleProvider = new GoogleAuthProvider();
+googleProvider.setCustomParameters({ prompt: 'select_account' });
 
 export async function signInWithGoogle(): Promise<User> {
   const result = await signInWithPopup(auth, googleProvider);
@@ -107,6 +110,12 @@ export async function signOutFromGoogle(): Promise<void> {
 
 export function subscribeToAuth(callback: (user: User | null) => void) {
   return onAuthStateChanged(auth, callback);
+}
+
+export async function hasCloudOperatorAccess(user: User): Promise<boolean> {
+  if (!user.emailVerified) return false;
+  if (user.email === 'gsosa7829@gmail.com') return true;
+  return (await getDocFromServer(doc(db, 'admins', user.uid))).exists();
 }
 
 export {
@@ -192,7 +201,7 @@ export async function upsertCloudProject(project: Project): Promise<void> {
 }
 
 export async function deleteCloudProject(projectId: string): Promise<void> {
-  const cleanId = sanitizeCloudId(projectId, 'proj');
+  const cleanId = scopedId(sanitizeCloudId(projectId, 'proj'));
   const docPath = `cloud_projects/${cleanId}`;
   try {
     await deleteDoc(doc(db, 'cloud_projects', cleanId));
@@ -248,7 +257,7 @@ export async function upsertCloudCamera(camera: Camera): Promise<void> {
 }
 
 export async function deleteCloudCamera(cameraId: string): Promise<void> {
-  const cleanId = sanitizeCloudId(cameraId, 'cam');
+  const cleanId = scopedId(sanitizeCloudId(cameraId, 'cam'));
   const docPath = `cloud_cameras/${cleanId}`;
   try {
     await deleteDoc(doc(db, 'cloud_cameras', cleanId));
@@ -286,8 +295,6 @@ export async function upsertCloudShareLink(link: ShareLink): Promise<void> {
         allowSnapshot: payload.allowSnapshot,
         showWatermark: payload.showWatermark,
         maxConcurrentViewers: payload.maxConcurrentViewers,
-        accessCount: payload.accessCount,
-        lastAccessedAtIso: payload.lastAccessedAtIso,
         updatedAt: serverTimestamp(),
       });
     }
@@ -300,7 +307,13 @@ export async function deleteCloudShareLink(token: string): Promise<void> {
   const cleanToken = sanitizeCloudId(token, 'sdg_live');
   const docPath = `cloud_share_links/${cleanToken}`;
   try {
-    await deleteDoc(doc(db, 'cloud_share_links', cleanToken));
+    await runTransaction(db, async (transaction) => {
+      const revoked = doc(db, 'cloud_revoked_links', cleanToken);
+      if (!(await transaction.get(revoked)).exists()) {
+        transaction.set(revoked, { revokedAt: serverTimestamp() });
+      }
+      transaction.delete(doc(db, 'cloud_share_links', cleanToken));
+    });
   } catch (error) {
     handleFirestoreError(error, OperationType.DELETE, docPath);
   }
@@ -312,10 +325,10 @@ export async function purgeAllCloudShareLinks(): Promise<void> {
       collection(db, 'cloud_share_links'),
       where('ownerId', '==', activeTenant().ownerId)
     );
-    const snap = await getDocs(q);
-    await Promise.all(snap.docs.map((d) => deleteDoc(d.ref)));
+    const snap = await getDocsFromServer(q);
+    await Promise.all(snap.docs.map((d) => deleteCloudShareLink(d.id)));
   } catch (error) {
-    console.warn('No se pudieron purgar enlaces remotos:', error);
+    handleFirestoreError(error, OperationType.DELETE, 'cloud_share_links');
   }
 }
 
@@ -518,30 +531,6 @@ export function subscribeToCloudState(callbacks: {
     unsubLinks();
     unsubLogs();
   };
-}
-
-export function subscribeToSingleShareLinkByToken(
-  token: string,
-  callback: (link: ShareLink | null, isLoading: boolean) => void
-): () => void {
-  const cleanToken = sanitizeCloudId(token, 'sdg_live');
-  const docRef = doc(db, 'cloud_share_links', cleanToken);
-  callback(null, true);
-
-  return onSnapshot(
-    docRef,
-    (snap) => {
-      if (snap.exists()) {
-        callback(fromCloudShareLinkDoc(snap.data() as Record<string, unknown>), false);
-      } else {
-        callback(null, false);
-      }
-    },
-    (err) => {
-      console.warn('No se pudo leer enlace compartido por token:', err);
-      callback(null, false);
-    }
-  );
 }
 
 export async function syncVmsWorkspaceToCloud(params: {
