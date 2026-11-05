@@ -503,7 +503,7 @@ test('validateClientCameraSubmission, buildClientSubmittedCameras, and cloneNext
   assert.equal(clonedCh5.rtspUrl, 'rtsp://admin:ClaveCliente2026@190.149.45.88:554/Streaming/Channels/501');
 });
 
-test('el panel incluye la cuenta admin (5611admin) lista para usar y no exige crear cuentas', async () => {
+test('el panel incluye la cuenta admin (1212Gabriel) lista para usar y no exige crear cuentas', async () => {
   const { adminAuthStorage, authenticateAdminAccount, PASSWORD_MIN_LENGTH } = await import('./adminAuth.ts');
 
   const cuentas = adminAuthStorage.getAccounts();
@@ -512,7 +512,7 @@ test('el panel incluye la cuenta admin (5611admin) lista para usar y no exige cr
   assert.equal(adminAuthStorage.needsFirstRunSetup(), false);
   assert.equal(PASSWORD_MIN_LENGTH, 8);
 
-  const auth = await authenticateAdminAccount(cuentas, 'admin', '5611admin');
+  const auth = await authenticateAdminAccount(cuentas, 'admin', '1212Gabriel');
   assert.equal(auth.success, true);
   assert.equal(auth.account?.username, 'admin');
 });

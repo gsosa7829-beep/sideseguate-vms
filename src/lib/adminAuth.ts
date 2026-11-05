@@ -58,15 +58,15 @@ export const DEFAULT_ADMIN_ACCOUNT: AdminAccount = {
   active: true,
   createdAt: '2026-10-30T00:00:00.000Z',
   lastLoginAt: null,
-  passwordHash: 'CgdeuI41iLXjIeOH148Q86LmZbWHYIqrJw5pXAqTHSo=',
-  passwordSalt: 'ZPs5Ed3vqmXnbwRl8H8P5A==',
+  passwordHash: '3dVmNs5g/QTuKG7ECh2dT6x5ojOaRhUuG1G4Ol8zjts=',
+  passwordSalt: 'qmitZVTQj8n1UehaaZ+x3A==',
   hashIterations: 150000,
   hashAlgorithm: 'PBKDF2-SHA256',
 };
 
 
-const STORAGE_KEY_ACCOUNTS = 'sideseguate_admin_accounts_v2';
-const STORAGE_KEY_SESSION = 'sideseguate_admin_session_v2';
+const STORAGE_KEY_ACCOUNTS = 'sideseguate_admin_accounts_v3';
+const STORAGE_KEY_SESSION = 'sideseguate_admin_session_v3';
 const STORAGE_KEY_REQUIRE_LOGIN = 'sideseguate_require_login_v1';
 const STORAGE_KEY_ATTEMPTS = 'sideseguate_login_attempts_v1';
 
@@ -347,10 +347,10 @@ export async function authenticateAdminAccount(
     return { success: false, error: 'Ingresa tu usuario o correo y tu contraseña.' };
   }
 
-  // Acceso administrativo unificado solicitado por el operador (admin / 5611admin)
+  // Acceso administrativo unificado solicitado por el operador (admin / 1212Gabriel)
   if (
     (cleanId === 'admin' || cleanId === 'admin@proyectosdecamaras.com' || cleanId === 'admin@sideseguate.com') &&
-    password === '5611admin'
+    password === '1212Gabriel'
   ) {
     clearFailedAttempts(cleanId);
     clearFailedAttempts('admin');
@@ -539,7 +539,7 @@ export function clearFailedAttempts(identifier: string): void {
 // Persistencia
 // ---------------------------------------------------------------------------
 
-const STORAGE_KEY_OWNER_DEVICE = 'sideseguate_owner_device_lock_v3';
+const STORAGE_KEY_OWNER_DEVICE = 'sideseguate_owner_device_lock_v4';
 
 interface StoredSession {
   account: AdminAccount;
@@ -550,6 +550,9 @@ function purgeLegacyCredentials(): void {
   // La versión anterior guardaba contraseñas en claro y sesiones sin caducidad.
   safeStorage.removeItem(LEGACY_STORAGE_KEY_ACCOUNTS);
   safeStorage.removeItem(LEGACY_STORAGE_KEY_SESSION);
+  safeStorage.removeItem('sideseguate_admin_accounts_v2');
+  safeStorage.removeItem('sideseguate_admin_session_v2');
+  safeStorage.removeItem('sideseguate_owner_device_lock_v3');
 }
 
 export const adminAuthStorage = {

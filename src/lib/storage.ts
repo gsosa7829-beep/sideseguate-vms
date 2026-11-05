@@ -4,8 +4,8 @@ import { INITIAL_PROJECTS, INITIAL_CAMERAS, INITIAL_SHARE_LINKS, INITIAL_ACCESS_
 const STORAGE_KEYS = {
   PROJECTS: 'sideseguate_projects_v11_ocos',
   CAMERAS: 'sideseguate_cameras_v11_ocos',
-  SHARE_LINKS: 'sideseguate_share_links_v11_ocos',
-  ACCESS_LOGS: 'sideseguate_access_logs_v5',
+  SHARE_LINKS: 'sideseguate_share_links_v12_revoked',
+  ACCESS_LOGS: 'sideseguate_access_logs_v6',
 };
 
 export const storage = {
@@ -94,6 +94,7 @@ export const storage = {
       localStorage.removeItem('sideseguate_share_links_v5');
       localStorage.removeItem('sideseguate_share_links_v6');
       localStorage.removeItem('sideseguate_share_links_v7');
+      localStorage.removeItem('sideseguate_share_links_v11_ocos');
       const data = localStorage.getItem(STORAGE_KEYS.SHARE_LINKS);
       if (data) {
         const parsed = JSON.parse(data);

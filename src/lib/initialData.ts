@@ -140,44 +140,7 @@ export const INITIAL_CAMERAS: Camera[] = [
   }
 ];
 
-export const INITIAL_SHARE_LINKS: ShareLink[] = [
-  {
-    id: 'proyecto-ocos',
-    token: 'proyecto-ocos',
-    projectId: 'proj-ocos',
-    title: 'PROYECTO OCOS',
-    clientName: 'Comité Proyecto Ocós',
-    cameraIds: ['cam-ocos-ch1'],
-    expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
-    isActive: true,
-    allowPtz: false,
-    allowAudio: false,
-    allowSnapshot: true,
-    showWatermark: true,
-    maxConcurrentViewers: 10,
-    accessCount: 0,
-    lastAccessedAt: null,
-    createdAt: new Date().toISOString(),
-  },
-  {
-    id: 'calle-del-cementerio',
-    token: 'calle-del-cementerio',
-    projectId: 'proj-calle-cementerio',
-    title: 'Proyecto Calle del Cementerio',
-    clientName: 'Comité Calle del Cementerio',
-    cameraIds: ['cam-hilook-ch1', 'cam-hilook-ch2'],
-    expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
-    isActive: true,
-    allowPtz: true,
-    allowAudio: false,
-    allowSnapshot: true,
-    showWatermark: true,
-    maxConcurrentViewers: 10,
-    accessCount: 1,
-    lastAccessedAt: null,
-    createdAt: new Date().toISOString(),
-  },
-];
+export const INITIAL_SHARE_LINKS: ShareLink[] = [];
 
 export function isLegacyDemoCamera(cam: Partial<Camera> | null | undefined): boolean {
   if (!cam) return true;
@@ -190,41 +153,4 @@ export function isLegacyDemoCamera(cam: Partial<Camera> | null | undefined): boo
   return false;
 }
 
-export const INITIAL_ACCESS_LOGS: AccessLog[] = [
-  {
-    id: 'log-01',
-    shareLinkId: 'calle-del-cementerio',
-    clientIp: '190.86.45.112',
-    deviceInfo: 'Chrome 128 / Android 14 (Samsung Galaxy S24)',
-    timestamp: new Date(Date.now() - 1000 * 60 * 12).toISOString(),
-    durationSeconds: 340,
-    action: 'stream_started'
-  },
-  {
-    id: 'log-02',
-    shareLinkId: 'calle-del-cementerio',
-    clientIp: '190.86.45.112',
-    deviceInfo: 'Chrome 128 / Android 14',
-    timestamp: new Date(Date.now() - 1000 * 60 * 10).toISOString(),
-    durationSeconds: 15,
-    action: 'snapshot_taken'
-  },
-  {
-    id: 'log-03',
-    shareLinkId: 'proyecto-ocos',
-    clientIp: '181.174.92.15',
-    deviceInfo: 'Safari 18 / iOS 18 (iPhone 15 Pro)',
-    timestamp: new Date(Date.now() - 1000 * 60 * 85).toISOString(),
-    durationSeconds: 90,
-    action: 'stream_started'
-  },
-  {
-    id: 'log-04',
-    shareLinkId: 'calle-del-cementerio',
-    clientIp: '168.234.12.80',
-    deviceInfo: 'Edge 129 / Windows 11',
-    timestamp: new Date(Date.now() - 1000 * 60 * 210).toISOString(),
-    durationSeconds: 450,
-    action: 'stream_started'
-  }
-];
+export const INITIAL_ACCESS_LOGS: AccessLog[] = [];
