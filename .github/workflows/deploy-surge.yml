@@ -42,7 +42,7 @@ jobs:
 
       - name: Build Production Bundle
         env:
-          VITE_PUBLIC_APP_URL: ${{ vars.PUBLIC_APP_URL || 'https://proyectos-de-camaras.surge.sh' }}
+          VITE_PUBLIC_APP_URL: https://proyectos-de-camaras.surge.sh
         run: npm run build
 
       - name: Comprobar el secreto SURGE_TOKEN
@@ -58,7 +58,7 @@ jobs:
       - name: Publish to Surge
         env:
           SURGE_TOKEN: ${{ secrets.SURGE_TOKEN || inputs.surge_token }}
-          SURGE_DOMAIN: ${{ vars.SURGE_DOMAIN }}
+          SURGE_DOMAIN: proyectos-de-camaras.surge.sh
         run: |
           TARGET="${SURGE_DOMAIN:-proyectos-de-camaras.surge.sh}"
           echo "TARGET=$TARGET" >> "$GITHUB_ENV"
