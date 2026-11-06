@@ -306,3 +306,9 @@
   .live-player-actions > button { flex-direction: column; min-width: 0; height: 56px; gap: 4px; }
   .mobile-assistant { bottom: calc(5rem + env(safe-area-inset-bottom)); width: 48px; height: 48px; padding: 0; justify-content: center; border-radius: 50%; }
 }
+
+.camera-expanded {
+  height: 100dvh;
+  padding: env(safe-area-inset-top) env(safe-area-inset-right)
+    env(safe-area-inset-bottom) env(safe-area-inset-left);
+}
