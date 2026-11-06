@@ -432,12 +432,12 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
 
   // =========================================================================
   // MODO ULTRA-AHORRO DE DATOS SIM 4G (PROYECTO OCOS - FF9363270)
-  // - En Mosaico (isCompact): inicia en Espera (0 KB/s) bajo demanda para no gastar datos al abrir el panel.
+  // - Inicia en espera en cualquier vista. Solo conecta por solicitud del usuario.
   // - Auto-Sleep a los 90 segundos de reproducción continua para evitar consumo infinito si dejan la pantalla encendida.
   // - Suspensión total (0 KB/s) al minimizar pestaña o cambiar de aplicación.
   // =========================================================================
-  const [is4gEcoPaused, setIs4gEcoPaused] = useState<boolean>(() => is4gCamera && isCompact);
-  const is4gEcoPausedRef = useRef<boolean>(is4gCamera && isCompact);
+  const [is4gEcoPaused, setIs4gEcoPaused] = useState<boolean>(() => is4gCamera);
+  const is4gEcoPausedRef = useRef<boolean>(is4gCamera);
   useEffect(() => {
     is4gEcoPausedRef.current = is4gEcoPaused;
   }, [is4gEcoPaused]);
@@ -871,8 +871,8 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
   let shortStatus = 'RECONECTAR';
   let fullStatus = 'RECONECTAR SEÑAL';
   if (is4gEcoPaused) {
-    shortStatus = 'AHORRO 4G · 0 KB/S';
-    fullStatus = 'MODO AHORRO 4G · 0 KB/S';
+    shortStatus = 'AHORRO 4G · EN ESPERA';
+    fullStatus = 'MODO AHORRO 4G · EN ESPERA';
   } else if (!canLoadInViewport) {
     shortStatus = 'EN ESPERA';
     fullStatus = 'CÁMARA EN ESPERA';
