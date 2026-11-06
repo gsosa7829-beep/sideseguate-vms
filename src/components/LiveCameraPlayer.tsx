@@ -233,7 +233,9 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
-  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [nativeFullscreen, setNativeFullscreen] = useState(false);
+  const [expandedHeight, setExpandedHeight] = useState<number | null>(null);
+  const isFullscreen = nativeFullscreen || expandedHeight !== null;
   const [{ mobile: isMobile, appleMobile }] = useState(() => typeof window === 'undefined'
     ? { mobile: false, appleMobile: false }
     : getPlaybackEnvironment(navigator.userAgent, navigator.maxTouchPoints, window.innerWidth));
@@ -270,7 +272,7 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
   // Sincronización perfecta del estado Fullscreen con eventos de sistema (móvil y PC)
   useEffect(() => {
     const handleFsChange = () => {
-      setIsFullscreen(Boolean(document.fullscreenElement));
+      setNativeFullscreen(document.fullscreenElement === containerRef.current);
     };
     document.addEventListener('fullscreenchange', handleFsChange);
     document.addEventListener('webkitfullscreenchange', handleFsChange);
@@ -279,6 +281,15 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
       document.removeEventListener('webkitfullscreenchange', handleFsChange);
     };
   }, []);
+
+  useEffect(() => {
+    if (expandedHeight === null) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setExpandedHeight(null);
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [expandedHeight]);
 
   const handleTouchStart = (e: React.TouchEvent<HTMLDivElement>) => {
     if (e.touches.length === 2) {
@@ -1194,12 +1205,29 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
     setTimeout(() => setWatchdogToast(null), 2000);
   };
 
-  const toggleFullscreen = () => {
-    if (!containerRef.current) return;
-    if (!document.fullscreenElement) {
-      containerRef.current.requestFullscreen?.().then(() => setIsFullscreen(true)).catch(() => {});
-    } else {
-      document.exitFullscreen?.().then(() => setIsFullscreen(false)).catch(() => {});
+  const toggleFullscreen = async () => {
+    const player = containerRef.current;
+    if (!player) return;
+    if (expandedHeight !== null) {
+      setExpandedHeight(null);
+      return;
+    }
+    if (document.fullscreenElement === player) {
+      await document.exitFullscreen().catch(() => {});
+      return;
+    }
+
+    // iPhone and embedded browsers may disallow fullscreen on a container.
+    if (!appleMobile && document.fullscreenEnabled && player.requestFullscreen) {
+      try {
+        await player.requestFullscreen();
+        return;
+      } catch {
+        // Keep the same mounted player in an expanded view.
+      }
+    }
+    if (containerRef.current === player) {
+      setExpandedHeight(player.getBoundingClientRect().height);
     }
   };
 
@@ -1334,10 +1362,12 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
   }, [handleForceReconnect]);
 
   return (
+    <>
+      {expandedHeight !== null && <div aria-hidden="true" style={{ height: expandedHeight }} />}
     <div 
       ref={containerRef}
-      className={`relative bg-neutral-950 overflow-hidden flex flex-col group ${
-        isFullscreen ? 'fixed inset-0 z-50 rounded-none' : ''
+      className={`bg-neutral-950 overflow-hidden flex flex-col group ${
+        expandedHeight !== null ? 'camera-expanded fixed inset-0 z-[200]' : 'relative'
       }`}
     >
       {/* Top Floating Telemetry Scrim (Píldoras Flotantes Discretas) */}
@@ -1419,9 +1449,9 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
-        onDoubleClick={toggleFullscreen}
+        onDoubleClick={isMobile ? undefined : toggleFullscreen}
         style={{ touchAction: 'pan-y' }}
-        className={`relative w-full bg-neutral-950 flex items-center justify-center overflow-hidden select-none cursor-pointer ${isFullscreen ? "flex-1 h-full" : "aspect-video"}`}
+        className={`relative w-full bg-neutral-950 flex items-center justify-center overflow-hidden select-none cursor-pointer ${isFullscreen ? "flex-1 min-h-0" : "aspect-video"}`}
         title="Doble toque o doble clic para Pantalla Completa · Pellizca para Zoom"
       >
         {/* Overlay de Modo Ultra-Ahorro SIM 4G (0 KB/s en espera) */}
@@ -1945,7 +1975,9 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
           </div>
         </div>
       )}
-    </div>  );
+    </div>
+    </>
+  );
 };
 
 export const LiveCameraPlayer = React.memo(LiveCameraPlayerComponent);
