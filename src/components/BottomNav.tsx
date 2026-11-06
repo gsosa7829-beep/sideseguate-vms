@@ -33,11 +33,11 @@ export const BottomNav: React.FC<BottomNavProps> = ({ currentTab, onSelectTab })
                 type="button"
                 onClick={() => onSelectTab(defaultTabOfSection(section))}
                 aria-current={isActive ? 'page' : undefined}
-                className={`w-full min-h-[52px] flex flex-col items-center justify-center gap-0.5 px-1 py-1.5 transition ${
-                  isActive ? 'text-sky-400' : 'text-neutral-400 active:text-neutral-200'
+                className={`w-full min-h-[64px] flex flex-col items-center justify-center gap-0.5 px-1 py-1.5 transition ${
+                  isActive ? 'text-sky-300 bg-sky-500/10' : 'text-neutral-400 active:text-neutral-200'
                 }`}
               >
-                <Icon className="w-[18px] h-[18px]" aria-hidden="true" />
+                <Icon className="w-5 h-5" aria-hidden="true" />
                 <span className="text-[10.5px] leading-none font-medium">{section.shortLabel}</span>
                 <span
                   aria-hidden="true"

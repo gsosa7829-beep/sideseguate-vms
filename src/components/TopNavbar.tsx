@@ -209,14 +209,14 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
 
   return (
     <>
-      <header className="h-14 sm:h-15 bg-neutral-900/90 border-b border-neutral-800/90 px-3 sm:px-6 flex items-center justify-between gap-2 sm:gap-4 sticky top-0 z-50 backdrop-blur-md bg-neutral-900/95">
+      <header className="admin-topbar shrink-0 h-16 md:h-15 bg-neutral-900/90 border-b border-neutral-800/90 px-3 sm:px-6 flex items-center justify-between gap-2 sm:gap-4 sticky top-0 z-50 backdrop-blur-md bg-neutral-900/95">
         {/* Zone 1: Contextual Breadcrumb Trail */}
         <div className="flex items-center gap-2.5 min-w-0 flex-1">
           <span className="text-[11px] font-mono uppercase tracking-wider text-sky-400/90 hidden lg:inline shrink-0">
             {section}
           </span>
           <span className="text-neutral-600 text-xs hidden lg:inline shrink-0" aria-hidden="true">/</span>
-          <h1 className="font-display text-xs sm:text-base font-bold text-white tracking-tight truncate">
+          <h1 className="font-display text-sm sm:text-base font-bold text-white tracking-tight truncate">
             {title}
           </h1>
         </div>
@@ -243,7 +243,7 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
             aria-label="Buscar"
             aria-expanded={showMobileSearch}
             onClick={() => setShowMobileSearch((prev) => !prev)}
-            className="md:hidden w-9 h-9 rounded-lg bg-neutral-950 border border-neutral-800 text-neutral-300 hover:text-white flex items-center justify-center shrink-0 transition"
+            className="md:hidden w-11 h-11 md:w-9 md:h-9 rounded-lg bg-neutral-950 border border-neutral-800 text-neutral-300 hover:text-white flex items-center justify-center shrink-0 transition"
           >
             <Search className="w-4 h-4" aria-hidden="true" />
           </button>
@@ -265,7 +265,7 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
                   onClearUnreadAlerts();
                 }
               }}
-              className={`relative w-9 h-9 rounded-lg border flex items-center justify-center shrink-0 transition ${
+              className={`relative w-11 h-11 md:w-9 md:h-9 rounded-lg border flex items-center justify-center shrink-0 transition ${
                 unreadAlertsCount > 0
                   ? 'bg-emerald-950/80 border-emerald-500/50 text-emerald-300'
                   : 'bg-neutral-950 hover:bg-neutral-850 border-neutral-800 text-neutral-300 hover:text-white'
@@ -289,7 +289,7 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
                 <div
                   role="dialog"
                   aria-label="Avisos de clientes"
-                  className="fixed sm:absolute right-3 sm:right-0 top-16 sm:top-11 w-[calc(100vw-1.5rem)] sm:w-96 bg-neutral-900 border border-neutral-700/80 rounded-2xl shadow-2xl z-[100] overflow-hidden text-xs ring-1 ring-white/10"
+                  className="fixed sm:absolute right-3 sm:right-0 top-16 sm:top-11 w-[calc(100vw-1.5rem)] sm:w-96 bg-neutral-900 border border-neutral-700/80 rounded-2xl shadow-2xl z-[100] max-h-[calc(100dvh-9rem)] overflow-y-auto text-xs ring-1 ring-white/10"
                 >
                 <div className="px-4 py-3 bg-neutral-950 border-b border-neutral-800 flex items-center justify-between gap-2">
                   <div className="flex items-center gap-2">
@@ -401,7 +401,7 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
                 setShowMoreMenu((prev) => !prev);
                 setShowAlertsPopover(false);
               }}
-              className="w-9 h-9 rounded-lg bg-neutral-950 hover:bg-neutral-850 border border-neutral-800 text-neutral-300 hover:text-white flex items-center justify-center shrink-0 transition"
+              className="w-11 h-11 md:w-9 md:h-9 rounded-lg bg-neutral-950 hover:bg-neutral-850 border border-neutral-800 text-neutral-300 hover:text-white flex items-center justify-center shrink-0 transition"
               title="Más opciones"
             >
               <MoreHorizontal className="w-4 h-4" aria-hidden="true" />
@@ -416,7 +416,7 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
                 <div
                   role="menu"
                   aria-label="Más opciones"
-                  className="fixed sm:absolute right-3 sm:right-0 top-16 sm:top-11 w-[calc(100vw-1.5rem)] sm:w-64 bg-neutral-900 border border-neutral-700/80 rounded-2xl shadow-2xl z-[100] overflow-hidden py-1.5 text-xs ring-1 ring-white/10"
+                  className="fixed sm:absolute right-3 sm:right-0 top-16 sm:top-11 w-[calc(100vw-1.5rem)] sm:w-64 bg-neutral-900 border border-neutral-700/80 rounded-2xl shadow-2xl z-[100] max-h-[calc(100dvh-9rem)] overflow-y-auto py-1.5 text-xs ring-1 ring-white/10"
                 >
                 <MenuItem
                   icon={Plus}
@@ -510,18 +510,19 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
           <button
             type="button"
             onClick={onOpenNewLink}
-            className="h-9 px-3 sm:px-3.5 bg-gradient-to-r from-sky-600 to-sky-500 hover:from-sky-500 hover:to-sky-400 text-white rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition shadow-sm whitespace-nowrap shrink-0"
+            aria-label="Crear enlace para un cliente"
+            className="h-11 md:h-9 px-3 sm:px-3.5 bg-gradient-to-r from-sky-600 to-sky-500 hover:from-sky-500 hover:to-sky-400 text-white rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition shadow-sm whitespace-nowrap shrink-0"
             title="Crear un enlace para un cliente"
           >
             <Link2 className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
-            <span>Enlace</span>
+            <span className="hidden min-[400px]:inline">Enlace</span>
           </button>
         </div>
       </header>
 
       {/* Buscador en móvil: ocupa una fila propia y no roba espacio al título */}
       {showMobileSearch && (
-        <div className="md:hidden sticky top-14 z-20 bg-neutral-900/95 backdrop-blur-md border-b border-neutral-800 px-3 py-2">
+        <div className="md:hidden shrink-0 sticky top-16 z-20 bg-neutral-900/95 backdrop-blur-md border-b border-neutral-800 px-3 py-2">
           <div className="flex items-center gap-2 bg-neutral-950 px-3 py-2 rounded-lg border border-neutral-800 focus-within:border-sky-500/60">
             <Search className="w-4 h-4 text-neutral-400 shrink-0" aria-hidden="true" />
             <input

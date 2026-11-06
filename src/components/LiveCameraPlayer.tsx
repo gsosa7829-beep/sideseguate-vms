@@ -1738,7 +1738,7 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
 
       {/* Bottom Control Bar: 1 Fila Perfecta en Móvil y Escritorio (5 Botones Simétricos) */}
       <div className="relative z-20 bg-neutral-950 border-t border-neutral-800/90 px-2 sm:px-4 py-2 text-neutral-300">
-        <div className="grid grid-cols-5 gap-1.5 sm:gap-2 max-w-xl mx-auto">
+        <div className="live-player-actions grid grid-cols-5 gap-1.5 sm:gap-2 max-w-xl mx-auto">
           {/* Botón 1: Calidad (HD / SD) */}
           <button
             type="button"
