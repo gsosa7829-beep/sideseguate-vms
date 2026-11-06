@@ -56,7 +56,7 @@ export const VideoWall: React.FC<VideoWallProps> = ({
   ];
 
   return (
-    <div className="space-y-5">
+    <div className="video-wall space-y-3 md:space-y-5">
       {/* Estado del servidor + Acceso directo al Asistente IA Setup Wizard */}
       <div
         className={`flex flex-wrap items-center justify-between gap-x-3 gap-y-2 rounded-xl border px-3.5 py-2.5 ${
@@ -102,7 +102,7 @@ export const VideoWall: React.FC<VideoWallProps> = ({
           <button
             type="button"
             onClick={onOpenAiAssistant}
-            className="px-3.5 py-1.5 rounded-lg bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-500 hover:to-indigo-500 text-white text-xs font-semibold flex items-center gap-1.5 shadow-md shadow-sky-950/50 transition cursor-pointer"
+            className="hidden md:flex px-3.5 py-1.5 rounded-lg bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-500 hover:to-indigo-500 text-white text-xs font-semibold flex items-center gap-1.5 shadow-md shadow-sky-950/50 transition cursor-pointer"
           >
             <Bot className="w-4 h-4" />
             <span>Asistente IA · Auto-Agregar Cámaras</span>
@@ -113,8 +113,16 @@ export const VideoWall: React.FC<VideoWallProps> = ({
 
       {/* Matrix Toolbar: Segmented Hardware Filter & Grid Layout Switcher */}
       <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-neutral-900/60 border border-neutral-800/80 p-2.5 rounded-xl">
+        <label className="md:hidden flex items-center justify-between gap-3 text-sm text-neutral-300">
+          <span className="shrink-0">Cámaras</span>
+          <select aria-label="Filtrar cámaras" value={filterType}
+            onChange={(event) => { onClearFocus?.(); setFilterType(event.target.value); }}
+            className="min-h-11 min-w-0 flex-1 rounded-lg border border-neutral-700 bg-neutral-950 px-3 text-white">
+            {filterTabs.map((tab) => <option key={tab.id} value={tab.id}>{tab.label}</option>)}
+          </select>
+        </label>
         {/* Interactive Segmented Filter Controls */}
-        <div className="flex items-center gap-1 p-1 bg-neutral-950/90 border border-neutral-800/90 rounded-lg overflow-x-auto">
+        <div className="hidden md:flex items-center gap-1 p-1 bg-neutral-950/90 border border-neutral-800/90 rounded-lg overflow-x-auto">
           {filterTabs.map((tab) => {
             const active = filterType === tab.id;
             return (
@@ -197,7 +205,7 @@ export const VideoWall: React.FC<VideoWallProps> = ({
 
       {/* Barra de Retorno cuando se está inspeccionando una cámara individual */}
       {focusedCamera && (
-        <div className="bg-sky-950/60 border border-sky-500/40 rounded-xl px-4 py-2.5 flex items-center justify-between gap-3 text-xs">
+        <div className="bg-sky-950/60 border border-sky-500/40 rounded-xl px-4 py-2.5 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 text-xs">
           <div className="flex items-center gap-2 min-w-0">
             <Eye className="w-4 h-4 text-sky-400 shrink-0" />
             <span className="text-white font-semibold truncate">
@@ -257,7 +265,7 @@ export const VideoWall: React.FC<VideoWallProps> = ({
               className="bg-neutral-900 border border-neutral-800 hover:border-sky-500/40 transition rounded-xl overflow-hidden flex flex-col"
             >
               {/* Camera Header Strip: Clean Unboxed Metadata */}
-              <div className="px-4 py-2.5 bg-neutral-950/90 border-b border-neutral-800 flex items-center justify-between gap-3 text-xs">
+              <div className="camera-card-heading px-4 py-3 bg-neutral-950/90 border-b border-neutral-800 flex items-center justify-between gap-3 text-xs">
                 <div className="flex items-center gap-2 min-w-0">
                   <span
                     className={`w-2 h-2 rounded-full shrink-0 ${
@@ -268,12 +276,12 @@ export const VideoWall: React.FC<VideoWallProps> = ({
                     CH0{cam.channel}
                   </span>
                   <span className="text-neutral-600" aria-hidden="true">·</span>
-                  <h2 className="font-display font-semibold text-white truncate">
+                  <h2 className="font-display font-semibold text-white line-clamp-2 md:truncate">
                     {cam.name}
                   </h2>
                 </div>
 
-                <div className="flex items-center gap-1.5 text-neutral-400 text-[11px] font-mono tabular-nums whitespace-nowrap shrink-0">
+                <div className="hidden md:flex items-center gap-1.5 text-neutral-400 text-[11px] font-mono tabular-nums whitespace-nowrap shrink-0">
                   <span>{cam.resolution.split(' ')[0]}</span>
                   <span aria-hidden="true">·</span>
                   <span className="text-neutral-300">{cam.codec}</span>
@@ -293,7 +301,7 @@ export const VideoWall: React.FC<VideoWallProps> = ({
               </div>
 
               {/* Camera Footer Strip */}
-              <div className="px-3.5 sm:px-4 py-2.5 bg-neutral-950/90 border-t border-neutral-800 flex items-center justify-between gap-2.5 text-xs">
+              <div className="camera-card-footer px-3.5 sm:px-4 py-2.5 bg-neutral-950/90 border-t border-neutral-800 flex items-center justify-between gap-2.5 text-xs">
                 <div className="text-neutral-400 truncate text-xs min-w-0">
                   <span className="text-neutral-300">{cam.locationDesc}</span>
                   <span className="mx-1.5 text-neutral-600" aria-hidden="true">·</span>

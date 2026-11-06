@@ -35,7 +35,7 @@ export const SectionSubNav: React.FC<SectionSubNavProps> = ({ currentTab, onSele
               aria-selected={isCurrent}
               onClick={() => onSelectTab(item.id)}
               title={item.hint}
-              className={`shrink-0 px-3 py-1.5 rounded-full text-[11.5px] font-medium transition whitespace-nowrap ${
+              className={`shrink-0 min-h-11 md:min-h-0 px-3 py-1.5 rounded-full text-[11.5px] font-medium transition whitespace-nowrap ${
                 isCurrent
                   ? 'bg-sky-500 text-neutral-950 font-semibold'
                   : 'bg-neutral-900 text-neutral-300 border border-neutral-800 hover:bg-neutral-850 hover:text-white'

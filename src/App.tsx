@@ -1056,7 +1056,7 @@ function AppShell() {
         <main
           id="contenido"
           tabIndex={-1}
-          className="flex-1 overflow-y-auto p-3.5 sm:p-6 pb-24 md:pb-6 focus:outline-none"
+          className="admin-content flex-1 overflow-y-auto p-3.5 sm:p-6 pb-24 md:pb-6 focus:outline-none"
         >
           {/* Submenú de la sección (sólo si tiene varias pantallas) */}
           <SectionSubNav currentTab={activeTab} onSelectTab={(tab) => setActiveTab(tab)} />
@@ -1782,12 +1782,13 @@ function AppShell() {
         <button
           type="button"
           onClick={() => setIsAiAssistantOpen(true)}
-          className="fixed bottom-20 md:bottom-6 right-4 md:right-6 z-40 px-4 py-3 rounded-2xl bg-gradient-to-r from-sky-600 via-indigo-600 to-sky-600 hover:from-sky-500 hover:to-indigo-500 text-white font-bold text-xs flex items-center gap-2.5 shadow-2xl shadow-sky-900/60 border border-sky-400/40 transition-all hover:scale-105 cursor-pointer"
+          aria-label="Abrir asistente de cámaras"
+          className="mobile-assistant fixed bottom-20 md:bottom-6 right-4 md:right-6 z-40 px-4 py-3 rounded-2xl bg-gradient-to-r from-sky-600 via-indigo-600 to-sky-600 hover:from-sky-500 hover:to-indigo-500 text-white font-bold text-xs flex items-center gap-2.5 shadow-2xl shadow-sky-900/60 border border-sky-400/40 transition-all hover:scale-105 cursor-pointer"
           title="Abrir Asistente IA para Agregar Cámaras Automáticamente"
         >
           <Bot className="w-5 h-5 text-sky-200" />
-          <span>Asistente IA · Auto-Setup</span>
-          <Sparkles className="w-4 h-4 text-amber-300 animate-pulse" />
+          <span className="hidden md:inline">Asistente IA · Auto-Setup</span>
+          <Sparkles className="hidden md:block w-4 h-4 text-amber-300 animate-pulse" />
         </button>
       )}
 
