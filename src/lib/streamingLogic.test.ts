@@ -18,6 +18,22 @@ import {
 } from './cloudSyncHelpers.ts';
 import { ShareLink, Camera } from './types.ts';
 import { mergeCloudShareLinks, shareLinkListsDiffer } from './shareLinkMerge.ts';
+import { getLiveResumePosition, getPlaybackEnvironment } from './livePlayback.ts';
+
+test('reconoce iPad con agente de escritorio y distingue Android de Safari móvil', () => {
+  const ipadAgent = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15) Version/18.0 Safari/605.1.15';
+  assert.deepEqual(getPlaybackEnvironment(ipadAgent, 5, 1024), { mobile: true, appleMobile: true });
+  assert.deepEqual(getPlaybackEnvironment(ipadAgent, 0, 1440), { mobile: false, appleMobile: false });
+  assert.deepEqual(getPlaybackEnvironment('Mozilla/5.0 (Linux; Android 14)', 5, 900), { mobile: true, appleMobile: false });
+});
+
+test('reanudar HLS conserva el búfer reproducible y solo busca dentro de la ventana disponible', () => {
+  assert.equal(getLiveResumePosition(114, 100, 124), null);
+  assert.equal(getLiveResumePosition(80, 100, 124), 116);
+  assert.equal(getLiveResumePosition(130, 120, 124), 122);
+  assert.equal(getLiveResumePosition(101, 100, 150), 142);
+  assert.equal(getLiveResumePosition(0, 5, 5), null);
+});
 
 test('buildHikvisionRtspUrl creates standard Hikvision channel URL', () => {
   const urlMain = buildHikvisionRtspUrl({
