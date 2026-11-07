@@ -77,7 +77,9 @@ const inFlightHlsRequests: Record<
 
 export function getCachedHlsUrl(channel: number, serial: string, quality: '1' | '2' = '2'): string | null {
   const devSerial = serial || 'F31700438';
-  const cacheKey = `${devSerial}_${channel}_${quality}`;
+  // Bloqueo estricto 4G: La cámara de Ocós (FF9363270) NUNCA debe solicitar flujo HD ('1')
+  const effectiveQuality: '1' | '2' = devSerial === 'FF9363270' ? '2' : quality;
+  const cacheKey = `${devSerial}_${channel}_${effectiveQuality}`;
   const now = Date.now();
   if (ezvizHlsCache[cacheKey] && ezvizHlsCache[cacheKey].expires > now + 60000) {
     return ezvizHlsCache[cacheKey].url;
@@ -108,7 +110,9 @@ export async function fetchEzvizLiveHls(
   explicitCode?: string
 ): Promise<{ url: string | null; isOffline: boolean; error?: string }> {
   const devSerial = serial || 'F31700438';
-  const cacheKey = `${devSerial}_${channel}_${quality}`;
+  // Bloqueo estricto 4G: La cámara de Ocós (FF9363270) NUNCA debe solicitar flujo HD ('1')
+  const effectiveQuality: '1' | '2' = devSerial === 'FF9363270' ? '2' : quality;
+  const cacheKey = `${devSerial}_${channel}_${effectiveQuality}`;
   const now = Date.now();
 
   if (cacheKey in inFlightHlsRequests) return inFlightHlsRequests[cacheKey];
@@ -136,7 +140,7 @@ export async function fetchEzvizLiveHls(
             deviceSerial: devSerial,
             channelNo: String(channel),
             protocol: '2', // HLS
-            quality: quality, // '1': 1080p FHD Main Stream, '2': Sub Stream Fluido 25 FPS
+            quality: effectiveQuality, // '1': 1080p FHD Main Stream, '2': Sub Stream Fluido 25 FPS
             code: validateCode,
             supportH265: '1',
           }),
@@ -543,16 +547,12 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
     return () => clearInterval(timer);
   }, [is4gCamera, is4gEcoPaused, pause4gStreamForDataSaving]);
 
-  // En cámara 4G, si el usuario activa HD ('1'), volver automáticamente a SD Ultra-Ahorro ('2') tras 60 segundos
+  // Bloqueo definitivo 4G (Ocós): Eliminar HD y forzar 100% en SD Fluido ('2') para proteger datos
   useEffect(() => {
-    if (!is4gCamera || streamQuality !== '1' || is4gEcoPaused) return;
-    const hdTimer = setTimeout(() => {
+    if (is4gCamera && streamQuality !== '2') {
       setStreamQuality('2');
-      setWatchdogToast('Modo Ahorro 4G: Retornando a Sub-Stream H.265 (256 kbps) para proteger tus datos');
-      setTimeout(() => setWatchdogToast(null), 3500);
-    }, 60 * 1000);
-    return () => clearTimeout(hdTimer);
-  }, [is4gCamera, streamQuality, is4gEcoPaused]);
+    }
+  }, [is4gCamera, streamQuality]);
 
   const [isOffline, setIsOffline] = useState(false);
 
@@ -1571,7 +1571,7 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
         )}
 
         {/* Notificación de Conmutación de Calidad HD / SD */}
-        {isSwitchingQuality && (
+        {isSwitchingQuality && !is4gCamera && (
           <div className="absolute top-12 inset-x-0 z-40 flex justify-center pointer-events-none px-4 animate-in fade-in duration-200">
             <div className="bg-sky-950/95 border border-sky-500/50 text-white text-xs font-semibold px-4 py-2 rounded-xl shadow-2xl flex items-center gap-2 backdrop-blur-md">
               <Sparkles className="w-3.5 h-3.5 text-sky-400 animate-spin" />
@@ -1768,26 +1768,36 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
 
       {/* Bottom Control Bar: 1 Fila Perfecta en Móvil y Escritorio (5 Botones Simétricos) */}
       <div className="relative z-20 bg-neutral-950 border-t border-neutral-800/90 px-2 sm:px-4 py-2 text-neutral-300">
-        <div className="live-player-actions grid grid-cols-5 gap-1.5 sm:gap-2 max-w-xl mx-auto">
-          {/* Botón 1: Calidad (HD / SD) */}
-          <button
-            type="button"
-            disabled={serverControlsQuality}
-            aria-label={serverControlsQuality ? 'Calidad gestionada por el servidor' : streamQuality === '1' ? 'Cambiar a calidad fluida SD' : 'Cambiar a calidad alta definición 1080p HD'}
-            onClick={() => {
-              setIsSwitchingQuality(true);
-              setStreamQuality((q) => (q === '1' ? '2' : '1'));
-            }}
-            className={`min-h-[46px] h-[46px] px-1 sm:px-3 rounded-xl border text-xs font-bold transition-all flex items-center justify-center gap-1 sm:gap-1.5 active:scale-95 col-span-1 ${
-              streamQuality === '1'
-                ? 'bg-sky-950/80 border-sky-500/80 text-sky-300 shadow-sm shadow-sky-950/50'
-                : 'bg-neutral-900 border-neutral-800 text-neutral-400 hover:text-white'
-            }`}
-            title={serverControlsQuality ? 'Calidad gestionada por el servidor' : streamQuality === '1' ? 'Calidad HD 1080p activa (Encuadre óptico completo)' : 'Calidad SD fluida activa'}
-          >
-            <Sparkles className={`w-4 h-4 text-sky-400 shrink-0 ${isSwitchingQuality ? 'animate-spin' : ''}`} />
-            <span className="font-mono text-xs font-bold">{serverControlsQuality ? 'AUTO' : streamQuality === '1' ? 'HD' : 'SD'}</span>
-          </button>
+<div className="live-player-actions grid grid-cols-5 gap-1.5 sm:gap-2 max-w-xl mx-auto">
+          {/* Botón 1: Calidad (HD / SD) - Ocós 4G queda fijo en SD Ahorro sin opción HD */}
+          {is4gCamera ? (
+            <div
+              className="min-h-[46px] h-[46px] px-1 sm:px-3 rounded-xl border border-emerald-800/60 bg-emerald-950/40 text-emerald-400 text-xs font-bold flex items-center justify-center gap-1 col-span-1 select-none"
+              title="Calidad SD Fluida Fija (Modo Ahorro 4G activo - HD desactivado)"
+            >
+              <Sparkles className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+              <span className="font-mono text-xs font-bold">SD</span>
+            </div>
+          ) : (
+            <button
+              type="button"
+              disabled={serverControlsQuality}
+              aria-label={serverControlsQuality ? 'Calidad gestionada por el servidor' : streamQuality === '1' ? 'Cambiar a calidad fluida SD' : 'Cambiar a calidad alta definición 1080p HD'}
+              onClick={() => {
+                setIsSwitchingQuality(true);
+                setStreamQuality((q) => (q === '1' ? '2' : '1'));
+              }}
+              className={`min-h-[46px] h-[46px] px-1 sm:px-3 rounded-xl border text-xs font-bold transition-all flex items-center justify-center gap-1 sm:gap-1.5 active:scale-95 col-span-1 ${
+                streamQuality === '1'
+                  ? 'bg-sky-950/80 border-sky-500/80 text-sky-300 shadow-sm shadow-sky-950/50'
+                  : 'bg-neutral-900 border-neutral-800 text-neutral-400 hover:text-white'
+              }`}
+              title={serverControlsQuality ? 'Calidad gestionada por el servidor' : streamQuality === '1' ? 'Calidad HD 1080p activa (Encuadre óptico completo)' : 'Calidad SD fluida activa'}
+            >
+              <Sparkles className={`w-4 h-4 text-sky-400 shrink-0 ${isSwitchingQuality ? 'animate-spin' : ''}`} />
+              <span className="font-mono text-xs font-bold">{serverControlsQuality ? 'AUTO' : streamQuality === '1' ? 'HD' : 'SD'}</span>
+            </button>
+          )}
 
           {/* Botón 2: Audio */}
           <button
