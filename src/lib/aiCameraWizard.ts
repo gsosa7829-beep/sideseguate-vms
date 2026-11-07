@@ -78,12 +78,14 @@ const KNOWN_SERIAL_BY_CODE: Record<string, string> = {
   LBNZYU: 'FF9363270',
 };
 
+import { getAccessToken } from './ezvizAuth';
+
 const KNOWN_CODE_BY_SERIAL: Record<string, string> = {
   F31700438: 'HELGDM',
   FF9363270: 'LBNZYU',
 };
 
-const EZVIZ_ACCESS_TOKEN = 'at.b1exbqau80l85aox2k6x3487cw0byh2s-51eyws3m7n-0ii5ze3-uuk9pufag';
+const getEzvizAccessToken = () => getAccessToken();
 
 export function getStoredGeminiApiKey(): string {
   try {
@@ -172,7 +174,7 @@ export async function runLiveSystemDiagnostics(cameras: Camera[]): Promise<LiveD
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         body: new URLSearchParams({
-          accessToken: EZVIZ_ACCESS_TOKEN,
+          accessToken: getEzvizAccessToken(),
           deviceSerial: serial,
           channelNo: String(ch),
           protocol: '2',
@@ -792,7 +794,7 @@ export async function probeAndDiscoverChannels(
           method: 'POST',
           headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
           body: new URLSearchParams({
-            accessToken: EZVIZ_ACCESS_TOKEN,
+            accessToken: getEzvizAccessToken(),
             deviceSerial: intent.deviceSerial,
             channelNo: String(ch),
             protocol: '2',

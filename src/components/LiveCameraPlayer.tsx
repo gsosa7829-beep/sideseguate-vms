@@ -4,7 +4,8 @@ import { Camera } from '../lib/types';
 import { ivmsLiveBridge, computeIvmsChannelSourceRect } from '../lib/ivmsLiveBridge';
 import { cloudP2pClient } from '../lib/cloudP2pClient';
 import { getLiveResumePosition, getPlaybackEnvironment } from '../lib/livePlayback';
-import { isPlaceholderStreamUrl } from '../lib/streamGateway';
+import { isPlaceholderStreamUrl, loadGateway, resolveStreamUrls } from '../lib/streamGateway';
+import { getAccessToken, refreshEzvizToken, subscribeEzvizAuth, hasEzvizCredentials } from '../lib/ezvizAuth';
 import { 
   Maximize2,
   Sliders,
@@ -37,8 +38,6 @@ interface LiveCameraPlayerProps {
   isCompact?: boolean;
   autoPlay?: boolean;
 }
-
-const EZVIZ_ACCESS_TOKEN = 'at.b1exbqau80l85aox2k6x3487cw0byh2s-51eyws3m7n-0ii5ze3-uuk9pufag';
 
 // Persistencia en LocalStorage para arranque instantáneo (0ms) sin pantalla negra al cambiar entre secciones
 const HLS_CACHE_STORAGE_KEY = 'sideseguate_ezviz_hls_cache_v3';
@@ -130,13 +129,14 @@ export async function fetchEzvizLiveHls(
     const timeout = setTimeout(() => controller.abort(), 12_000);
     try {
       const validateCode = explicitCode || (devSerial === 'FF9363270' ? 'LBNZYU' : 'HELGDM');
-      const queryStream = async () => {
+      const queryStream = async (overrideToken?: string) => {
+        const activeToken = overrideToken || getAccessToken();
         const res = await fetch('https://iusopen.ezvizlife.com/api/lapp/v2/live/address/get', {
           method: 'POST',
           signal: controller.signal,
           headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
           body: new URLSearchParams({
-            accessToken: EZVIZ_ACCESS_TOKEN,
+            accessToken: activeToken,
             deviceSerial: devSerial,
             channelNo: String(channel),
             protocol: '2', // HLS
@@ -148,7 +148,15 @@ export async function fetchEzvizLiveHls(
         return res.ok ? await res.json() : null;
       };
 
-      const data = await queryStream();
+      let data = await queryStream();
+
+      // Auto-renovación si el token venció (10002) y hay AppKey / AppSecret configurados
+      if (data?.code === '10002' && hasEzvizCredentials()) {
+        const renewed = await refreshEzvizToken();
+        if (renewed.success && renewed.accessToken) {
+          data = await queryStream(renewed.accessToken);
+        }
+      }
 
       if (data?.code === '200' && data.data?.url) {
         const expireMs = data.data.expireTime ? new Date(data.data.expireTime).getTime() : now + 12 * 3600 * 1000;
@@ -161,7 +169,8 @@ export async function fetchEzvizLiveHls(
       savePersistedHlsCache(ezvizHlsCache);
 
       const isOffline = data?.code === '20007' || data?.msg?.includes('offline') || false;
-      return { url: null, isOffline, error: data?.msg || 'Error al obtener flujo' };
+      const errorDetail = data?.code === '10002' ? 'Token EZVIZ Cloud vencido' : (data?.msg || 'Error al obtener flujo');
+      return { url: null, isOffline, error: errorDetail };
     } catch (err) {
       console.warn('Error al obtener stream HLS de Ezviz:', err);
       delete ezvizHlsCache[cacheKey];
@@ -206,7 +215,7 @@ async function fetchEzvizLiveCapture(channel: number, serial: string): Promise<s
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: new URLSearchParams({
-        accessToken: EZVIZ_ACCESS_TOKEN,
+        accessToken: getAccessToken(),
         deviceSerial: devSerial,
         channelNo: String(channel),
       }),
@@ -405,20 +414,18 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
     return true;
   }, [preferMobileHls, tryEzOnMobile, useHlsFallback]);
 
-  // Reproductor cloud de ultra-baja latencia (EZUIKit / WebAssembly / WSS) para todas las cámaras Hikvision / HiLook (F31700438 y FF9363270)
-  // Conexión directa a 25 FPS sin depender de puertos HLS de terceros propensos a TLS renegotiation.
+  // Separación definitiva por naturaleza de cámaras:
+  // A. DVR Calle del Cementerio (F31700438): Conexión directa MediaMTX / RTSP local (CERO TOKENS, apertura en 0.3s)
+  // B. Cámara 4G Ocós (FF9363270): Conexión Cloud EZVIZ / EZopen con Auto-Refresh 24/7
   const isEzopenDevice = Boolean(
-    !useHlsFallback && (!preferMobileHls || tryEzOnMobile) && (
-      (preferMobileHls && tryEzOnMobile) ||
+    !useHlsFallback && (
       is4gCamera ||
-      camera.deviceSerial === 'F31700438' ||
       camera.deviceSerial === 'FF9363270' ||
-      camera.notes?.includes('F31700438') ||
       camera.notes?.includes('FF9363270') ||
-      camera.id?.includes('cementerio') ||
       camera.id?.includes('ocos') ||
-      camera.codec === 'H.265' ||
-      (camera.deviceSerial && camera.verificationCode)
+      (tryEzOnMobile && preferMobileHls) ||
+      (!isCementerioCamera && camera.codec === 'H.265') ||
+      (!isCementerioCamera && camera.deviceSerial && camera.verificationCode)
     )
   );
   const ezuikitContainerId = useRef('ezuikit-live-' + Math.random().toString(36).substring(2, 9)).current;
@@ -430,6 +437,17 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
   }, [ezuikitLiveReady]);
   const [ivmsBridgeActive, setIvmsBridgeActive] = useState(() => ivmsLiveBridge.isActive());
   const [ivmsCropConfig, setIvmsCropConfig] = useState(() => ivmsLiveBridge.getCropConfig());
+
+  // Suscripción reactiva a cambios/renovación del Token EZVIZ
+  useEffect(() => {
+    return subscribeEzvizAuth(() => {
+      for (const k of Object.keys(ezvizHlsCache)) {
+        delete ezvizHlsCache[k];
+      }
+      savePersistedHlsCache(ezvizHlsCache);
+      setReconnectVersion((v) => v + 1);
+    });
+  }, []);
 
   // Estados de reconexión rápida y auto-recuperación 24/7
   const [isReconnecting, setIsReconnecting] = useState(false);
@@ -456,9 +474,17 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
     !/sideseguate-[a-z0-9-]*\.trycloudflare\.com|xxxx\.trycloudflare\.com/i.test(configuredHls)
     ? configuredHls
     : null;
+
+  const currentGateway = loadGateway();
+  const gatewayStream = resolveStreamUrls(camera, currentGateway);
+  // Para el DVR Calle del Cementerio, el flujo directo por MediaMTX / RTSP tiene prioridad absoluta
+  const cementerioDirectHls = isCementerioCamera
+    ? (directHlsUrl || (gatewayStream.hlsUrl && !isPlaceholderStreamUrl(gatewayStream.hlsUrl) ? gatewayStream.hlsUrl : (!isMobile ? gatewayStream.hlsUrl : null)))
+    : null;
+
   const hlsSourceKey = [camera.id, deviceSerial, channel, streamQuality, reconnectVersion].join(':');
   const liveHlsUrl = canLoadVideo && !isEzopenDevice
-    ? directHlsUrl || (resolvedHls?.key === hlsSourceKey ? resolvedHls.url : null)
+    ? cementerioDirectHls || directHlsUrl || (resolvedHls?.key === hlsSourceKey ? resolvedHls.url : null)
     : null;
 
   const pause4gStreamForDataSaving = useCallback(() => {
@@ -671,7 +697,7 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
 
         const player = new EZUIKit.EZUIKitPlayer({
           id: ezuikitContainerId,
-          accessToken: EZVIZ_ACCESS_TOKEN,
+          accessToken: getAccessToken(),
           url: ezopenUrl,
           env: { domain: 'https://iusopen.ezvizlife.com' },
           width: width,

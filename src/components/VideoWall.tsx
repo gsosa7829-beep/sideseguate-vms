@@ -2,7 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { Camera } from '../lib/types';
 import { LiveCameraPlayer, prewarmHikvisionCameras } from './LiveCameraPlayer';
 import { cloudP2pClient } from '../lib/cloudP2pClient';
-import { LayoutGrid, Square, Plus, Eye, Link2, Grid3X3, Sparkles, Bot, ArrowLeft, RefreshCw } from 'lucide-react';
+import { getTokenHealth, subscribeEzvizAuth, refreshEzvizToken, TokenHealthInfo } from '../lib/ezvizAuth';
+import { LayoutGrid, Square, Plus, Eye, Link2, Grid3X3, Sparkles, Bot, ArrowLeft, RefreshCw, Key, AlertTriangle } from 'lucide-react';
 
 interface VideoWallProps {
   cameras: Camera[];
@@ -27,6 +28,24 @@ export const VideoWall: React.FC<VideoWallProps> = ({
   const [filterType, setFilterType] = useState<string>('all');
   const [serverOnline, setServerOnline] = useState(false);
   const [reconnectKey, setReconnectKey] = useState(0);
+  const [tokenHealth, setTokenHealth] = useState<TokenHealthInfo>(() => getTokenHealth());
+  const [isRenewingToken, setIsRenewingToken] = useState(false);
+
+  useEffect(() => {
+    return subscribeEzvizAuth(() => {
+      setTokenHealth(getTokenHealth());
+    });
+  }, []);
+
+  const handleQuickRenew = async () => {
+    setIsRenewingToken(true);
+    try {
+      await refreshEzvizToken();
+      setTokenHealth(getTokenHealth());
+    } finally {
+      setIsRenewingToken(false);
+    }
+  };
 
   useEffect(() => {
     return cloudP2pClient.subscribe((state) => setServerOnline(Boolean(state.online)));
@@ -58,6 +77,47 @@ export const VideoWall: React.FC<VideoWallProps> = ({
 
   return (
     <div className="video-wall space-y-3 md:space-y-5">
+      {/* ⚠️ ALERTA TEMPRANA DEL TOKEN DE LA NUBE (CÁMARA 4G OCÓS) */}
+      {(tokenHealth.status === 'expiring' || tokenHealth.status === 'expired') && (
+        <div
+          className={`px-4 py-2.5 rounded-xl border flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 animate-in fade-in slide-in-from-top-2 ${
+            tokenHealth.status === 'expired'
+              ? 'bg-red-950/80 border-red-500/70 text-red-200'
+              : 'bg-amber-950/80 border-amber-500/70 text-amber-200'
+          }`}
+        >
+          <div className="flex items-center gap-2.5 min-w-0">
+            <AlertTriangle className={`w-4 h-4 shrink-0 ${tokenHealth.status === 'expired' ? 'text-red-400' : 'text-amber-400'}`} />
+            <div className="text-xs">
+              <strong className="font-bold">
+                {tokenHealth.status === 'expired' ? '🔴 Token EZVIZ Cloud Vencido:' : '🟡 Alerta Temprana de Token Cloud:'}
+              </strong>{' '}
+              <span>
+                {tokenHealth.status === 'expired'
+                  ? 'La cámara 4G de Ocós requiere renovación para transmitir video.'
+                  : `El token vence en menos de ${tokenHealth.hoursRemaining} horas.`}
+              </span>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 shrink-0 w-full sm:w-auto">
+            <button
+              type="button"
+              disabled={isRenewingToken}
+              onClick={handleQuickRenew}
+              className={`w-full sm:w-auto px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-sm active:scale-95 ${
+                tokenHealth.status === 'expired'
+                  ? 'bg-red-600 hover:bg-red-500 text-white'
+                  : 'bg-amber-500 hover:bg-amber-400 text-neutral-950'
+              }`}
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${isRenewingToken ? 'animate-spin' : ''}`} />
+              <span>{isRenewingToken ? 'Renovando…' : '⚡ Renovar Token en 1 Clic'}</span>
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Estado del servidor + Acceso directo al Asistente IA Setup Wizard */}
       <div
         className={`flex flex-wrap items-center justify-between gap-x-3 gap-y-2 rounded-xl border px-3.5 py-2.5 ${

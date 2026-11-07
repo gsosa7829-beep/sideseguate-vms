@@ -27,6 +27,7 @@ import {
 import { formatExpirationText, createFlashTemporaryLink } from './lib/tokenSecurity';
 import { generateMediaMtxYaml } from './lib/mediaMtxGenerator';
 import { applyTunnelToCameras, formatBuyerAccessNotification } from './lib/pcLauncherGenerator';
+import { initEzvizAutoRefreshWatchdog } from './lib/ezvizAuth';
 import { LiveCameraPlayer } from './components/LiveCameraPlayer';
 const ClientLivePortal = lazy(() =>
   import('./components/ClientLivePortal').then((m) => ({ default: m.ClientLivePortal }))
@@ -166,6 +167,10 @@ function AppShell() {
     return 'sapphire';
   });
   const isOnline = useOnlineStatus();
+
+  useEffect(() => {
+    initEzvizAutoRefreshWatchdog();
+  }, []);
 
   useEffect(() => {
     document.documentElement.setAttribute('data-ui-theme', uiTheme);

@@ -96,10 +96,10 @@ export const INITIAL_CAMERAS: Camera[] = [
     password: '',
     verificationCode: 'HELGDM',
     channel: 1,
-    streamType: 'sub',
-    rtspUrl: 'rtsp://admin:HELGDM@192.168.1.115:554/Streaming/Channels/102',
-    hlsStreamUrl: '',
-    webrtcUrl: '',
+    streamType: 'main',
+    rtspUrl: 'rtsp://admin:HELGDM@192.168.1.115:554/Streaming/Channels/101',
+    hlsStreamUrl: 'http://localhost:8888/cam_cam-hilo_c_mara_1___port_n_calle_del_cementerio__ch1_/index.m3u8',
+    webrtcUrl: 'http://localhost:8889/cam_cam-hilo_c_mara_1___port_n_calle_del_cementerio__ch1_/whep',
     status: 'online',
     fps: 25,
     resolution: '1920x1080 (1080p FHD)',
@@ -109,7 +109,7 @@ export const INITIAL_CAMERAS: Camera[] = [
     ptzSupported: true,
     nightVision: false,
     deviceSerial: 'F31700438',
-    notes: 'DVR HiLook F31700438 | P2P Ezviz / Hik-Connect | Canal 1 Activo en vivo'
+    notes: 'DVR HiLook F31700438 | Conexión Directa MediaMTX / RTSP (Cero Tokens) | Canal 1 Activo en vivo'
   },
   {
     id: 'cam-hilook-ch2',
@@ -123,10 +123,10 @@ export const INITIAL_CAMERAS: Camera[] = [
     password: '',
     verificationCode: 'HELGDM',
     channel: 2,
-    streamType: 'sub',
-    rtspUrl: 'rtsp://admin:HELGDM@192.168.1.115:554/Streaming/Channels/202',
-    hlsStreamUrl: '',
-    webrtcUrl: '',
+    streamType: 'main',
+    rtspUrl: 'rtsp://admin:HELGDM@192.168.1.115:554/Streaming/Channels/201',
+    hlsStreamUrl: 'http://localhost:8888/cam_cam-hilo_c_mara_2___calle_del_cementerio__ch2_/index.m3u8',
+    webrtcUrl: 'http://localhost:8889/cam_cam-hilo_c_mara_2___calle_del_cementerio__ch2_/whep',
     status: 'online',
     fps: 25,
     resolution: '1920x1080 (1080p FHD)',
@@ -136,7 +136,7 @@ export const INITIAL_CAMERAS: Camera[] = [
     ptzSupported: true,
     nightVision: false,
     deviceSerial: 'F31700438',
-    notes: 'DVR HiLook F31700438 | P2P Ezviz / Hik-Connect | Canal 2 Activo en vivo'
+    notes: 'DVR HiLook F31700438 | Conexión Directa MediaMTX / RTSP (Cero Tokens) | Canal 2 Activo en vivo'
   }
 ];
 
