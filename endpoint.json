@@ -1,0 +1,23 @@
+{
+  "online": true,
+  "mode": "hilook-ezviz-cloud-p2p",
+  "serial": "F31700438",
+  "model": "HiLook TurboHD (S04TURBOG2/A)",
+  "encryption": "HELGDM",
+  "tunnelUrl": "https://proyectos-de-camaras.surge.sh",
+  "updatedAt": "2026-11-07T05:49:53.025Z",
+  "channels": {
+    "1": {
+      "connected": true,
+      "frameBytes": 75551,
+      "totalFrames": 1,
+      "lastFrameAgeMs": 50
+    },
+    "2": {
+      "connected": true,
+      "frameBytes": 67067,
+      "totalFrames": 1,
+      "lastFrameAgeMs": 50
+    }
+  }
+}
