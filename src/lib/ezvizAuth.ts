@@ -30,7 +30,7 @@ export interface TokenHealthInfo {
 }
 
 export const EZVIZ_AUTH_STORAGE_KEY = 'sideseguate_ezviz_auth_v2';
-export const DEFAULT_FALLBACK_TOKEN = 'at.b1exbqau80l85aox2k6x3487cw0byh2s-51eyws3m7n-0ii5ze3-uuk9pufag';
+export const DEFAULT_FALLBACK_TOKEN = 'at.1pzo6ehydxokb80xcx3rdhk7ah6z025w-8z7cnhbby8-1kgt1vp-j2bvrfxms';
 
 // Configuración inicial por defecto con vigencia activa para no resetear sesiones limpias
 const INITIAL_CONFIG: EzvizAuthConfig = {
@@ -38,7 +38,7 @@ const INITIAL_CONFIG: EzvizAuthConfig = {
   appSecret: '',
   accessToken: DEFAULT_FALLBACK_TOKEN,
   expireTime: Date.now() + 7 * 86400 * 1000,
-  lastRefreshAt: undefined,
+  lastRefreshAt: Date.now(),
   lastError: undefined,
   autoRefresh: true,
 };
@@ -54,14 +54,20 @@ export function loadEzvizAuth(): EzvizAuthConfig {
       const raw = localStorage.getItem(EZVIZ_AUTH_STORAGE_KEY);
       if (raw) {
         const parsed = JSON.parse(raw);
+        let activeToken = String(parsed.accessToken || DEFAULT_FALLBACK_TOKEN);
+        if (activeToken === 'at.b1exbqau80l85aox2k6x3487cw0byh2s-51eyws3m7n-0ii5ze3-uuk9pufag' || !activeToken) {
+          activeToken = DEFAULT_FALLBACK_TOKEN;
+        }
         const rawExpireTime = typeof parsed.expireTime === 'number' ? parsed.expireTime : 0;
         cachedConfig = {
           appKey: String(parsed.appKey || ''),
           appSecret: String(parsed.appSecret || ''),
-          accessToken: String(parsed.accessToken || DEFAULT_FALLBACK_TOKEN),
-          expireTime: rawExpireTime > 0 ? rawExpireTime : Date.now() + 7 * 86400 * 1000,
-          lastRefreshAt: parsed.lastRefreshAt,
-          lastError: parsed.lastError,
+          accessToken: activeToken,
+          expireTime: rawExpireTime > Date.now() && activeToken !== DEFAULT_FALLBACK_TOKEN
+            ? rawExpireTime
+            : Date.now() + 7 * 86400 * 1000,
+          lastRefreshAt: parsed.lastRefreshAt || Date.now(),
+          lastError: undefined,
           autoRefresh: parsed.autoRefresh !== false,
         };
         return cachedConfig;
@@ -108,8 +114,11 @@ export function syncEzvizAuthFromRemote(remote: {
   appSecret?: string;
 }): void {
   if (!remote || !remote.accessToken) return;
-  const cleanToken = remote.accessToken.trim();
+  let cleanToken = remote.accessToken.trim();
   if (!cleanToken) return;
+  if (cleanToken === 'at.b1exbqau80l85aox2k6x3487cw0byh2s-51eyws3m7n-0ii5ze3-uuk9pufag') {
+    cleanToken = DEFAULT_FALLBACK_TOKEN;
+  }
 
   const current = loadEzvizAuth();
   const remoteExpire = typeof remote.expireTime === 'number' && remote.expireTime > 0
@@ -136,18 +145,28 @@ export function extractEzvizTokenFromCamera(
   cam?: { cloudId?: string; notes?: string } | null
 ): { accessToken: string; expireTime?: number } | null {
   if (!cam) return null;
+  let token: string | undefined;
+  let expireTime: number | undefined;
+
   if (cam.notes && cam.notes.includes('[EZVIZ_TOKEN:')) {
     const match = cam.notes.match(/\[EZVIZ_TOKEN:([^|\]]+)(?:\|(\d+))?\]/);
     if (match && match[1]?.startsWith('at.')) {
-      return {
-        accessToken: match[1].trim(),
-        expireTime: match[2] ? Number(match[2]) : undefined,
-      };
+      token = match[1].trim();
+      expireTime = match[2] ? Number(match[2]) : undefined;
     }
   }
-  if (cam.cloudId && cam.cloudId.startsWith('at.')) {
+  if (!token && cam.cloudId && cam.cloudId.startsWith('at.')) {
+    token = cam.cloudId.trim();
+  }
+
+  if (token) {
+    if (token === 'at.b1exbqau80l85aox2k6x3487cw0byh2s-51eyws3m7n-0ii5ze3-uuk9pufag') {
+      token = DEFAULT_FALLBACK_TOKEN;
+      expireTime = Date.now() + 7 * 86400 * 1000;
+    }
     return {
-      accessToken: cam.cloudId.trim(),
+      accessToken: token,
+      expireTime,
     };
   }
   return null;

@@ -1,7 +1,7 @@
 import http from 'node:http';
 
 const PORT = 8890;
-const EZ_TOKEN = 'at.b1exbqau80l85aox2k6x3487cw0byh2s-51eyws3m7n-0ii5ze3-uuk9pufag';
+const EZ_TOKEN = 'at.1pzo6ehydxokb80xcx3rdhk7ah6z025w-8z7cnhbby8-1kgt1vp-j2bvrfxms';
 const SERIAL = 'F31700438';
 
 let lastFrameCh1 = null;

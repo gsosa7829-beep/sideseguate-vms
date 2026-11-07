@@ -4,7 +4,7 @@ import { Camera } from '../lib/types';
 import { ivmsLiveBridge, computeIvmsChannelSourceRect } from '../lib/ivmsLiveBridge';
 import { cloudP2pClient } from '../lib/cloudP2pClient';
 import { getLiveResumePosition, getPlaybackEnvironment } from '../lib/livePlayback';
-import { isPlaceholderStreamUrl, loadGateway, resolveStreamUrls } from '../lib/streamGateway';
+import { isPlaceholderStreamUrl, loadGateway, resolveStreamUrls, isPublicGateway } from '../lib/streamGateway';
 import { getAccessToken, refreshEzvizToken, subscribeEzvizAuth, hasEzvizCredentials } from '../lib/ezvizAuth';
 import { 
   Maximize2,
@@ -93,8 +93,8 @@ export function prewarmHikvisionCameras() {
   if (mobile) return;
 
   prewarmStarted = true;
-  // Pre-calentar solo Ocós (FF9363270) que sí usa la nube EZVIZ (Calle del Cementerio usa MediaMTX local, cero tokens)
   void fetchEzvizLiveHls(1, 'FF9363270', '2');
+  void fetchEzvizLiveHls(1, 'F31700438', '1');
 }
 
 export async function fetchEzvizLiveHls(
@@ -410,43 +410,6 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
     return true;
   }, [preferMobileHls, tryEzOnMobile, useHlsFallback]);
 
-  // Separación definitiva por naturaleza de cámaras:
-  // A. DVR Calle del Cementerio (F31700438): Conexión directa MediaMTX / RTSP local (CERO TOKENS, apertura en 0.3s)
-  // B. Cámara 4G Ocós (FF9363270): Conexión Cloud EZVIZ / EZopen con Auto-Refresh 24/7
-  const isEzopenDevice = Boolean(
-    !isCementerioCamera && !useHlsFallback && (
-      is4gCamera ||
-      camera.deviceSerial === 'FF9363270' ||
-      camera.notes?.includes('FF9363270') ||
-      camera.id?.includes('ocos') ||
-      camera.codec === 'H.265' ||
-      (camera.deviceSerial && camera.verificationCode)
-    )
-  );
-  const ezuikitContainerId = useRef('ezuikit-live-' + Math.random().toString(36).substring(2, 9)).current;
-  const ezPlayerRef = useRef<any>(null);
-  const [ezuikitLiveReady, setEzuikitLiveReady] = useState(false);
-  const ezuikitLiveReadyRef = useRef(false);
-  useEffect(() => {
-    ezuikitLiveReadyRef.current = ezuikitLiveReady;
-  }, [ezuikitLiveReady]);
-  const [ivmsBridgeActive, setIvmsBridgeActive] = useState(() => ivmsLiveBridge.isActive());
-  const [ivmsCropConfig, setIvmsCropConfig] = useState(() => ivmsLiveBridge.getCropConfig());
-
-  // Suscripción reactiva a cambios/renovación del Token EZVIZ
-  useEffect(() => {
-    return subscribeEzvizAuth(() => {
-      for (const k of Object.keys(ezvizHlsCache)) {
-        delete ezvizHlsCache[k];
-      }
-      savePersistedHlsCache(ezvizHlsCache);
-      setReconnectVersion((v) => v + 1);
-    });
-  }, []);
-
-  // Estados de reconexión rápida y auto-recuperación 24/7
-  const [isReconnecting, setIsReconnecting] = useState(false);
-
   // =========================================================================
   // MODO ULTRA-AHORRO DE DATOS SIM 4G (PROYECTO OCOS - FF9363270)
   // - En Mosaico (isCompact): inicia en Espera (0 KB/s) bajo demanda para no gastar datos al abrir el panel.
@@ -472,10 +435,53 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
 
   const currentGateway = loadGateway();
   const gatewayStream = resolveStreamUrls(camera, currentGateway);
-  // Para el DVR Calle del Cementerio, el flujo directo por MediaMTX / RTSP tiene prioridad absoluta
-  const cementerioDirectHls = isCementerioCamera
-    ? (directHlsUrl || (gatewayStream.hlsUrl && !isPlaceholderStreamUrl(gatewayStream.hlsUrl) ? gatewayStream.hlsUrl : gatewayStream.hlsUrl))
+  const hasRealPublicHls = Boolean(
+    (directHlsUrl && directHlsUrl.startsWith('https://')) ||
+    (gatewayStream.hlsUrl && isPublicGateway(gatewayStream.hlsUrl))
+  );
+
+  // Ambas cámaras transmiten vía EZopen (WASM Player) si no hay un túnel público HLS activo
+  const isEzopenDevice = Boolean(
+    !useHlsFallback && !hasRealPublicHls && (
+      camera.deviceSerial === 'FF9363270' ||
+      camera.deviceSerial === 'F31700438' ||
+      camera.notes?.includes('FF9363270') ||
+      camera.notes?.includes('F31700438') ||
+      camera.codec === 'H.265' ||
+      camera.id?.includes('ocos') ||
+      camera.id?.includes('cementerio') ||
+      (camera.deviceSerial && camera.verificationCode)
+    )
+  );
+
+  // Para el DVR Calle del Cementerio, el flujo directo HLS solo se usa si hay un túnel público real
+  const cementerioDirectHls = isCementerioCamera && hasRealPublicHls
+    ? (directHlsUrl || gatewayStream.hlsUrl)
     : null;
+
+  const ezuikitContainerId = useRef('ezuikit-live-' + Math.random().toString(36).substring(2, 9)).current;
+  const ezPlayerRef = useRef<any>(null);
+  const [ezuikitLiveReady, setEzuikitLiveReady] = useState(false);
+  const ezuikitLiveReadyRef = useRef(false);
+  useEffect(() => {
+    ezuikitLiveReadyRef.current = ezuikitLiveReady;
+  }, [ezuikitLiveReady]);
+  const [ivmsBridgeActive, setIvmsBridgeActive] = useState(() => ivmsLiveBridge.isActive());
+  const [ivmsCropConfig, setIvmsCropConfig] = useState(() => ivmsLiveBridge.getCropConfig());
+
+  // Suscripción reactiva a cambios/renovación del Token EZVIZ
+  useEffect(() => {
+    return subscribeEzvizAuth(() => {
+      for (const k of Object.keys(ezvizHlsCache)) {
+        delete ezvizHlsCache[k];
+      }
+      savePersistedHlsCache(ezvizHlsCache);
+      setReconnectVersion((v) => v + 1);
+    });
+  }, []);
+
+  // Estados de reconexión rápida y auto-recuperación 24/7
+  const [isReconnecting, setIsReconnecting] = useState(false);
 
   const hlsSourceKey = [camera.id, deviceSerial, channel, streamQuality, reconnectVersion].join(':');
   const liveHlsUrl = canLoadVideo && !isEzopenDevice
@@ -592,11 +598,13 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
     reconnectDelay.current = 2_000;
     stallCountRef.current = 0;
     setIsReconnecting(true);
-    setIsOffline(false);
+    if (userInitiated) {
+      setIsOffline(false);
+    }
     setReconnectVersion((version) => version + 1);
   }, [canLoadInViewport, is4gCamera, resume4gStream]);
 
-  // Auto-recuperación activa 24/7 cuando el DVR pierde señal
+  // Auto-recuperación activa cuando el DVR pierde señal
   useEffect(() => {
     if (!isOffline || !canLoadVideo) return;
     if (is4gCamera && is4gEcoPausedRef.current) return;
@@ -604,7 +612,7 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
     const recoveryTimer = setInterval(() => {
       if (document.hidden) return;
       handleForceReconnect(false);
-    }, 4500);
+    }, 12_000);
 
     return () => clearInterval(recoveryTimer);
   }, [isOffline, canLoadVideo, is4gCamera, handleForceReconnect]);
@@ -847,26 +855,23 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
         }
       }
 
-      // 2. Para cámara 4G Ocós (FF9363270): esperar 2.8s para dar prioridad al stream HLS/EZopen.
-      // Calle del Cementerio NO usa nube EZVIZ (cero tokens, directo MediaMTX / RTSP).
-      if (!isCementerioCamera) {
-        timer = setTimeout(async () => {
-          if (!active || hlsLiveReadyRef.current || ezuikitLiveReadyRef.current) return;
-          const livePicUrl = await fetchEzvizLiveCapture(ch, deviceSerial || 'FF9363270');
-          if (livePicUrl && active && !hlsLiveReadyRef.current && !ezuikitLiveReadyRef.current) {
-            const img = new Image();
-            img.crossOrigin = 'anonymous';
-            img.onload = () => {
-              if (!active) return;
-              nativeP2pImgRef.current = img;
-              setNativeP2pReady(true);
-              setIsOffline(false);
-            };
-            const sep = livePicUrl.includes('?') ? '&' : '?';
-            img.src = `${livePicUrl}${sep}_t=${Date.now()}`;
-          }
-        }, 2800);
-      }
+      // 2. Respaldo de captura rápida mientras el reproductor inicializa el flujo de video
+      timer = setTimeout(async () => {
+        if (!active || hlsLiveReadyRef.current || ezuikitLiveReadyRef.current) return;
+        const livePicUrl = await fetchEzvizLiveCapture(ch, deviceSerial || (is4gCamera ? 'FF9363270' : 'F31700438'));
+        if (livePicUrl && active && !hlsLiveReadyRef.current && !ezuikitLiveReadyRef.current) {
+          const img = new Image();
+          img.crossOrigin = 'anonymous';
+          img.onload = () => {
+            if (!active) return;
+            nativeP2pImgRef.current = img;
+            setNativeP2pReady(true);
+            setIsOffline(false);
+          };
+          const sep = livePicUrl.includes('?') ? '&' : '?';
+          img.src = `${livePicUrl}${sep}_t=${Date.now()}`;
+        }
+      }, 2500);
     };
 
     pollLocalOrDeferredPoster();

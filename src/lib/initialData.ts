@@ -82,8 +82,8 @@ export const INITIAL_CAMERAS: Camera[] = [
     ptzSupported: false,
     nightVision: false,
     deviceSerial: 'FF9363270',
-    cloudId: 'at.b1exbqau80l85aox2k6x3487cw0byh2s-51eyws3m7n-0ii5ze3-uuk9pufag',
-    notes: 'Cámara 4G Hikvision FF9363270 | HiLookVision: 5nctiv | Código: LBNZYU | Modo Ultra-Ahorro Datos 4G Activo'
+    cloudId: 'at.1pzo6ehydxokb80xcx3rdhk7ah6z025w-8z7cnhbby8-1kgt1vp-j2bvrfxms',
+    notes: 'Cámara 4G Hikvision FF9363270 | HiLookVision: 5nctiv | Código: LBNZYU | Modo Ultra-Ahorro Datos 4G Activo [EZVIZ_TOKEN:at.1pzo6ehydxokb80xcx3rdhk7ah6z025w-8z7cnhbby8-1kgt1vp-j2bvrfxms|1794638047000]'
   },
   {
     id: 'cam-hilook-ch1',
@@ -99,8 +99,8 @@ export const INITIAL_CAMERAS: Camera[] = [
     channel: 1,
     streamType: 'main',
     rtspUrl: 'rtsp://admin:HELGDM@192.168.1.115:554/Streaming/Channels/101',
-    hlsStreamUrl: 'http://localhost:8888/cam_cam-hilo_c_mara_1___port_n_calle_del_cementerio__ch1_/index.m3u8',
-    webrtcUrl: 'http://localhost:8889/cam_cam-hilo_c_mara_1___port_n_calle_del_cementerio__ch1_/whep',
+    hlsStreamUrl: '',
+    webrtcUrl: '',
     status: 'online',
     fps: 25,
     resolution: '1920x1080 (1080p FHD)',
@@ -110,7 +110,8 @@ export const INITIAL_CAMERAS: Camera[] = [
     ptzSupported: true,
     nightVision: false,
     deviceSerial: 'F31700438',
-    notes: 'DVR HiLook F31700438 | Conexión Directa MediaMTX / RTSP (Cero Tokens) | Canal 1 Activo en vivo'
+    cloudId: 'at.1pzo6ehydxokb80xcx3rdhk7ah6z025w-8z7cnhbby8-1kgt1vp-j2bvrfxms',
+    notes: 'DVR HiLook F31700438 | HiLookVision P2P / EZopen Directo | Canal 1 Activo en vivo'
   },
   {
     id: 'cam-hilook-ch2',
@@ -126,8 +127,8 @@ export const INITIAL_CAMERAS: Camera[] = [
     channel: 2,
     streamType: 'main',
     rtspUrl: 'rtsp://admin:HELGDM@192.168.1.115:554/Streaming/Channels/201',
-    hlsStreamUrl: 'http://localhost:8888/cam_cam-hilo_c_mara_2___calle_del_cementerio__ch2_/index.m3u8',
-    webrtcUrl: 'http://localhost:8889/cam_cam-hilo_c_mara_2___calle_del_cementerio__ch2_/whep',
+    hlsStreamUrl: '',
+    webrtcUrl: '',
     status: 'online',
     fps: 25,
     resolution: '1920x1080 (1080p FHD)',
@@ -137,7 +138,8 @@ export const INITIAL_CAMERAS: Camera[] = [
     ptzSupported: true,
     nightVision: false,
     deviceSerial: 'F31700438',
-    notes: 'DVR HiLook F31700438 | Conexión Directa MediaMTX / RTSP (Cero Tokens) | Canal 2 Activo en vivo'
+    cloudId: 'at.1pzo6ehydxokb80xcx3rdhk7ah6z025w-8z7cnhbby8-1kgt1vp-j2bvrfxms',
+    notes: 'DVR HiLook F31700438 | HiLookVision P2P / EZopen Directo | Canal 2 Activo en vivo'
   }
 ];
 
