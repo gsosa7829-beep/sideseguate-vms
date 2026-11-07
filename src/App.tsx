@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, lazy, Suspense } from 'react';
 import { Camera, Project, ShareLink, AccessLog, NavigationTab } from './lib/types';
 import { storage } from './lib/storage';
-import { INITIAL_CAMERAS, isLegacyDemoCamera } from './lib/initialData';
+import { INITIAL_PROJECTS, INITIAL_SHARE_LINKS, INITIAL_CAMERAS, isLegacyDemoCamera } from './lib/initialData';
 import {
   upsertCloudProject,
   upsertCloudCamera,
@@ -890,8 +890,20 @@ function AppShell() {
 
   // If in Client Portal View directly (client opening private token link)
   if (clientTokenView) {
-    const matchedShareLink = shareLinks.find((l) => l.token === clientTokenView) || null;
-    const matchedProject = projects.find((p) => p.id === matchedShareLink?.projectId);
+    let matchedShareLink = shareLinks.find((l) => l.token === clientTokenView) || null;
+    if (!matchedShareLink) {
+      matchedShareLink = INITIAL_SHARE_LINKS.find((l) => l.token === clientTokenView) || null;
+    }
+    if (!matchedShareLink) {
+      const lower = clientTokenView.toLowerCase();
+      if (lower.includes('ocos') || lower === 'ff9363270' || lower === 'cam-ocos-ch1') {
+        matchedShareLink = INITIAL_SHARE_LINKS.find((l) => l.id === 'link-proyecto-ocos') || null;
+      } else if (lower.includes('cementerio') || lower === 'f31700438' || lower.includes('hilook')) {
+        matchedShareLink = INITIAL_SHARE_LINKS.find((l) => l.id === 'link-calle-del-cementerio') || null;
+      }
+    }
+    const matchedProject = projects.find((p) => p.id === matchedShareLink?.projectId) ||
+      INITIAL_PROJECTS.find((p) => p.id === matchedShareLink?.projectId);
     const isMobileSimulatorIframe = typeof window !== 'undefined' && window.location.search.includes('preview=mobile');
     const isOwner = !isMobileSimulatorIframe && adminAuthStorage.isAuthorizedOwnerDevice();
 

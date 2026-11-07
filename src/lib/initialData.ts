@@ -143,7 +143,42 @@ export const INITIAL_CAMERAS: Camera[] = [
   }
 ];
 
-export const INITIAL_SHARE_LINKS: ShareLink[] = [];
+export const INITIAL_SHARE_LINKS: ShareLink[] = [
+  {
+    id: 'link-proyecto-ocos',
+    projectId: 'proj-ocos',
+    token: 'proyecto-ocos',
+    title: 'PROYECTO OCOS - Transmisión en Vivo',
+    clientName: 'Comité Proyecto Ocós',
+    cameraIds: ['cam-ocos-ch1'],
+    expiresAt: null,
+    isActive: true,
+    allowPtz: false,
+    allowAudio: false,
+    allowSnapshot: true,
+    showWatermark: true,
+    maxConcurrentViewers: 50,
+    accessCount: 0,
+    createdAt: '2026-10-31T20:00:00.000Z'
+  },
+  {
+    id: 'link-calle-del-cementerio',
+    projectId: 'proj-calle-cementerio',
+    token: 'calle-del-cementerio',
+    title: 'Calle del Cementerio - Monitoreo en Vivo',
+    clientName: 'Comité de Vecinos Calle del Cementerio',
+    cameraIds: ['cam-hilook-ch1', 'cam-hilook-ch2'],
+    expiresAt: null,
+    isActive: true,
+    allowPtz: true,
+    allowAudio: false,
+    allowSnapshot: true,
+    showWatermark: true,
+    maxConcurrentViewers: 50,
+    accessCount: 0,
+    createdAt: '2026-10-30T12:00:00.000Z'
+  }
+];
 
 export function isLegacyDemoCamera(cam: Partial<Camera> | null | undefined): boolean {
   if (!cam) return true;

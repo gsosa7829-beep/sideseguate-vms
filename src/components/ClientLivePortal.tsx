@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Camera, ShareLink, Project } from '../lib/types';
-import { INITIAL_CAMERAS } from '../lib/initialData';
+import { INITIAL_CAMERAS, INITIAL_SHARE_LINKS } from '../lib/initialData';
 import { verifyShareLink, formatExpirationText } from '../lib/tokenSecurity';
 import {
   subscribeToSingleShareLinkByToken,
@@ -91,8 +91,14 @@ export const ClientLivePortal: React.FC<ClientLivePortalProps> = ({
   onClientAddCameras,
 }) => {
   const { isInstallable, isInstalled, isIOS, install } = usePWAInstall();
+  const fallbackInitialLink = INITIAL_SHARE_LINKS.find((l) =>
+    l.token === token ||
+    (token && (token.toLowerCase().includes('ocos') && l.id === 'link-proyecto-ocos')) ||
+    (token && (token.toLowerCase().includes('cementerio') && l.id === 'link-calle-del-cementerio'))
+  ) || null;
+
   const [cloudShareLink, setCloudShareLink] = useState<ShareLink | null>(null);
-  const [directTokenLoading, setDirectTokenLoading] = useState<boolean>(Boolean(token && !shareLink));
+  const [directTokenLoading, setDirectTokenLoading] = useState<boolean>(Boolean(token && !shareLink && !fallbackInitialLink));
   const [pinInput, setPinInput] = useState('');
   const [pinVerified, setPinVerified] = useState<boolean>(() => {
     if (typeof window === 'undefined') return false;
@@ -126,7 +132,7 @@ export const ClientLivePortal: React.FC<ClientLivePortalProps> = ({
     return () => unsub();
   }, [token, shareLink?.token]);
 
-  const activeShareLink = cloudShareLink || shareLink;
+  const activeShareLink = cloudShareLink || shareLink || fallbackInitialLink;
   const pinStorageKey = activeShareLink?.token ? `sideseguate_pin_${activeShareLink.token}` : null;
 
   useEffect(() => {
