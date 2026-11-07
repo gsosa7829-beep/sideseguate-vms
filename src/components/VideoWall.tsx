@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Camera } from '../lib/types';
 import { LiveCameraPlayer, prewarmHikvisionCameras } from './LiveCameraPlayer';
 import { cloudP2pClient } from '../lib/cloudP2pClient';
-import { LayoutGrid, Square, Plus, Eye, Link2, Grid3X3, Sparkles, Bot, ArrowLeft } from 'lucide-react';
+import { LayoutGrid, Square, Plus, Eye, Link2, Grid3X3, Sparkles, Bot, ArrowLeft, RefreshCw } from 'lucide-react';
 
 interface VideoWallProps {
   cameras: Camera[];
@@ -26,6 +26,7 @@ export const VideoWall: React.FC<VideoWallProps> = ({
   const [gridSize, setGridSize] = useState<'1' | '2' | '3'>('2');
   const [filterType, setFilterType] = useState<string>('all');
   const [serverOnline, setServerOnline] = useState(false);
+  const [reconnectKey, setReconnectKey] = useState(0);
 
   useEffect(() => {
     return cloudP2pClient.subscribe((state) => setServerOnline(Boolean(state.online)));
@@ -98,17 +99,32 @@ export const VideoWall: React.FC<VideoWallProps> = ({
           </span>
         </div>
 
-        {onOpenAiAssistant && (
+        <div className="flex items-center gap-2">
           <button
             type="button"
-            onClick={onOpenAiAssistant}
-            className="hidden md:flex px-3.5 py-1.5 rounded-lg bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-500 hover:to-indigo-500 text-white text-xs font-semibold flex items-center gap-1.5 shadow-md shadow-sky-950/50 transition cursor-pointer"
+            onClick={() => {
+              setReconnectKey((k) => k + 1);
+              prewarmHikvisionCameras();
+            }}
+            className="px-3 py-1.5 rounded-lg bg-neutral-800 hover:bg-neutral-750 text-neutral-200 hover:text-white border border-neutral-700/80 text-xs font-semibold flex items-center gap-1.5 transition active:scale-95 cursor-pointer shadow-sm"
+            title="Re-sincronizar y forzar reconexión inmediata con todos los DVRs"
           >
-            <Bot className="w-4 h-4" />
-            <span>Asistente IA · Auto-Agregar Cámaras</span>
-            <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+            <RefreshCw className="w-3.5 h-3.5 text-sky-400" />
+            <span>Reconectar Señal DVRs</span>
           </button>
-        )}
+
+          {onOpenAiAssistant && (
+            <button
+              type="button"
+              onClick={onOpenAiAssistant}
+              className="hidden md:flex px-3.5 py-1.5 rounded-lg bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-500 hover:to-indigo-500 text-white text-xs font-semibold flex items-center gap-1.5 shadow-md shadow-sky-950/50 transition cursor-pointer"
+            >
+              <Bot className="w-4 h-4" />
+              <span>Asistente IA · Auto-Agregar Cámaras</span>
+              <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Matrix Toolbar: Segmented Hardware Filter & Grid Layout Switcher */}
@@ -291,6 +307,7 @@ export const VideoWall: React.FC<VideoWallProps> = ({
               {/* Video Feed Viewport */}
               <div className="flex-1 bg-black">
                 <LiveCameraPlayer
+                  key={`${cam.id}-${reconnectKey}`}
                   camera={cam}
                   allowPtz={true}
                   allowAudio={true}

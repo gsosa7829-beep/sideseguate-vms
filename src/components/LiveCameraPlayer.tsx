@@ -566,10 +566,27 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
       ecoDeadline.current = Date.now() + 90_000;
       setEcoRemainingSec(90);
     }
+    // Restaurar protocolos principales y reintentar conexión limpia
+    setUseHlsFallback(false);
+    reconnectDelay.current = 2_000;
+    stallCountRef.current = 0;
     setIsReconnecting(true);
     setIsOffline(false);
     setReconnectVersion((version) => version + 1);
   }, [canLoadInViewport, is4gCamera, resume4gStream]);
+
+  // Auto-recuperación activa 24/7 cuando el DVR pierde señal
+  useEffect(() => {
+    if (!isOffline || !canLoadVideo) return;
+    if (is4gCamera && is4gEcoPausedRef.current) return;
+
+    const recoveryTimer = setInterval(() => {
+      if (document.hidden) return;
+      handleForceReconnect(false);
+    }, 4500);
+
+    return () => clearInterval(recoveryTimer);
+  }, [isOffline, canLoadVideo, is4gCamera, handleForceReconnect]);
 
   // Reproductor WebAssembly EZUIKit (H.265 / 4G para Proyecto Ocós con Modo Ultra-Ahorro SIM)
   useEffect(() => {
@@ -924,7 +941,7 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
         handleForceReconnect(false);
       };
       retryTimer = setTimeout(retry, reconnectDelay.current);
-      reconnectDelay.current = Math.min(30_000, reconnectDelay.current * 2);
+      reconnectDelay.current = Math.min(10_000, reconnectDelay.current * 1.5);
     };
 
     const startTimer = () => {
@@ -1306,7 +1323,7 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
         if (delta < 0.04) {
           stallCountRef.current += 1;
 
-          if (stallCountRef.current >= 6) {
+          if (stallCountRef.current >= 3) {
             stallCountRef.current = 0;
             handleForceReconnect(false);
           }
@@ -1337,7 +1354,7 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
               if (isMutedRef.current) {
                 try { ezPlayerRef.current?.closeSound(); } catch {}
               }
-            } else if (stallCountRef.current >= 6) {
+            } else if (stallCountRef.current >= 3) {
               stallCountRef.current = 0;
               handleForceReconnect(false);
             }
