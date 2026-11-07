@@ -16,7 +16,7 @@ import {
 } from './lib/firebase';
 import { maskRtspUrl, cloneNextDvrChannel } from './lib/rtspHelper';
 import { mergeCloudShareLinks, shareLinkListsDiffer } from './lib/shareLinkMerge';
-import { buildPublicShareUrl, getPublicUrlInfo, describeShareUrlWarning } from './lib/publicUrl';
+import { buildPublicShareUrl, getPublicUrlInfo, describeShareUrlWarning, extractTokenFromUrl } from './lib/publicUrl';
 import {
   StreamGateway,
   loadGateway,
@@ -208,13 +208,7 @@ function AppShell() {
   // Se resuelven de forma síncrona en el primer render para nunca mostrar destello del Login Admin a un cliente.
   const [clientTokenView, setClientTokenView] = useState<string | null>(() => {
     if (typeof window === 'undefined') return null;
-    const params = new URLSearchParams(window.location.search);
-    const urlToken = params.get('token') || params.get('share');
-    if (urlToken) return urlToken;
-    const hash = window.location.hash;
-    if (hash.startsWith('#token=')) return hash.replace('#token=', '');
-    if (hash.startsWith('#share=')) return hash.replace('#share=', '');
-    return null;
+    return extractTokenFromUrl(window.location.search, window.location.hash);
   });
   const [clientOnboardingProjectId, setClientOnboardingProjectId] = useState<string | null>(() => {
     if (typeof window === 'undefined') return null;
@@ -368,14 +362,8 @@ function AppShell() {
     // Check URL query param ?flash=45 or ?token=xyz or ?share=xyz or ?onboarding=xyz or hash #token=xyz
     const urlFlashSecs = params.get('flash') || params.get('previewSecs');
     const urlOnboarding = params.get('onboarding');
-    const urlToken = params.get('token') || params.get('share');
-    const hash = window.location.hash;
-    const hashToken = hash.startsWith('#token=')
-      ? hash.replace('#token=', '')
-      : hash.startsWith('#share=')
-      ? hash.replace('#share=', '')
-      : null;
-    const isVisitorClientRoute = Boolean(urlFlashSecs || urlOnboarding || urlToken || hashToken);
+    const parsedToken = extractTokenFromUrl(window.location.search, window.location.hash);
+    const isVisitorClientRoute = Boolean(urlFlashSecs || urlOnboarding || parsedToken);
 
     if (urlFlashSecs) {
       const parsedSecs = Number(urlFlashSecs);
@@ -389,8 +377,8 @@ function AppShell() {
       setClientTokenView(flashLink.token);
     } else if (urlOnboarding) {
       setClientOnboardingProjectId(urlOnboarding);
-    } else if (urlToken || hashToken) {
-      setClientTokenView(urlToken || hashToken);
+    } else if (parsedToken) {
+      setClientTokenView(parsedToken);
     }
 
     // Solo publicar semilla/catálogo hacia Firestore cuando no es un visitante externo de solo lectura
@@ -855,6 +843,9 @@ function AppShell() {
   if (clientTokenView) {
     const matchedShareLink = shareLinks.find((l) => l.token === clientTokenView) || null;
     const matchedProject = projects.find((p) => p.id === matchedShareLink?.projectId);
+    const isMobileSimulatorIframe = typeof window !== 'undefined' && window.location.search.includes('preview=mobile');
+    const isOwner = !isMobileSimulatorIframe && adminAuthStorage.isAuthorizedOwnerDevice();
+
     return (
       <ClientLivePortal
         token={clientTokenView}
@@ -865,10 +856,10 @@ function AppShell() {
         project={matchedProject}
         // Sólo lo necesario para reproducir: sin usuario, contraseña ni RTSP.
         cameras={toPublicCameras(cameras)}
-        isAdminPreview={adminAuthStorage.isAuthorizedOwnerDevice()}
+        isAdminPreview={isOwner}
         isCloudLoading={false}
         onBackToAdmin={
-          adminAuthStorage.isAuthorizedOwnerDevice()
+          isOwner
             ? () => {
                 setClientTokenView(null);
                 setClientOnboardingProjectId(null);
@@ -1695,6 +1686,7 @@ function AppShell() {
         cameras={cameras}
         projects={projects}
         existingLink={whatsAppTimedTargetLink}
+        defaultProjectId={shareDefaultProjectId || (projectFilter === 'all' ? null : projectFilter)}
       />
 
       <ShareLinkModal

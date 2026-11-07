@@ -1,5 +1,6 @@
 import { ShareLink } from './types';
 import { formatExpirationText } from './tokenSecurity';
+import { buildPublicShareUrl } from './publicUrl';
 import { getPublicBaseUrl } from './publicUrl';
 
 export interface BandwidthReport {
@@ -172,8 +173,16 @@ export function buildClientHandoverSummary(
   baseUrl: string,
   camerasCount: number
 ): string {
-  const cleanBase = baseUrl.replace(/\/$/, '');
-  const fullUrl = `${cleanBase}/?token=${link.token}`;
+  let fullUrl: string;
+  if (baseUrl && baseUrl.includes('token=')) {
+    fullUrl = baseUrl;
+  } else if (baseUrl && /^https?:\/\//i.test(baseUrl) && !baseUrl.includes('localhost') && !baseUrl.includes('127.0.0.1')) {
+    const cleanBase = baseUrl.replace(/\/+$/, '');
+    fullUrl = `${cleanBase}${cleanBase.includes('?') ? '&' : '/?'}token=${encodeURIComponent(link.token)}`;
+  } else {
+    fullUrl = buildPublicShareUrl(link.token);
+  }
+
   const lines = [
     `SIDESEGUATE - MONITOREO WEB EN VIVO`,
     `Cliente: ${link.clientName}`,

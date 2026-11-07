@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Camera, Project, ShareLink } from '../lib/types';
 import { formatExpirationText } from '../lib/tokenSecurity';
-import { getPublicBaseUrl } from '../lib/publicUrl';
+import { getPublicBaseUrl, buildPublicShareUrl } from '../lib/publicUrl';
 import { buildWhatsAppUrl, hasDirectWhatsAppTarget } from '../lib/whatsapp';
 import {
   generateRealQrCode,
@@ -55,8 +55,7 @@ export const ClientHandoverCardModal: React.FC<ClientHandoverCardModalProps> = (
 
   if (!isOpen || !shareLink) return null;
 
-  const baseUrl = getPublicBaseUrl();
-  const fullUrl = `${baseUrl}/?token=${shareLink.token}`;
+  const fullUrl = buildPublicShareUrl(shareLink.token);
 
   const assignedCameras = cameras.filter((c) =>
     shareLink.cameraIds && shareLink.cameraIds.length > 0
@@ -69,7 +68,7 @@ export const ClientHandoverCardModal: React.FC<ClientHandoverCardModalProps> = (
   const qrMatrix = qr.matrix;
   const handoverText = buildClientHandoverSummary(
     shareLink,
-    baseUrl,
+    fullUrl,
     assignedCameras.length
   );
 

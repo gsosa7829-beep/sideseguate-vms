@@ -44,6 +44,14 @@ export function shareLinkListsDiffer(a: ShareLink[], b: ShareLink[]): boolean {
     if (other.expiresAt !== link.expiresAt) return true;
     if (other.accessCount !== link.accessCount) return true;
     if (other.title !== link.title) return true;
+    if (other.clientName !== link.clientName) return true;
+    if (other.pinCode !== link.pinCode) return true;
+    if (other.projectId !== link.projectId) return true;
+    if (Boolean(other.allowPtz) !== Boolean(link.allowPtz)) return true;
+    if (Boolean(other.allowAudio) !== Boolean(link.allowAudio)) return true;
+    if (Boolean(other.allowSnapshot) !== Boolean(link.allowSnapshot)) return true;
+    if (Boolean(other.showWatermark) !== Boolean(link.showWatermark)) return true;
+    if ((other.cameraIds || []).join(',') !== (link.cameraIds || []).join(',')) return true;
   }
   return false;
 }

@@ -198,6 +198,41 @@ export function buildPublicShareUrl(token: string): string {
   return `${finalBase}${finalBase.includes('?') ? '&' : '?'}token=${encodeURIComponent(cleanToken)}`;
 }
 
+/**
+ * Extrae y limpia el token de una URL o hash, removiendo slashes residuales de WhatsApp
+ * y soportando formatos hash como #token=..., #/token=..., #?token=..., y query params ?token=... / ?share=...
+ */
+export function extractTokenFromUrl(searchStr: string = '', hashStr: string = ''): string | null {
+  if (searchStr) {
+    const params = new URLSearchParams(searchStr);
+    const raw = params.get('token') || params.get('share');
+    if (raw) {
+      const clean = raw.trim().replace(/\/+$/, '');
+      if (clean) return clean;
+    }
+  }
+
+  if (hashStr) {
+    const qIndex = hashStr.indexOf('?');
+    if (qIndex !== -1) {
+      const hashParams = new URLSearchParams(hashStr.slice(qIndex + 1));
+      const raw = hashParams.get('token') || hashParams.get('share');
+      if (raw) {
+        const clean = raw.trim().replace(/\/+$/, '');
+        if (clean) return clean;
+      }
+    }
+
+    const match = hashStr.match(/(?:#|\/|\?|&)(?:token|share)=([^&/#]+)/i);
+    if (match && match[1]) {
+      const clean = decodeURIComponent(match[1]).trim().replace(/\/+$/, '');
+      if (clean) return clean;
+    }
+  }
+
+  return null;
+}
+
 /** Aviso para la interfaz cuando el enlace no sirve o revela datos personales. */
 export function describeShareUrlWarning(info: PublicUrlInfo): string | null {
   if (!info.isReachableByClient) {

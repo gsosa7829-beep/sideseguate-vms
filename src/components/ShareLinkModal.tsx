@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Camera, Project, ShareLink } from '../lib/types';
-import { generateShareToken, detectExpiryOption, EXPIRY_PRESETS, type ExpiryOption } from '../lib/tokenSecurity';
+import { generateShareToken, detectExpiryOption, EXPIRY_PRESETS, toLocalDatetimeInputValue, type ExpiryOption } from '../lib/tokenSecurity';
 
 import { 
   X, 
@@ -51,7 +51,7 @@ export const ShareLinkModal: React.FC<ShareLinkModalProps> = ({
   const [pinCode, setPinCode] = useState(initialLink?.pinCode || '');
   const [expiryOption, setExpiryOption] = useState<ExpiryOption>(detectExpiryOption(initialLink));
   const [customExpiryDate, setCustomExpiryDate] = useState(
-    initialLink?.expiresAt ? initialLink.expiresAt.slice(0, 16) : ''
+    toLocalDatetimeInputValue(initialLink?.expiresAt)
   );
   const [allowPtz, setAllowPtz] = useState(initialLink?.allowPtz ?? false);
   const [allowAudio, setAllowAudio] = useState(initialLink?.allowAudio ?? true);
@@ -72,7 +72,7 @@ export const ShareLinkModal: React.FC<ShareLinkModalProps> = ({
       setUsePin(!!initialLink?.pinCode);
       setPinCode(initialLink?.pinCode || '');
       setExpiryOption(detectExpiryOption(initialLink));
-      setCustomExpiryDate(initialLink?.expiresAt ? initialLink.expiresAt.slice(0, 16) : '');
+      setCustomExpiryDate(toLocalDatetimeInputValue(initialLink?.expiresAt));
       setAllowPtz(initialLink?.allowPtz ?? false);
       setAllowAudio(initialLink?.allowAudio ?? true);
       setAllowSnapshot(initialLink?.allowSnapshot ?? true);
@@ -84,6 +84,19 @@ export const ShareLinkModal: React.FC<ShareLinkModalProps> = ({
 
   // Cameras matching selected project
   const projectCameras = cameras.filter((c) => c.projectId === projectId);
+
+  const handleProjectChange = (newProjId: string) => {
+    setProjectId(newProjId);
+    const newProj = projects.find((p) => p.id === newProjId);
+    if (newProj && (!initialLink || title.startsWith('Cámaras en Vivo - '))) {
+      setTitle(`Cámaras en Vivo - ${newProj.name}`);
+    }
+    if (newProj && (!initialLink || !clientName)) {
+      setClientName(newProj.clientName || '');
+    }
+    const newProjCams = cameras.filter((c) => c.projectId === newProjId).map((c) => c.id);
+    setSelectedCameraIds(newProjCams);
+  };
 
   const toggleCameraSelection = (camId: string) => {
     if (selectedCameraIds.includes(camId)) {
@@ -120,13 +133,17 @@ export const ShareLinkModal: React.FC<ShareLinkModalProps> = ({
     e.preventDefault();
     if (expiryError) return;
 
+    const effectiveCameraIds = selectedCameraIds.length > 0
+      ? selectedCameraIds
+      : projectCameras.map((c) => c.id);
+
     const link: ShareLink = {
       id: initialLink?.id || `link-${Date.now()}`,
       projectId,
       token: initialLink?.token || generateShareToken('sdg'),
       title: title.trim() || 'Enlace de Videovigilancia',
       clientName: clientName.trim() || 'Cliente Autorizado',
-      cameraIds: selectedCameraIds,
+      cameraIds: effectiveCameraIds,
       pinCode: usePin ? pinCode.trim() : undefined,
       expiresAt: calculateExpiryDate(),
       isActive: initialLink?.isActive ?? true,
@@ -180,7 +197,7 @@ export const ShareLinkModal: React.FC<ShareLinkModalProps> = ({
               </label>
               <select
                 value={projectId}
-                onChange={(e) => setProjectId(e.target.value)}
+                onChange={(e) => handleProjectChange(e.target.value)}
                 className="w-full bg-neutral-950 border border-neutral-700 rounded-xl px-3 py-2 text-white focus:border-sky-500 focus:outline-none"
               >
                 {projects.map((p) => (

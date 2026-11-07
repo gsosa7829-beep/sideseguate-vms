@@ -52,6 +52,23 @@ export function detectExpiryOption(link?: ShareLink | null): ExpiryOption {
   return 'custom';
 }
 
+/**
+ * Convierte un ISO string UTC a formato local "YYYY-MM-DDTHH:mm" apto para <input type="datetime-local" />.
+ * Evita el desfase de zona horaria (ej. UTC-6 en Guatemala sumando o restando horas erróneamente en cada guardado).
+ */
+export function toLocalDatetimeInputValue(isoString?: string | null): string {
+  if (!isoString) return '';
+  const d = new Date(isoString);
+  if (isNaN(d.getTime())) return '';
+  const pad = (n: number) => n.toString().padStart(2, '0');
+  const year = d.getFullYear();
+  const month = pad(d.getMonth() + 1);
+  const day = pad(d.getDate());
+  const hours = pad(d.getHours());
+  const minutes = pad(d.getMinutes());
+  return `${year}-${month}-${day}T${hours}:${minutes}`;
+}
+
 export interface VerificationResult {
   valid: boolean;
   reason?: 'expired' | 'inactive' | 'invalid_pin' | 'pin_required' | 'not_found';

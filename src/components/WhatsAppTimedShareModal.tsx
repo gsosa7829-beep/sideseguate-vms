@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Camera, Project, ShareLink } from '../lib/types';
 import { generateShareToken } from '../lib/tokenSecurity';
 import { buildPublicShareUrl } from '../lib/publicUrl';
@@ -72,6 +72,32 @@ export const WhatsAppTimedShareModal: React.FC<WhatsAppTimedShareModalProps> = (
   const [allowAudio, setAllowAudio] = useState(existingLink?.allowAudio ?? true);
   const [allowSnapshot, setAllowSnapshot] = useState(existingLink?.allowSnapshot ?? true);
   const [showWatermark, setShowWatermark] = useState(existingLink?.showWatermark ?? true);
+
+  // Sincronizar estado cuando se abre el modal o cambia el enlace seleccionado
+  useEffect(() => {
+    if (isOpen) {
+      const pid = existingLink?.projectId || defaultProjectId || projects[0]?.id || '';
+      const proj = projects.find((p) => p.id === pid);
+      setClientName(existingLink?.clientName || proj?.clientName || '');
+      setClientPhone(proj?.clientPhone || '');
+      setTitle(
+        existingLink?.title || (proj ? `Cámaras en Vivo - ${proj.name}` : 'Transmisión en Vivo de Seguridad')
+      );
+      const projCams = cameras.filter((c) => !pid || c.projectId === pid).map((c) => c.id);
+      setSelectedCameraIds(
+        existingLink?.cameraIds && existingLink.cameraIds.length > 0
+          ? existingLink.cameraIds
+          : (projCams.length > 0 ? projCams : cameras.map((c) => c.id))
+      );
+      setUsePin(!!existingLink?.pinCode);
+      setPinCode(existingLink?.pinCode || '');
+      setAllowAudio(existingLink?.allowAudio ?? true);
+      setAllowSnapshot(existingLink?.allowSnapshot ?? true);
+      setShowWatermark(existingLink?.showWatermark ?? true);
+      setCopiedText(false);
+      setCopiedUrl(false);
+    }
+  }, [isOpen, existingLink, defaultProjectId, projects, cameras]);
 
   // Feedback de copiado
   const [copiedText, setCopiedText] = useState(false);
@@ -173,15 +199,26 @@ export const WhatsAppTimedShareModal: React.FC<WhatsAppTimedShareModalProps> = (
   };
 
   const handleSaveAndSend = (openWhatsAppNow = true) => {
+    const freshExpiresAt = isPermanent
+      ? null
+      : durationMs
+      ? new Date(Date.now() + durationMs).toISOString()
+      : null;
+
+    const projectCameras = cameras.filter((c) => !targetProjId || c.projectId === targetProjId);
+    const effectiveCameraIds = selectedCameraIds.length > 0
+      ? selectedCameraIds
+      : (projectCameras.length > 0 ? projectCameras.map((c) => c.id) : cameras.map((c) => c.id));
+
     const link: ShareLink = {
       id: existingLink?.id || `link-${Date.now()}`,
       projectId: targetProjId,
       token,
       title: title.trim() || 'Enlace de Videovigilancia Temporal',
       clientName: clientName.trim() || 'Cliente Autorizado',
-      cameraIds: selectedCameraIds,
+      cameraIds: effectiveCameraIds,
       pinCode: usePin && pinCode.trim() ? pinCode.trim() : undefined,
-      expiresAt: expiresAtDate ? expiresAtDate.toISOString() : null,
+      expiresAt: freshExpiresAt,
       isActive: true,
       allowPtz: false,
       allowAudio,

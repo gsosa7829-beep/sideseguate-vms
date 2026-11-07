@@ -93,7 +93,16 @@ export const ClientLivePortal: React.FC<ClientLivePortalProps> = ({
   const [cloudShareLink, setCloudShareLink] = useState<ShareLink | null>(null);
   const [directTokenLoading, setDirectTokenLoading] = useState<boolean>(Boolean(token && !shareLink));
   const [pinInput, setPinInput] = useState('');
-  const [pinVerified, setPinVerified] = useState(false);
+  const [pinVerified, setPinVerified] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    const initialToken = token || shareLink?.token;
+    if (!initialToken) return false;
+    try {
+      return sessionStorage.getItem(`sideseguate_pin_${initialToken}`) === '1';
+    } catch {
+      return false;
+    }
+  });
   const [pinError, setPinError] = useState<string | null>(null);
   const recordedAccessTokenRef = useRef<string | null>(null);
   const [gracePeriodOver, setGracePeriodOver] = useState(false);
@@ -117,6 +126,17 @@ export const ClientLivePortal: React.FC<ClientLivePortalProps> = ({
   }, [token, shareLink?.token]);
 
   const activeShareLink = cloudShareLink || shareLink;
+  const pinStorageKey = activeShareLink?.token ? `sideseguate_pin_${activeShareLink.token}` : null;
+
+  useEffect(() => {
+    if (activeShareLink?.token && typeof window !== 'undefined') {
+      try {
+        if (sessionStorage.getItem(`sideseguate_pin_${activeShareLink.token}`) === '1') {
+          setPinVerified(true);
+        }
+      } catch {}
+    }
+  }, [activeShareLink?.token]);
 
   useEffect(() => {
     if (activeShareLink) {
@@ -153,7 +173,8 @@ export const ClientLivePortal: React.FC<ClientLivePortalProps> = ({
     return () => clearInterval(interval);
   }, []);
 
-  const verification = verifyShareLink(activeShareLink, pinInput);
+  const effectivePin = pinVerified ? (activeShareLink?.pinCode || pinInput) : pinInput;
+  const verification = verifyShareLink(activeShareLink, effectivePin);
   const needsPin = Boolean(activeShareLink?.pinCode && !pinVerified);
 
   useEffect(() => {
@@ -168,9 +189,24 @@ export const ClientLivePortal: React.FC<ClientLivePortalProps> = ({
   // Si 'cameras' aún no ha terminado de cargar desde Firestore o localStorage,
   // usamos INITIAL_CAMERAS para que la vista del cliente nunca quede en blanco.
   const pool = cameras.length > 0 ? cameras : INITIAL_CAMERAS;
-  const allowedCameras = pool.filter((cam) =>
-    activeShareLink ? activeShareLink.cameraIds.includes(cam.id) : false
+  let allowedCameras = pool.filter((cam) =>
+    activeShareLink && Array.isArray(activeShareLink.cameraIds) && activeShareLink.cameraIds.length > 0
+      ? activeShareLink.cameraIds.includes(cam.id)
+      : false
   );
+
+  // Fallback inteligente: si cameraIds quedó vacío o desfasado, mostrar cámaras del proyecto
+  if (allowedCameras.length === 0 && activeShareLink) {
+    if (activeShareLink.projectId) {
+      const projCams = pool.filter((cam) => cam.projectId === activeShareLink.projectId);
+      if (projCams.length > 0) {
+        allowedCameras = projCams;
+      }
+    }
+    if (allowedCameras.length === 0 && pool.length > 0) {
+      allowedCameras = pool;
+    }
+  }
 
   useEffect(() => {
     if (allowedCameras.some((c) => c.deviceSerial === 'F31700438' || c.id.includes('hilook'))) {
@@ -193,6 +229,11 @@ export const ClientLivePortal: React.FC<ClientLivePortalProps> = ({
     if (pinInput.trim() === activeShareLink.pinCode.trim()) {
       setPinVerified(true);
       setPinError(null);
+      if (pinStorageKey && typeof window !== 'undefined') {
+        try {
+          sessionStorage.setItem(pinStorageKey, '1');
+        } catch {}
+      }
     } else {
       setPinError('Código PIN incorrecto. Verifíquelo e intente nuevamente.');
     }
@@ -333,6 +374,19 @@ export const ClientLivePortal: React.FC<ClientLivePortalProps> = ({
   const selectedCamera = allowedCameras.find((c) => c.id === selectedCameraId) || allowedCameras[0];
   const expirationText = formatExpirationText(activeShareLink.expiresAt, nowTick);
   const isExpiringSoon = expirationText.includes('seg') || expirationText.includes('min');
+  const mobileBadgeText = activeShareLink.expiresAt
+    ? expirationText
+        .replace('Expira en ', '')
+        .replace(' días', 'd')
+        .replace(' día', 'd')
+        .replace(' y ', ' ')
+        .replace(' horas', 'h')
+        .replace(' hora', 'h')
+        .replace(' minutos', 'm')
+        .replace(' minuto', 'm')
+        .replace(' segundos', 's')
+        .replace(' segundo', 's')
+    : 'Permanente';
 
   return (
     <div className="min-h-dvh bg-neutral-950 text-neutral-100 flex flex-col">
@@ -382,19 +436,7 @@ export const ClientLivePortal: React.FC<ClientLivePortalProps> = ({
             }`}>
               <Clock className={`w-3.5 h-3.5 ${isExpiringSoon ? 'text-amber-400 animate-spin' : 'text-neutral-400'} shrink-0`} />
               <span className="text-xs whitespace-nowrap">
-                <span className="sm:hidden">
-                  {expirationText
-                    .replace('Expira en ', '')
-                    .replace(' días', 'd')
-                    .replace(' día', 'd')
-                    .replace(' y ', ' ')
-                    .replace(' horas', 'h')
-                    .replace(' hora', 'h')
-                    .replace(' minutos', 'm')
-                    .replace(' minuto', 'm')
-                    .replace(' segundos', 's')
-                    .replace(' segundo', 's')}
-                </span>
+                <span className="sm:hidden">{mobileBadgeText}</span>
                 <span className="hidden sm:inline">{expirationText}</span>
               </span>
             </div>
