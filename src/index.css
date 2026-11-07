@@ -16,13 +16,13 @@
 
 :root,
 [data-ui-theme="tactical"] {
-  /* Obsidiana: casi negro neutro, para pantallas muy oscuras. */
-  --color-neutral-950: #0a0c10;
-  --color-neutral-900: #11141a;
-  --color-neutral-850: #161a22;
-  --color-neutral-800: #1e242e;
-  --color-neutral-750: #28303c;
-  --color-neutral-700: #37414f;
+  /* Obsidiana / Negro Carbón Neutro: tono puro oscuro sin tinte azulado */
+  --color-neutral-950: #09090b;
+  --color-neutral-900: #121215;
+  --color-neutral-850: #17171b;
+  --color-neutral-800: #202025;
+  --color-neutral-750: #2a2a32;
+  --color-neutral-700: #383842;
 }
 
 [data-ui-theme="sapphire"] {

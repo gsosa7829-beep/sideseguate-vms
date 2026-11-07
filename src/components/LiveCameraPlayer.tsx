@@ -25,7 +25,10 @@ import {
   RefreshCw,
   Radio,
   WifiOff,
-  Info
+  Info,
+  Play,
+  Pause,
+  X
 } from 'lucide-react';
 
 interface LiveCameraPlayerProps {
@@ -37,6 +40,9 @@ interface LiveCameraPlayerProps {
   watermarkText?: string;
   isCompact?: boolean;
   autoPlay?: boolean;
+  isPlaying?: boolean;
+  onPlayStateChange?: (playing: boolean) => void;
+  posterUrl?: string;
 }
 
 // Persistencia en LocalStorage para arranque instantáneo (0ms) sin pantalla negra al cambiar entre secciones
@@ -237,14 +243,57 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
   showWatermark = true,
   watermarkText,
   isCompact = false,
+  autoPlay = true,
+  isPlaying: externalIsPlaying,
+  onPlayStateChange,
+  posterUrl,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
+  const [isTheaterMode, setIsTheaterMode] = useState<boolean>(() => {
+    if (typeof window !== 'undefined' && window.location.search.includes('theater=1')) {
+      return camera.channel === 1;
+    }
+    return false;
+  });
   const [nativeFullscreen, setNativeFullscreen] = useState(false);
   const [expandedHeight, setExpandedHeight] = useState<number | null>(null);
-  const isFullscreen = nativeFullscreen || expandedHeight !== null;
+  const isFullscreen = isTheaterMode || nativeFullscreen || expandedHeight !== null;
+
+  const [internalPlaying, setInternalPlaying] = useState<boolean>(() => {
+    if (externalIsPlaying !== undefined) return externalIsPlaying;
+    return autoPlay;
+  });
+
+  useEffect(() => {
+    if (externalIsPlaying !== undefined) {
+      setInternalPlaying(externalIsPlaying);
+    }
+  }, [externalIsPlaying]);
+
+  const isStreamPlaying = externalIsPlaying !== undefined ? externalIsPlaying : internalPlaying;
+
+  const resolvedPoster = posterUrl || (() => {
+    if (camera.deviceSerial === 'F31700438' || camera.id.includes('hilook')) {
+      return camera.channel === 2 ? '/frames/f317-ch2.jpg' : '/frames/f317-ch1.jpg';
+    }
+    if (camera.deviceSerial === 'FF9363270' || camera.id.includes('ocos')) {
+      return '/frames/ocos-ch1.jpg';
+    }
+    return null;
+  })();
+
+  useEffect(() => {
+    if (!isTheaterMode) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setIsTheaterMode(false);
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [isTheaterMode]);
+
   const [{ mobile: isMobile, appleMobile }] = useState(() => typeof window === 'undefined'
     ? { mobile: false, appleMobile: false }
     : getPlaybackEnvironment(navigator.userAgent, navigator.maxTouchPoints, window.innerWidth));
@@ -423,7 +472,7 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
   }, [is4gEcoPaused]);
   const [ecoRemainingSec, setEcoRemainingSec] = useState<number>(90);
   const ecoDeadline = useRef(0);
-  const canLoadVideo = canLoadInViewport && !is4gEcoPaused;
+  const canLoadVideo = canLoadInViewport && !is4gEcoPaused && isStreamPlaying;
   const channel = Math.min(4, Math.max(1, camera.channel || 1));
   const deviceSerial = camera.deviceSerial || cloudP2pClient.resolveDevice(camera)?.serial || 'F31700438';
   const configuredHls = camera.hlsStreamUrl?.trim() || '';
@@ -531,6 +580,14 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
     setIs4gEcoPaused(false);
     is4gEcoPausedRef.current = false;
   }, []);
+
+  const handleToggleStream = useCallback((play: boolean) => {
+    setInternalPlaying(play);
+    onPlayStateChange?.(play);
+    if (play && is4gCamera && is4gEcoPaused) {
+      resume4gStream();
+    }
+  }, [is4gCamera, is4gEcoPaused, onPlayStateChange, resume4gStream]);
 
   // Suspensión al minimizar pestaña o bloquear el celular en cámara 4G (con margen de 3.5s para evitar cortes al abrir Pantalla Completa)
   useEffect(() => {
@@ -1250,30 +1307,8 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
     setTimeout(() => setWatchdogToast(null), 2000);
   };
 
-  const toggleFullscreen = async () => {
-    const player = containerRef.current;
-    if (!player) return;
-    if (expandedHeight !== null) {
-      setExpandedHeight(null);
-      return;
-    }
-    if (document.fullscreenElement === player) {
-      await document.exitFullscreen().catch(() => {});
-      return;
-    }
-
-    // iPhone and embedded browsers may disallow fullscreen on a container.
-    if (!appleMobile && document.fullscreenEnabled && player.requestFullscreen) {
-      try {
-        await player.requestFullscreen();
-        return;
-      } catch {
-        // Keep the same mounted player in an expanded view.
-      }
-    }
-    if (containerRef.current === player) {
-      setExpandedHeight(player.getBoundingClientRect().height);
-    }
+  const toggleFullscreen = () => {
+    setIsTheaterMode((prev) => !prev);
   };
 
   const handleTakeSnapshot = () => {
@@ -1409,12 +1444,65 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
   return (
     <>
       {expandedHeight !== null && <div aria-hidden="true" style={{ height: expandedHeight }} />}
+      {isTheaterMode && <div aria-hidden="true" className="w-full aspect-video bg-neutral-950/60 rounded-xl" />}
     <div 
       ref={containerRef}
-      className={`bg-neutral-950 overflow-hidden flex flex-col group ${
-        expandedHeight !== null ? 'camera-expanded fixed inset-0 z-[200]' : 'relative'
-      }`}
+      className={
+        isTheaterMode
+          ? 'fixed inset-0 z-[150] bg-black/85 backdrop-blur-2xl flex items-center justify-center p-3 sm:p-6 md:p-10 select-none animate-in fade-in duration-200'
+          : `bg-neutral-950 overflow-hidden flex flex-col group ${
+              expandedHeight !== null ? 'camera-expanded fixed inset-0 z-[200]' : 'relative'
+            }`
+      }
+      onClick={
+        isTheaterMode
+          ? (e) => {
+              if (e.target === containerRef.current) {
+                setIsTheaterMode(false);
+              }
+            }
+          : undefined
+      }
     >
+      <div
+        className={
+          isTheaterMode
+            ? 'w-full max-w-5xl max-h-[92vh] bg-neutral-950 rounded-2xl border border-neutral-700/80 shadow-2xl overflow-hidden flex flex-col relative my-auto animate-in zoom-in-95 duration-200'
+            : 'w-full flex flex-col relative'
+        }
+        onClick={(e) => {
+          if (isTheaterMode) e.stopPropagation();
+        }}
+      >
+        {/* Header exclusivo de Modo Teatro (PC y Móvil) */}
+        {isTheaterMode && (
+          <div className="px-4 py-3 bg-neutral-900/95 border-b border-neutral-800 flex items-center justify-between gap-3 text-xs shrink-0">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${hasImage ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'}`} />
+              <span className="font-mono text-xs text-sky-400 font-bold px-2 py-0.5 rounded bg-sky-950/80 border border-sky-800/60 shrink-0">
+                CH0{channel}
+              </span>
+              <span className="font-semibold text-sm text-white truncate">
+                {camera.name}
+              </span>
+              <span className="hidden sm:inline-flex items-center gap-1.5 text-xs text-neutral-400 font-mono ml-2">
+                <span>{camera.resolution.split(' ')[0]}</span>
+                <span>·</span>
+                <span className="text-neutral-300">{camera.codec}</span>
+              </span>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setIsTheaterMode(false)}
+              className="min-h-[44px] px-3.5 py-1.5 rounded-xl bg-neutral-800 hover:bg-neutral-700 active:bg-neutral-600 text-white font-medium flex items-center gap-2 transition cursor-pointer border border-neutral-700 shadow-md"
+              title="Cerrar modo teatro (Escape o clic fuera)"
+            >
+              <span className="text-xs font-semibold">Cerrar</span>
+              <X className="w-4 h-4 text-neutral-300" />
+            </button>
+          </div>
+        )}
       {/* Top Floating Telemetry Scrim (Píldoras Flotantes Discretas) */}
       <div className="absolute top-2.5 inset-x-2.5 z-20 flex items-center justify-between gap-2 pointer-events-none">
         <button
@@ -1499,29 +1587,44 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
         className={`relative w-full bg-neutral-950 flex items-center justify-center overflow-hidden select-none cursor-pointer ${isFullscreen ? "flex-1 min-h-0" : "aspect-video"}`}
         title="Doble toque o doble clic para Pantalla Completa · Pellizca para Zoom"
       >
-        {/* Overlay de Modo Ultra-Ahorro SIM 4G (0 KB/s en espera) */}
-        {is4gCamera && is4gEcoPaused && (
-          <div className="absolute inset-0 z-30 flex flex-col items-center justify-center p-4 bg-neutral-950/80 backdrop-blur-xs text-center select-none">
-            <div className="px-3 py-1 rounded-full bg-emerald-500/15 border border-emerald-500/40 text-emerald-300 font-mono text-[10px] font-bold tracking-wider uppercase mb-2.5 flex items-center gap-1.5">
-              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-              <span>Ahorro Inteligente SIM 4G · 0 KB/s en Espera</span>
+        {/* Overlay de Reposo / Video en Espera (0 KB/s · Reproducción Bajo Demanda) */}
+        {(!isStreamPlaying || (is4gCamera && is4gEcoPaused)) && (
+          <div className="absolute inset-0 z-30 flex flex-col items-center justify-center p-4 bg-neutral-950/90 backdrop-blur-xs text-center select-none overflow-hidden">
+            {resolvedPoster && (
+              <img
+                src={resolvedPoster}
+                alt={camera.name}
+                className="absolute inset-0 w-full h-full object-cover opacity-25 filter blur-[1px]"
+              />
+            )}
+            <div className="relative z-10 flex flex-col items-center max-w-md px-4">
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleToggleStream(true);
+                }}
+                className="w-14 h-14 rounded-2xl bg-neutral-900/90 hover:bg-neutral-800 active:scale-90 text-white border border-neutral-700 shadow-2xl flex items-center justify-center mb-3 cursor-pointer transition"
+                title="Reproducir cámara"
+              >
+                <Play className="w-6 h-6 fill-current ml-0.5 text-white" />
+              </button>
+
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleToggleStream(true);
+                }}
+                className="min-h-[44px] px-6 py-2 bg-sky-600 hover:bg-sky-500 active:scale-95 text-white font-semibold text-xs sm:text-sm rounded-xl transition shadow-xl border border-sky-400/40 mb-2 cursor-pointer"
+              >
+                <span>{`Reproducir Cámara ${camera.channel}`}</span>
+              </button>
+
+              <p className="text-[11px] text-neutral-400 font-mono">
+                {is4gCamera ? 'Transmisión 4G bajo demanda · Ahorro SIM' : 'Transmisión bajo demanda · Cero lag'}
+              </p>
             </div>
-            <h4 className="text-sm sm:text-base font-bold text-white mb-1">
-              {camera.name} · En Espera de Datos
-            </h4>
-            <p className="text-[11px] sm:text-xs text-neutral-300 max-w-md mb-4 leading-relaxed">
-              Transmisión 4G en reposo para evitar consumo innecesario de gigabytes en la SIM de Ocós. Se desconecta sola tras 90s o al minimizar.
-            </p>
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                resume4gStream();
-              }}
-              className="px-5 py-2.5 bg-gradient-to-r from-emerald-600 to-sky-600 hover:from-emerald-500 hover:to-sky-500 active:scale-95 text-white font-bold text-xs sm:text-sm rounded-xl transition shadow-lg shadow-emerald-950/60 flex items-center gap-2 cursor-pointer"
-            >
-              <span>▶ Conectar Video 4G en Vivo (Ahorro H.265)</span>
-            </button>
           </div>
         )}
 
@@ -1814,6 +1917,31 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
       {/* Bottom Control Bar: 1 Fila Perfecta en Móvil y Escritorio */}
       <div className="relative z-20 bg-neutral-950 border-t border-neutral-800/90 px-2 sm:px-4 py-2 text-neutral-300">
         <div className="live-player-actions flex items-center justify-center gap-1.5 sm:gap-2 max-w-xl mx-auto">
+          {/* Botón Conectar / Pausar Transmisión (Bajo Demanda Independiente) */}
+          <button
+            type="button"
+            aria-label={isStreamPlaying ? 'Pausar transmisión de video' : 'Conectar video en vivo'}
+            onClick={() => handleToggleStream(!isStreamPlaying)}
+            className={`min-h-[46px] h-[46px] px-2.5 sm:px-3 rounded-xl border text-xs font-semibold transition-all flex items-center justify-center gap-1.5 active:scale-95 flex-1 max-w-[125px] cursor-pointer shadow-xs ${
+              isStreamPlaying
+                ? 'bg-neutral-900 hover:bg-neutral-850 border-neutral-800 text-neutral-300 hover:text-white'
+                : 'bg-gradient-to-r from-sky-600 to-sky-500 hover:from-sky-500 hover:to-sky-400 text-white border-sky-400 shadow-md shadow-sky-950/60'
+            }`}
+            title={isStreamPlaying ? 'Pausar transmisión (En reposo)' : 'Conectar video en vivo'}
+          >
+            {isStreamPlaying ? (
+              <>
+                <Pause className="w-3.5 h-3.5 text-neutral-400 shrink-0" />
+                <span className="text-[11px] font-bold">Pausar</span>
+              </>
+            ) : (
+              <>
+                <Play className="w-3.5 h-3.5 fill-current text-white shrink-0" />
+                <span className="text-[11px] font-bold">Conectar</span>
+              </>
+            )}
+          </button>
+
           {/* Botón Calidad (HD / SD) - Sólo disponible si la cámara no es Ocós 4G (fija en SD) */}
           {!is4gCamera && (
             <button
@@ -1824,7 +1952,7 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
                 setIsSwitchingQuality(true);
                 setStreamQuality((q) => (q === '1' ? '2' : '1'));
               }}
-              className={`min-h-[44px] h-[44px] px-2 sm:px-3 rounded-xl border text-xs font-bold transition-all flex items-center justify-center gap-1 sm:gap-1.5 active:scale-95 flex-1 max-w-[120px] ${
+              className={`min-h-[46px] h-[46px] px-2 sm:px-3 rounded-xl border text-xs font-bold transition-all flex items-center justify-center gap-1 sm:gap-1.5 active:scale-95 flex-1 max-w-[120px] ${
                 streamQuality === '1'
                   ? 'bg-sky-950/80 border-sky-500/80 text-sky-300 shadow-sm shadow-sky-950/50'
                   : 'bg-neutral-900 border-neutral-800 text-neutral-400 hover:text-white'
@@ -1842,7 +1970,7 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
               type="button"
               aria-label={isMuted ? 'Activar sonido ambiental' : 'Silenciar audio'}
               onClick={handleToggleAudio}
-              className={`min-h-[44px] h-[44px] px-2 sm:px-2.5 rounded-xl border text-xs transition-all flex items-center justify-center gap-1 active:scale-95 flex-1 max-w-[120px] ${
+              className={`min-h-[46px] h-[46px] px-2 sm:px-2.5 rounded-xl border text-xs transition-all flex items-center justify-center gap-1 active:scale-95 flex-1 max-w-[120px] ${
                 isMuted 
                   ? 'bg-neutral-900 border-neutral-800 text-neutral-400 hover:text-white' 
                   : 'bg-emerald-950/90 border-emerald-500/80 text-emerald-300 shadow-sm shadow-emerald-950/50'
@@ -1866,7 +1994,7 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
               type="button"
               aria-label="Guardar foto o captura"
               onClick={handleTakeSnapshot}
-              className="min-h-[44px] h-[44px] px-2 sm:px-2.5 bg-neutral-900 hover:bg-neutral-850 active:bg-neutral-800 border border-neutral-800 text-neutral-200 hover:text-white rounded-xl transition-all flex items-center justify-center gap-1 active:scale-95 flex-1 max-w-[120px]"
+              className="min-h-[46px] h-[46px] px-2 sm:px-2.5 bg-neutral-900 hover:bg-neutral-850 active:bg-neutral-800 border border-neutral-800 text-neutral-200 hover:text-white rounded-xl transition-all flex items-center justify-center gap-1 active:scale-95 flex-1 max-w-[120px]"
               title="Descargar Foto / Captura JPG"
             >
               <CameraIcon className="w-3.5 h-3.5 text-sky-400 shrink-0" />
@@ -1879,7 +2007,7 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
             type="button"
             aria-label="Ajustes de video y visión"
             onClick={() => setShowAdvancedMenu(!showAdvancedMenu)}
-            className={`min-h-[44px] h-[44px] px-2 sm:px-2.5 rounded-xl border text-xs transition-all flex items-center justify-center gap-1 active:scale-95 flex-1 max-w-[120px] ${
+            className={`min-h-[46px] h-[46px] px-2 sm:px-2.5 rounded-xl border text-xs transition-all flex items-center justify-center gap-1 active:scale-95 flex-1 max-w-[120px] ${
               showAdvancedMenu
                 ? 'bg-sky-600/30 border-sky-500 text-sky-300 shadow-sm'
                 : 'bg-neutral-900 border-neutral-800 text-neutral-400 hover:text-white'
@@ -1890,17 +2018,17 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
             <span className="text-[11px] font-medium">Ajustes</span>
           </button>
 
-          {/* Botón Ampliar */}
+          {/* Botón Ampliar (Modo Teatro con fondo desenfocado) */}
           <button
             type="button"
-            aria-label={isFullscreen ? 'Salir de pantalla completa' : 'Pantalla completa'}
+            aria-label={isFullscreen ? 'Salir de pantalla ampliada' : 'Modo teatro ampliado'}
             onClick={toggleFullscreen}
-            className={`min-h-[44px] h-[44px] px-2 sm:px-3 rounded-xl border transition-all flex items-center justify-center gap-1 active:scale-95 font-medium flex-1 max-w-[120px] ${
+            className={`min-h-[46px] h-[46px] px-2 sm:px-3 rounded-xl border transition-all flex items-center justify-center gap-1 active:scale-95 font-medium flex-1 max-w-[120px] ${
               isFullscreen 
                 ? 'bg-neutral-800 border-neutral-700 text-white' 
                 : 'bg-sky-600/25 hover:bg-sky-600/35 border-sky-500/60 text-sky-200 shadow-sm'
             }`}
-            title={isFullscreen ? 'Salir de pantalla completa' : 'Ver a Pantalla Completa'}
+            title={isFullscreen ? 'Salir de modo teatro' : 'Ampliar en Modo Teatro'}
           >
             {isFullscreen ? <Minimize2 className="w-3.5 h-3.5 shrink-0" /> : <Maximize2 className="w-3.5 h-3.5 text-sky-400 shrink-0" />}
             <span className="text-[11px] font-bold">{isFullscreen ? 'Salir' : 'Ampliar'}</span>
@@ -2009,6 +2137,7 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
           </div>
         </div>
       )}
+      </div>
     </div>
     </>
   );

@@ -169,7 +169,7 @@ function AppShell() {
     } catch {
       // ignore storage errors in sandboxed iframe
     }
-    return 'sapphire';
+    return 'tactical';
   });
   const isOnline = useOnlineStatus();
 

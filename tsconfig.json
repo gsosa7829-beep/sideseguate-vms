@@ -24,5 +24,5 @@
     "allowImportingTsExtensions": true,
     "noEmit": true
   },
-  "exclude": ["dist", "scripts", "backups"]
+  "exclude": ["dist", "scripts", "backups", "src/backups"]
 }
