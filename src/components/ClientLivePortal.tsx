@@ -7,6 +7,7 @@ import {
   recordCloudShareLinkAccess,
 } from '../lib/firebase';
 import { LiveCameraPlayer, prewarmHikvisionCameras } from './LiveCameraPlayer';
+import { syncEzvizAuthFromRemote, extractEzvizTokenFromCamera } from '../lib/ezvizAuth';
 import { buildWhatsAppUrl } from '../lib/whatsapp';
 import { usePWAInstall } from '../lib/usePWAInstall';
 import { 
@@ -208,8 +209,19 @@ export const ClientLivePortal: React.FC<ClientLivePortalProps> = ({
     }
   }
 
+  // Sincronizar token de EZVIZ para la cámara de Ocós para que clientes en móvil nunca vean token vencido
   useEffect(() => {
-    if (allowedCameras.some((c) => c.deviceSerial === 'F31700438' || c.id.includes('hilook'))) {
+    const ocosCam = pool.find((c) => c.id === 'cam-ocos-ch1' || c.deviceSerial === 'FF9363270');
+    if (ocosCam) {
+      const extracted = extractEzvizTokenFromCamera(ocosCam);
+      if (extracted) {
+        syncEzvizAuthFromRemote(extracted);
+      }
+    }
+  }, [pool]);
+
+  useEffect(() => {
+    if (allowedCameras.some((c) => c.deviceSerial === 'FF9363270' || c.id.includes('ocos'))) {
       prewarmHikvisionCameras();
     }
   }, [allowedCameras]);

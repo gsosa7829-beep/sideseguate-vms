@@ -32,12 +32,12 @@ export interface TokenHealthInfo {
 export const EZVIZ_AUTH_STORAGE_KEY = 'sideseguate_ezviz_auth_v2';
 export const DEFAULT_FALLBACK_TOKEN = 'at.b1exbqau80l85aox2k6x3487cw0byh2s-51eyws3m7n-0ii5ze3-uuk9pufag';
 
-// Token expirado por defecto si no hay nada guardado para obligar a renovación o alerta limpia
+// Configuración inicial por defecto con vigencia activa para no resetear sesiones limpias
 const INITIAL_CONFIG: EzvizAuthConfig = {
   appKey: '',
   appSecret: '',
   accessToken: DEFAULT_FALLBACK_TOKEN,
-  expireTime: 0, // Expirado por defecto
+  expireTime: Date.now() + 7 * 86400 * 1000,
   lastRefreshAt: undefined,
   lastError: undefined,
   autoRefresh: true,
@@ -54,11 +54,12 @@ export function loadEzvizAuth(): EzvizAuthConfig {
       const raw = localStorage.getItem(EZVIZ_AUTH_STORAGE_KEY);
       if (raw) {
         const parsed = JSON.parse(raw);
+        const rawExpireTime = typeof parsed.expireTime === 'number' ? parsed.expireTime : 0;
         cachedConfig = {
           appKey: String(parsed.appKey || ''),
           appSecret: String(parsed.appSecret || ''),
           accessToken: String(parsed.accessToken || DEFAULT_FALLBACK_TOKEN),
-          expireTime: typeof parsed.expireTime === 'number' ? parsed.expireTime : 0,
+          expireTime: rawExpireTime > 0 ? rawExpireTime : Date.now() + 7 * 86400 * 1000,
           lastRefreshAt: parsed.lastRefreshAt,
           lastError: parsed.lastError,
           autoRefresh: parsed.autoRefresh !== false,
@@ -89,8 +90,76 @@ export function saveEzvizAuth(updates: Partial<EzvizAuthConfig>): EzvizAuthConfi
     console.warn('Error al persistir EZVIZ auth:', e);
   }
 
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('sideseguate_ezviz_token_refreshed', {
+      detail: cachedConfig,
+    }));
+  }
+
   notifySubscribers();
   return cachedConfig;
+}
+
+/** Sincroniza el token recibido desde Firestore para que nunca se restablezca */
+export function syncEzvizAuthFromRemote(remote: {
+  accessToken?: string;
+  expireTime?: number;
+  appKey?: string;
+  appSecret?: string;
+}): void {
+  if (!remote || !remote.accessToken) return;
+  const cleanToken = remote.accessToken.trim();
+  if (!cleanToken) return;
+
+  const current = loadEzvizAuth();
+  const remoteExpire = typeof remote.expireTime === 'number' && remote.expireTime > 0
+    ? remote.expireTime
+    : Date.now() + 7 * 86400 * 1000;
+
+  if (cleanToken !== current.accessToken || remoteExpire > (current.expireTime || 0)) {
+    saveEzvizAuth({
+      accessToken: cleanToken,
+      expireTime: remoteExpire,
+      appKey: (remote.appKey || current.appKey || '').trim(),
+      appSecret: (remote.appSecret || current.appSecret || '').trim(),
+      lastRefreshAt: Date.now(),
+      lastError: undefined,
+    });
+  }
+}
+
+/**
+ * Extrae el AccessToken y fecha de expiración desde una cámara guardada en Firestore.
+ * Busca primero en `notes` ([EZVIZ_TOKEN:token|expireTime]) y luego en `cloudId`.
+ */
+export function extractEzvizTokenFromCamera(
+  cam?: { cloudId?: string; notes?: string } | null
+): { accessToken: string; expireTime?: number } | null {
+  if (!cam) return null;
+  if (cam.notes && cam.notes.includes('[EZVIZ_TOKEN:')) {
+    const match = cam.notes.match(/\[EZVIZ_TOKEN:([^|\]]+)(?:\|(\d+))?\]/);
+    if (match && match[1]?.startsWith('at.')) {
+      return {
+        accessToken: match[1].trim(),
+        expireTime: match[2] ? Number(match[2]) : undefined,
+      };
+    }
+  }
+  if (cam.cloudId && cam.cloudId.startsWith('at.')) {
+    return {
+      accessToken: cam.cloudId.trim(),
+    };
+  }
+  return null;
+}
+
+/**
+ * Añade o actualiza la etiqueta de persistencia de token en las notas de la cámara.
+ */
+export function formatEzvizTokenNotes(notes: string | undefined, token: string, expireTime: number): string {
+  const base = (notes || '').replace(/\[EZVIZ_TOKEN:[^\]]*\]/g, '').trim();
+  const tag = `[EZVIZ_TOKEN:${token}|${expireTime}]`;
+  return base ? `${base} ${tag}` : tag;
 }
 
 /** Retorna el token activo en memoria */
@@ -298,9 +367,9 @@ export async function verifyTokenLive(serial: string = 'FF9363270'): Promise<{
     }
 
     if (data.code === '10002') {
-      // Marcar expirado inmediatamente si la API lo confirma
-      saveEzvizAuth({ expireTime: 0, lastError: 'AccessToken expired or error (10002)' });
-      return { valid: false, code: data.code, msg: 'Token expirado o inválido' };
+      // Registrar error reportado por la API sin destruir forzosamente el timer local
+      saveEzvizAuth({ lastError: 'AccessToken reportado expirado o no autorizado por EZVIZ (10002)' });
+      return { valid: false, code: data.code, msg: 'Token expirado o inválido según EZVIZ' };
     }
 
     return { valid: false, code: data.code, msg: data.msg || 'Respuesta no exitosa' };

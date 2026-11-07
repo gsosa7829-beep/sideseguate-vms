@@ -27,7 +27,12 @@ import {
 import { formatExpirationText, createFlashTemporaryLink } from './lib/tokenSecurity';
 import { generateMediaMtxYaml } from './lib/mediaMtxGenerator';
 import { applyTunnelToCameras, formatBuyerAccessNotification } from './lib/pcLauncherGenerator';
-import { initEzvizAutoRefreshWatchdog } from './lib/ezvizAuth';
+import {
+  initEzvizAutoRefreshWatchdog,
+  syncEzvizAuthFromRemote,
+  extractEzvizTokenFromCamera,
+  formatEzvizTokenNotes,
+} from './lib/ezvizAuth';
 import { LiveCameraPlayer } from './components/LiveCameraPlayer';
 const ClientLivePortal = lazy(() =>
   import('./components/ClientLivePortal').then((m) => ({ default: m.ClientLivePortal }))
@@ -170,6 +175,38 @@ function AppShell() {
 
   useEffect(() => {
     initEzvizAutoRefreshWatchdog();
+  }, []);
+
+  // Sincronizar en Firestore cualquier renovación de token para que todos los clientes/móviles lo reciban
+  useEffect(() => {
+    const handleTokenRefreshed = (e: any) => {
+      const detail = e.detail;
+      if (!detail || !detail.accessToken) return;
+      const currentCams = storage.getCameras();
+      const ocos = currentCams.find(
+        (c) => c.id === 'cam-ocos-ch1' || c.deviceSerial === 'FF9363270'
+      );
+      if (ocos) {
+        const expireMs = typeof detail.expireTime === 'number' && detail.expireTime > 0
+          ? detail.expireTime
+          : Date.now() + 7 * 86400 * 1000;
+        const updatedNotes = formatEzvizTokenNotes(ocos.notes, detail.accessToken, expireMs);
+        const updatedCam: Camera = {
+          ...ocos,
+          cloudId: detail.accessToken,
+          notes: updatedNotes,
+        };
+        const nextList = currentCams.map((c) => (c.id === ocos.id ? updatedCam : c));
+        storage.saveCameras(nextList);
+        setCameras(nextList);
+        upsertCloudCamera(updatedCam).catch((err) =>
+          console.warn('Error al sincronizar token de EZVIZ en Firestore:', err)
+        );
+      }
+    };
+
+    window.addEventListener('sideseguate_ezviz_token_refreshed', handleTokenRefreshed);
+    return () => window.removeEventListener('sideseguate_ezviz_token_refreshed', handleTokenRefreshed);
   }, []);
 
   useEffect(() => {
@@ -439,6 +476,18 @@ function AppShell() {
           });
         }
         const onlyRealCams = cloudCameras.filter((c) => !isLegacyDemoCamera(c));
+
+        // Sincronizar el token de EZVIZ recibido desde Firestore para la cámara de Ocós
+        const remoteOcosCam = cloudCameras.find(
+          (c) => c.id === 'cam-ocos-ch1' || c.deviceSerial === 'FF9363270'
+        );
+        if (remoteOcosCam) {
+          const extractedToken = extractEzvizTokenFromCamera(remoteOcosCam);
+          if (extractedToken) {
+            syncEzvizAuthFromRemote(extractedToken);
+          }
+        }
+
         const cloudIds = new Set(onlyRealCams.map((c) => c.id));
         const mergedCams = [...onlyRealCams, ...INITIAL_CAMERAS.filter((c) => !cloudIds.has(c.id))];
         const enriched = (mergedCams.length > 0 ? mergedCams : INITIAL_CAMERAS).map((cam) => {

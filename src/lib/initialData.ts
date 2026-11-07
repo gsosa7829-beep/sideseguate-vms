@@ -82,6 +82,7 @@ export const INITIAL_CAMERAS: Camera[] = [
     ptzSupported: false,
     nightVision: false,
     deviceSerial: 'FF9363270',
+    cloudId: 'at.b1exbqau80l85aox2k6x3487cw0byh2s-51eyws3m7n-0ii5ze3-uuk9pufag',
     notes: 'Cámara 4G Hikvision FF9363270 | HiLookVision: 5nctiv | Código: LBNZYU | Modo Ultra-Ahorro Datos 4G Activo'
   },
   {

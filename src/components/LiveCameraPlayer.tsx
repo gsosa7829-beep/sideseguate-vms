@@ -93,12 +93,8 @@ export function prewarmHikvisionCameras() {
   if (mobile) return;
 
   prewarmStarted = true;
-  void fetchEzvizLiveHls(1, 'F31700438', '1');
-  void fetchEzvizLiveHls(2, 'F31700438', '1');
-  setTimeout(() => {
-    void fetchEzvizLiveHls(1, 'F31700438', '2');
-    void fetchEzvizLiveHls(2, 'F31700438', '2');
-  }, 2200);
+  // Pre-calentar solo Ocós (FF9363270) que sí usa la nube EZVIZ (Calle del Cementerio usa MediaMTX local, cero tokens)
+  void fetchEzvizLiveHls(1, 'FF9363270', '2');
 }
 
 export async function fetchEzvizLiveHls(
@@ -418,14 +414,13 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
   // A. DVR Calle del Cementerio (F31700438): Conexión directa MediaMTX / RTSP local (CERO TOKENS, apertura en 0.3s)
   // B. Cámara 4G Ocós (FF9363270): Conexión Cloud EZVIZ / EZopen con Auto-Refresh 24/7
   const isEzopenDevice = Boolean(
-    !useHlsFallback && (
+    !isCementerioCamera && !useHlsFallback && (
       is4gCamera ||
       camera.deviceSerial === 'FF9363270' ||
       camera.notes?.includes('FF9363270') ||
       camera.id?.includes('ocos') ||
-      (tryEzOnMobile && preferMobileHls) ||
-      (!isCementerioCamera && camera.codec === 'H.265') ||
-      (!isCementerioCamera && camera.deviceSerial && camera.verificationCode)
+      camera.codec === 'H.265' ||
+      (camera.deviceSerial && camera.verificationCode)
     )
   );
   const ezuikitContainerId = useRef('ezuikit-live-' + Math.random().toString(36).substring(2, 9)).current;
@@ -479,7 +474,7 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
   const gatewayStream = resolveStreamUrls(camera, currentGateway);
   // Para el DVR Calle del Cementerio, el flujo directo por MediaMTX / RTSP tiene prioridad absoluta
   const cementerioDirectHls = isCementerioCamera
-    ? (directHlsUrl || (gatewayStream.hlsUrl && !isPlaceholderStreamUrl(gatewayStream.hlsUrl) ? gatewayStream.hlsUrl : (!isMobile ? gatewayStream.hlsUrl : null)))
+    ? (directHlsUrl || (gatewayStream.hlsUrl && !isPlaceholderStreamUrl(gatewayStream.hlsUrl) ? gatewayStream.hlsUrl : gatewayStream.hlsUrl))
     : null;
 
   const hlsSourceKey = [camera.id, deviceSerial, channel, streamQuality, reconnectVersion].join(':');
@@ -852,24 +847,26 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
         }
       }
 
-      // 2. Para cámaras en la nube (F31700438 / FF9363270): esperar 2.8s para dar 100% de prioridad al stream HLS/EZopen.
-      // Solo si el stream aún no ha abierto su primer fotograma, pedir 1 sola captura de póster sin bucle de 50ms.
-      timer = setTimeout(async () => {
-        if (!active || hlsLiveReadyRef.current || ezuikitLiveReadyRef.current) return;
-        const livePicUrl = await fetchEzvizLiveCapture(ch, deviceSerial || 'F31700438');
-        if (livePicUrl && active && !hlsLiveReadyRef.current && !ezuikitLiveReadyRef.current) {
-          const img = new Image();
-          img.crossOrigin = 'anonymous';
-          img.onload = () => {
-            if (!active) return;
-            nativeP2pImgRef.current = img;
-            setNativeP2pReady(true);
-            setIsOffline(false);
-          };
-          const sep = livePicUrl.includes('?') ? '&' : '?';
-          img.src = `${livePicUrl}${sep}_t=${Date.now()}`;
-        }
-      }, 2800);
+      // 2. Para cámara 4G Ocós (FF9363270): esperar 2.8s para dar prioridad al stream HLS/EZopen.
+      // Calle del Cementerio NO usa nube EZVIZ (cero tokens, directo MediaMTX / RTSP).
+      if (!isCementerioCamera) {
+        timer = setTimeout(async () => {
+          if (!active || hlsLiveReadyRef.current || ezuikitLiveReadyRef.current) return;
+          const livePicUrl = await fetchEzvizLiveCapture(ch, deviceSerial || 'FF9363270');
+          if (livePicUrl && active && !hlsLiveReadyRef.current && !ezuikitLiveReadyRef.current) {
+            const img = new Image();
+            img.crossOrigin = 'anonymous';
+            img.onload = () => {
+              if (!active) return;
+              nativeP2pImgRef.current = img;
+              setNativeP2pReady(true);
+              setIsOffline(false);
+            };
+            const sep = livePicUrl.includes('?') ? '&' : '?';
+            img.src = `${livePicUrl}${sep}_t=${Date.now()}`;
+          }
+        }, 2800);
+      }
     };
 
     pollLocalOrDeferredPoster();

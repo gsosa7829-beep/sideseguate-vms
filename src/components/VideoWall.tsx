@@ -3,6 +3,7 @@ import { Camera } from '../lib/types';
 import { LiveCameraPlayer, prewarmHikvisionCameras } from './LiveCameraPlayer';
 import { cloudP2pClient } from '../lib/cloudP2pClient';
 import { getTokenHealth, subscribeEzvizAuth, refreshEzvizToken, TokenHealthInfo } from '../lib/ezvizAuth';
+import { EzvizTokenRenewalModal } from './EzvizTokenRenewalModal';
 import { LayoutGrid, Square, Plus, Eye, Link2, Grid3X3, Sparkles, Bot, ArrowLeft, RefreshCw, Key, AlertTriangle } from 'lucide-react';
 
 interface VideoWallProps {
@@ -30,6 +31,7 @@ export const VideoWall: React.FC<VideoWallProps> = ({
   const [reconnectKey, setReconnectKey] = useState(0);
   const [tokenHealth, setTokenHealth] = useState<TokenHealthInfo>(() => getTokenHealth());
   const [isRenewingToken, setIsRenewingToken] = useState(false);
+  const [isTokenModalOpen, setIsTokenModalOpen] = useState(false);
 
   useEffect(() => {
     return subscribeEzvizAuth(() => {
@@ -40,8 +42,13 @@ export const VideoWall: React.FC<VideoWallProps> = ({
   const handleQuickRenew = async () => {
     setIsRenewingToken(true);
     try {
-      await refreshEzvizToken();
+      const res = await refreshEzvizToken();
       setTokenHealth(getTokenHealth());
+      if (!res.success) {
+        setIsTokenModalOpen(true);
+      }
+    } catch {
+      setIsTokenModalOpen(true);
     } finally {
       setIsRenewingToken(false);
     }
@@ -101,18 +108,29 @@ export const VideoWall: React.FC<VideoWallProps> = ({
           </div>
 
           <div className="flex items-center gap-2 shrink-0 w-full sm:w-auto">
+            {tokenHealth.canAutoRefresh && (
+              <button
+                type="button"
+                disabled={isRenewingToken}
+                onClick={handleQuickRenew}
+                className="w-full sm:w-auto px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-sm active:scale-95 bg-emerald-600 hover:bg-emerald-500 text-white"
+                title="Renovación automática usando credenciales de EZVIZ Open Platform"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${isRenewingToken ? 'animate-spin' : ''}`} />
+                <span>{isRenewingToken ? 'Renovando…' : '⚡ Auto-Renovar'}</span>
+              </button>
+            )}
             <button
               type="button"
-              disabled={isRenewingToken}
-              onClick={handleQuickRenew}
+              onClick={() => setIsTokenModalOpen(true)}
               className={`w-full sm:w-auto px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-sm active:scale-95 ${
                 tokenHealth.status === 'expired'
                   ? 'bg-red-600 hover:bg-red-500 text-white'
                   : 'bg-amber-500 hover:bg-amber-400 text-neutral-950'
               }`}
             >
-              <RefreshCw className={`w-3.5 h-3.5 ${isRenewingToken ? 'animate-spin' : ''}`} />
-              <span>{isRenewingToken ? 'Renovando…' : '⚡ Renovar Token en 1 Clic'}</span>
+              <Key className="w-3.5 h-3.5" />
+              <span>Pegar / Actualizar Token</span>
             </button>
           </div>
         </div>
@@ -417,6 +435,11 @@ export const VideoWall: React.FC<VideoWallProps> = ({
           ))}
         </div>
       )}
+
+      <EzvizTokenRenewalModal
+        isOpen={isTokenModalOpen}
+        onClose={() => setIsTokenModalOpen(false)}
+      />
     </div>
   );
 };

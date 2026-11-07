@@ -10,6 +10,7 @@ import {
   subscribeEzvizAuth,
   TokenHealthInfo,
 } from '../lib/ezvizAuth';
+import { EzvizTokenRenewalModal } from './EzvizTokenRenewalModal';
 import {
   Server,
   CheckCircle2,
@@ -41,6 +42,7 @@ export const ArchitectureTab: React.FC<ArchitectureTabProps> = ({ cameras }) => 
   const [isVerifyingToken, setIsVerifyingToken] = useState(false);
   const [verifyMessage, setVerifyMessage] = useState<{ type: 'success' | 'error' | 'warn'; text: string } | null>(null);
   const [showConfigModal, setShowConfigModal] = useState(false);
+  const [isTokenRenewalModalOpen, setIsTokenRenewalModalOpen] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   // Form states
@@ -70,8 +72,7 @@ export const ArchitectureTab: React.FC<ArchitectureTabProps> = ({ cameras }) => 
 
   const handle1ClickRenew = async () => {
     if (!tokenHealth.hasCredentials) {
-      setShowConfigModal(true);
-      setActiveConfigTab('auto');
+      setIsTokenRenewalModalOpen(true);
       return;
     }
 
@@ -85,9 +86,11 @@ export const ArchitectureTab: React.FC<ArchitectureTabProps> = ({ cameras }) => 
         setVerifyMessage({ type: 'success', text: 'Token renovado con éxito por la API oficial de EZVIZ.' });
       } else {
         setVerifyMessage({ type: 'error', text: res.error || 'Error al renovar token' });
+        setIsTokenRenewalModalOpen(true);
       }
     } catch (e: any) {
       setVerifyMessage({ type: 'error', text: e?.message || 'Error de conexión con EZVIZ' });
+      setIsTokenRenewalModalOpen(true);
     } finally {
       setIsRefreshingToken(false);
     }
@@ -298,6 +301,15 @@ export const ArchitectureTab: React.FC<ArchitectureTabProps> = ({ cameras }) => 
             >
               <RefreshCw className={`w-3.5 h-3.5 ${isRefreshingToken ? 'animate-spin' : ''}`} />
               <span>{isRefreshingToken ? 'Renovando…' : '⚡ Renovar Token en 1 Clic'}</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setIsTokenRenewalModalOpen(true)}
+              className="px-3.5 py-2.5 bg-neutral-950 hover:bg-neutral-800 border border-neutral-700 text-neutral-200 rounded-xl text-xs font-semibold flex items-center gap-2 transition cursor-pointer"
+            >
+              <Key className="w-3.5 h-3.5 text-sky-400" />
+              <span>Pegar / Actualizar Token</span>
             </button>
 
             <button
@@ -628,6 +640,12 @@ export const ArchitectureTab: React.FC<ArchitectureTabProps> = ({ cameras }) => 
           </span>
         </div>
       </div>
+
+      <EzvizTokenRenewalModal
+        isOpen={isTokenRenewalModalOpen}
+        onClose={() => setIsTokenRenewalModalOpen(false)}
+        onSuccess={(msg) => triggerToast(msg)}
+      />
     </div>
   );
 };
