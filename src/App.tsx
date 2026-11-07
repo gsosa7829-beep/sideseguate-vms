@@ -1081,12 +1081,12 @@ function AppShell() {
 
         {/* Real-Time Buyer Access / Auto-Tunnel Live Alert Banner */}
         {liveBuyerBanner && (
-          <div className="mx-4 sm:mx-6 mt-3 px-4 py-2.5 rounded-xl bg-emerald-950/90 border border-emerald-500/40 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 text-xs shadow-lg">
-            <div className="flex items-center gap-2.5 min-w-0">
-              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping shrink-0" />
-              <div className="min-w-0">
-                <span className="font-bold text-white mr-2">{liveBuyerBanner.headline}</span>
-                <span className="text-emerald-200/90 font-mono text-[11px]">{liveBuyerBanner.subline}</span>
+          <div className="mx-3 sm:mx-6 mt-3 px-3 sm:px-4 py-2 rounded-xl bg-emerald-950/90 border border-emerald-500/40 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 text-xs shadow-lg overflow-hidden">
+            <div className="flex items-start sm:items-center gap-2.5 min-w-0 flex-1">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping shrink-0 mt-1 sm:mt-0" />
+              <div className="min-w-0 flex-1">
+                <span className="font-bold text-white mr-2 block sm:inline truncate">{liveBuyerBanner.headline}</span>
+                <span className="text-emerald-200/90 font-mono text-[11px] block sm:inline truncate">{liveBuyerBanner.subline}</span>
               </div>
             </div>
             <div className="flex items-center gap-2 shrink-0">

@@ -449,7 +449,7 @@ export const VideoWall: React.FC<VideoWallProps> = ({
                     <button
                       type="button"
                       onClick={handleStartAllCementerio}
-                      className="min-h-[46px] px-4 py-2 bg-neutral-800 hover:bg-neutral-700 active:bg-neutral-600 text-white text-xs font-semibold rounded-xl transition border border-neutral-700 shadow-sm flex items-center gap-2 cursor-pointer"
+                      className="h-9 sm:h-[42px] min-h-[36px] sm:min-h-[42px] px-3 sm:px-4 py-1.5 sm:py-2 bg-neutral-800 hover:bg-neutral-700 active:bg-neutral-600 text-white text-xs font-semibold rounded-lg sm:rounded-xl transition border border-neutral-700 shadow-sm flex items-center gap-2 cursor-pointer"
                       title="Conectar video en vivo de ambas cámaras simultáneamente"
                     >
                       <Play className="w-3.5 h-3.5 fill-current text-white" />
@@ -459,7 +459,7 @@ export const VideoWall: React.FC<VideoWallProps> = ({
                     <button
                       type="button"
                       onClick={handlePauseAllCementerio}
-                      className="min-h-[46px] px-3.5 py-2 bg-neutral-900 hover:bg-neutral-850 active:bg-neutral-800 text-neutral-400 hover:text-white text-xs font-medium rounded-xl transition border border-neutral-800 flex items-center gap-1.5 cursor-pointer"
+                      className="h-9 sm:h-[42px] min-h-[36px] sm:min-h-[42px] px-3 sm:px-3.5 py-1.5 sm:py-2 bg-neutral-900 hover:bg-neutral-850 active:bg-neutral-800 text-neutral-400 hover:text-white text-xs font-medium rounded-lg sm:rounded-xl transition border border-neutral-800 flex items-center gap-1.5 cursor-pointer"
                       title="Pausar ambas cámaras para ahorrar CPU y ancho de banda"
                     >
                       <Pause className="w-3.5 h-3.5" />
@@ -529,7 +529,7 @@ export const VideoWall: React.FC<VideoWallProps> = ({
                             <button
                               type="button"
                               onClick={() => onSelectCamera(cam.id)}
-                              className="min-h-[46px] sm:min-h-[38px] px-3.5 bg-neutral-900 hover:bg-neutral-850 active:bg-neutral-800 text-neutral-200 border border-neutral-800 rounded-xl transition flex items-center gap-1.5 font-medium cursor-pointer"
+                              className="h-8 sm:h-[38px] min-h-[32px] sm:min-h-[38px] px-2.5 sm:px-3.5 bg-neutral-900 hover:bg-neutral-850 active:bg-neutral-800 text-neutral-200 border border-neutral-800 rounded-lg sm:rounded-xl transition flex items-center gap-1.5 font-medium cursor-pointer text-xs"
                               title="Inspeccionar en vista completa individual"
                             >
                               <Eye className="w-3.5 h-3.5 text-neutral-300 shrink-0" />
@@ -539,7 +539,7 @@ export const VideoWall: React.FC<VideoWallProps> = ({
                             <button
                               type="button"
                               onClick={() => onGenerateLink(cam)}
-                              className="min-h-[46px] sm:min-h-[38px] px-3.5 bg-neutral-800 hover:bg-neutral-700 active:bg-neutral-600 text-white border border-neutral-700 rounded-xl transition flex items-center gap-1.5 font-semibold cursor-pointer shadow-sm"
+                              className="h-8 sm:h-[38px] min-h-[32px] sm:min-h-[38px] px-2.5 sm:px-3.5 bg-neutral-800 hover:bg-neutral-700 active:bg-neutral-600 text-white border border-neutral-700 rounded-lg sm:rounded-xl transition flex items-center gap-1.5 font-semibold cursor-pointer shadow-sm text-xs"
                               title="Generar enlace privado temporal para clientes o vecinos"
                             >
                               <Link2 className="w-3.5 h-3.5 text-neutral-300 shrink-0" />
@@ -649,7 +649,7 @@ export const VideoWall: React.FC<VideoWallProps> = ({
                             <button
                               type="button"
                               onClick={() => onSelectCamera(cam.id)}
-                              className="min-h-[46px] sm:min-h-[38px] px-3.5 bg-neutral-900 hover:bg-neutral-850 active:bg-neutral-800 text-neutral-200 border border-neutral-800 rounded-xl transition flex items-center gap-1.5 font-medium cursor-pointer"
+                              className="h-8 sm:h-[38px] min-h-[32px] sm:min-h-[38px] px-2.5 sm:px-3.5 bg-neutral-900 hover:bg-neutral-850 active:bg-neutral-800 text-neutral-200 border border-neutral-800 rounded-lg sm:rounded-xl transition flex items-center gap-1.5 font-medium cursor-pointer text-xs"
                               title="Inspeccionar cámara 4G en vista completa"
                             >
                               <Eye className="w-3.5 h-3.5 text-neutral-300 shrink-0" />
@@ -659,7 +659,7 @@ export const VideoWall: React.FC<VideoWallProps> = ({
                             <button
                               type="button"
                               onClick={() => onGenerateLink(cam)}
-                              className="min-h-[46px] sm:min-h-[38px] px-3.5 bg-neutral-800 hover:bg-neutral-700 active:bg-neutral-600 text-white border border-neutral-700 rounded-xl transition flex items-center gap-1.5 font-semibold cursor-pointer shadow-sm"
+                              className="h-8 sm:h-[38px] min-h-[32px] sm:min-h-[38px] px-2.5 sm:px-3.5 bg-neutral-800 hover:bg-neutral-700 active:bg-neutral-600 text-white border border-neutral-700 rounded-lg sm:rounded-xl transition flex items-center gap-1.5 font-semibold cursor-pointer shadow-sm text-xs"
                               title="Generar enlace privado temporal para el comité"
                             >
                               <Link2 className="w-3.5 h-3.5 text-neutral-300 shrink-0" />

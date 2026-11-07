@@ -297,9 +297,10 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
   const [{ mobile: isMobile, appleMobile }] = useState(() => typeof window === 'undefined'
     ? { mobile: false, appleMobile: false }
     : getPlaybackEnvironment(navigator.userAgent, navigator.maxTouchPoints, window.innerWidth));
-  const observeViewport = isMobile && isCompact && !isFullscreen && typeof IntersectionObserver !== 'undefined';
+  const isAnyExpanded = isFullscreen || isTheaterMode || expandedHeight !== null;
+  const observeViewport = isMobile && isCompact && !isAnyExpanded && typeof IntersectionObserver !== 'undefined';
   const [inViewport, setInViewport] = useState(false);
-  const canLoadInViewport = !observeViewport || inViewport;
+  const canLoadInViewport = !observeViewport || inViewport || isAnyExpanded || isStreamPlaying;
 
   useEffect(() => {
     if (!observeViewport || !containerRef.current) return;
@@ -748,8 +749,13 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
 
       try {
         const rect = container.getBoundingClientRect();
-        const width = Math.max(320, Math.round(rect.width || container.clientWidth || window.innerWidth || 640));
-        const height = Math.max(180, Math.round(rect.height || container.clientHeight || (width * 9) / 16 || 360));
+        const mobileDpr = typeof window !== 'undefined' ? Math.min(window.devicePixelRatio || 1, 2) : 1;
+        const width = isMobile
+          ? Math.max(720, Math.round((rect.width || container.clientWidth || 360) * mobileDpr))
+          : Math.max(320, Math.round(rect.width || container.clientWidth || window.innerWidth || 640));
+        const height = isMobile
+          ? Math.max(405, Math.round((width * 9) / 16))
+          : Math.max(180, Math.round(rect.height || container.clientHeight || (width * 9) / 16 || 360));
 
         startupTimer = setTimeout(() => {
           if (!ezuikitLiveReadyRef.current) fallbackToHls();
@@ -1449,7 +1455,7 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
       ref={containerRef}
       className={
         isTheaterMode
-          ? 'fixed inset-0 z-[150] bg-black/85 backdrop-blur-2xl flex items-center justify-center p-3 sm:p-6 md:p-10 select-none animate-in fade-in duration-200'
+          ? 'fixed inset-0 z-[150] bg-black/90 backdrop-blur-2xl flex flex-col items-center justify-center p-2 sm:p-6 md:p-10 select-none animate-in fade-in duration-200'
           : `bg-neutral-950 overflow-hidden flex flex-col group ${
               expandedHeight !== null ? 'camera-expanded fixed inset-0 z-[200]' : 'relative'
             }`
@@ -1467,7 +1473,7 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
       <div
         className={
           isTheaterMode
-            ? 'w-full max-w-5xl max-h-[92vh] bg-neutral-950 rounded-2xl border border-neutral-700/80 shadow-2xl overflow-hidden flex flex-col relative my-auto animate-in zoom-in-95 duration-200'
+            ? 'w-full max-w-5xl min-w-0 max-h-[92vh] bg-neutral-950 rounded-xl sm:rounded-2xl border border-neutral-700/80 shadow-2xl overflow-hidden flex flex-col relative my-auto animate-in zoom-in-95 duration-200'
             : 'w-full flex flex-col relative'
         }
         onClick={(e) => {
@@ -1476,7 +1482,7 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
       >
         {/* Header exclusivo de Modo Teatro (PC y Móvil) */}
         {isTheaterMode && (
-          <div className="px-4 py-3 bg-neutral-900/95 border-b border-neutral-800 flex items-center justify-between gap-3 text-xs shrink-0">
+          <div className="px-3 sm:px-4 py-2 sm:py-3 bg-neutral-900/95 border-b border-neutral-800 flex items-center justify-between gap-2 text-xs shrink-0 min-w-0">
             <div className="flex items-center gap-2.5 min-w-0">
               <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${hasImage ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'}`} />
               <span className="font-mono text-xs text-sky-400 font-bold px-2 py-0.5 rounded bg-sky-950/80 border border-sky-800/60 shrink-0">
@@ -1495,7 +1501,7 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
             <button
               type="button"
               onClick={() => setIsTheaterMode(false)}
-              className="min-h-[44px] px-3.5 py-1.5 rounded-xl bg-neutral-800 hover:bg-neutral-700 active:bg-neutral-600 text-white font-medium flex items-center gap-2 transition cursor-pointer border border-neutral-700 shadow-md"
+              className="h-8 sm:min-h-[44px] sm:h-[44px] px-2.5 sm:px-3.5 py-1 sm:py-1.5 rounded-lg sm:rounded-xl bg-neutral-800 hover:bg-neutral-700 active:bg-neutral-600 text-white font-medium flex items-center gap-1.5 transition cursor-pointer border border-neutral-700 shadow-md text-xs shrink-0"
               title="Cerrar modo teatro (Escape o clic fuera)"
             >
               <span className="text-xs font-semibold">Cerrar</span>
@@ -1503,7 +1509,24 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
             </button>
           </div>
         )}
-      {/* Top Floating Telemetry Scrim (Píldoras Flotantes Discretas) */}
+      
+
+      {/* Main Video Viewport */}
+      <div 
+        onClick={() => {
+          if (is4gCamera && !is4gEcoPaused) {
+            setEcoRemainingSec(90);
+          }
+        }}
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+        onDoubleClick={isMobile ? undefined : toggleFullscreen}
+        style={{ touchAction: 'pan-y' }}
+        className={`relative w-full bg-neutral-950 flex items-center justify-center overflow-hidden select-none cursor-pointer aspect-video sm:${isFullscreen ? "flex-1 min-h-0" : "aspect-video"}`}
+        title="Doble toque o doble clic para Pantalla Completa · Pellizca para Zoom"
+      >
+        {/* Top Floating Telemetry Scrim (Píldoras Flotantes Discretas) */}
       <div className="absolute top-2.5 inset-x-2.5 z-20 flex items-center justify-between gap-2 pointer-events-none">
         <button
           type="button"
@@ -1539,27 +1562,28 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
           )}
         </button>
 
-        <div className="flex items-center gap-1.5 pointer-events-auto">
+        <div className="flex items-center gap-1 sm:gap-1.5 pointer-events-auto shrink-0">
           {is4gCamera && !is4gEcoPaused && (
             <button
               type="button"
               onClick={pause4gStreamForDataSaving}
-              className="flex items-center gap-1 bg-emerald-950/90 hover:bg-emerald-900 border border-emerald-500/50 text-emerald-300 px-2.5 py-1 rounded-full text-[10px] sm:text-[11px] font-mono font-bold shadow-lg transition active:scale-95 cursor-pointer"
+              className="flex items-center gap-1 bg-emerald-950/90 hover:bg-emerald-900 border border-emerald-500/50 text-emerald-300 px-2 sm:px-2.5 py-1 rounded-full text-[10px] sm:text-[11px] font-mono font-bold shadow-lg transition active:scale-95 cursor-pointer whitespace-nowrap"
               title="Pausar transmisión ahora para ahorrar datos de la tarjeta SIM 4G"
             >
-              <span>⏸ Ahorro 4G ({ecoRemainingSec}s)</span>
+              <span className="sm:hidden">⏸ {ecoRemainingSec}s</span>
+              <span className="hidden sm:inline">⏸ Ahorro 4G ({ecoRemainingSec}s)</span>
             </button>
           )}
-          <div className="flex items-center gap-1 bg-black/65 backdrop-blur-md px-2.5 py-1 rounded-full border border-white/10 text-[10px] sm:text-[11px] font-mono tabular-nums text-neutral-200 whitespace-nowrap shrink-0 shadow-lg">
-            <span className="font-bold text-sky-300 font-mono">
+          <div className="flex items-center gap-1 bg-black/65 backdrop-blur-md px-2 sm:px-2.5 py-1 rounded-full border border-white/10 text-[10px] sm:text-[11px] font-mono tabular-nums text-neutral-200 whitespace-nowrap shadow-lg">
+            <span className="hidden sm:inline font-bold text-sky-300 font-mono">
               {camera.codec || 'H.265'}
               <span className="text-neutral-500 mx-1">·</span>
             </span>
             <span className="text-emerald-400 font-semibold font-mono">
               {is4gEcoPaused ? '0 FPS' : isContinuousLive ? `${metrics.fps} FPS` : '4G P2P'}
             </span>
-            <span className="text-neutral-500 mx-1">·</span>
-            <span className="text-sky-300 font-semibold font-mono">
+            <span className="hidden sm:inline text-neutral-500 mx-1">·</span>
+            <span className="hidden sm:inline text-sky-300 font-semibold font-mono">
               {is4gEcoPaused ? '0 kbps' : isContinuousLive ? `${metrics.bitrate} kbps` : 'DIRECTO'}
             </span>
             {nightVision && (
@@ -1571,22 +1595,6 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
           </div>
         </div>
       </div>
-
-      {/* Main Video Viewport */}
-      <div 
-        onClick={() => {
-          if (is4gCamera && !is4gEcoPaused) {
-            setEcoRemainingSec(90);
-          }
-        }}
-        onTouchStart={handleTouchStart}
-        onTouchMove={handleTouchMove}
-        onTouchEnd={handleTouchEnd}
-        onDoubleClick={isMobile ? undefined : toggleFullscreen}
-        style={{ touchAction: 'pan-y' }}
-        className={`relative w-full bg-neutral-950 flex items-center justify-center overflow-hidden select-none cursor-pointer ${isFullscreen ? "flex-1 min-h-0" : "aspect-video"}`}
-        title="Doble toque o doble clic para Pantalla Completa · Pellizca para Zoom"
-      >
         {/* Overlay de Reposo / Video en Espera (0 KB/s · Reproducción Bajo Demanda) */}
         {(!isStreamPlaying || (is4gCamera && is4gEcoPaused)) && (
           <div className="absolute inset-0 z-30 flex flex-col items-center justify-center p-4 bg-neutral-950/90 backdrop-blur-xs text-center select-none overflow-hidden">
@@ -1916,13 +1924,13 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
 
       {/* Bottom Control Bar: 1 Fila Perfecta en Móvil y Escritorio */}
       <div className="relative z-20 bg-neutral-950 border-t border-neutral-800/90 px-2 sm:px-4 py-2 text-neutral-300">
-        <div className="live-player-actions flex items-center justify-center gap-1.5 sm:gap-2 max-w-xl mx-auto">
+        <div className="live-player-actions flex items-center justify-center gap-2 sm:gap-2 max-w-xl mx-auto">
           {/* Botón Conectar / Pausar Transmisión (Bajo Demanda Independiente) */}
           <button
             type="button"
             aria-label={isStreamPlaying ? 'Pausar transmisión de video' : 'Conectar video en vivo'}
             onClick={() => handleToggleStream(!isStreamPlaying)}
-            className={`min-h-[46px] h-[46px] px-2.5 sm:px-3 rounded-xl border text-xs font-semibold transition-all flex items-center justify-center gap-1.5 active:scale-95 flex-1 max-w-[125px] cursor-pointer shadow-xs ${
+            className={`h-[38px] min-h-[38px] sm:min-h-[46px] sm:h-[46px] px-1.5 sm:px-3 rounded-lg sm:rounded-xl border text-[10px] sm:text-xs font-semibold transition-all flex items-center justify-center gap-1 sm:gap-1.5 active:scale-95 flex-1 min-w-0 max-w-[125px] cursor-pointer shadow-xs ${
               isStreamPlaying
                 ? 'bg-neutral-900 hover:bg-neutral-850 border-neutral-800 text-neutral-300 hover:text-white'
                 : 'bg-gradient-to-r from-sky-600 to-sky-500 hover:from-sky-500 hover:to-sky-400 text-white border-sky-400 shadow-md shadow-sky-950/60'
@@ -1932,12 +1940,12 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
             {isStreamPlaying ? (
               <>
                 <Pause className="w-3.5 h-3.5 text-neutral-400 shrink-0" />
-                <span className="text-[11px] font-bold">Pausar</span>
+                <span className="text-[10px] sm:text-[11px] font-bold truncate">Pausar</span>
               </>
             ) : (
               <>
                 <Play className="w-3.5 h-3.5 fill-current text-white shrink-0" />
-                <span className="text-[11px] font-bold">Conectar</span>
+                <span className="text-[10px] sm:text-[11px] font-bold truncate">Conectar</span>
               </>
             )}
           </button>
@@ -1952,7 +1960,7 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
                 setIsSwitchingQuality(true);
                 setStreamQuality((q) => (q === '1' ? '2' : '1'));
               }}
-              className={`min-h-[46px] h-[46px] px-2 sm:px-3 rounded-xl border text-xs font-bold transition-all flex items-center justify-center gap-1 sm:gap-1.5 active:scale-95 flex-1 max-w-[120px] ${
+              className={`h-[38px] min-h-[38px] sm:min-h-[46px] sm:h-[46px] px-1.5 sm:px-3 rounded-lg sm:rounded-xl border text-[10px] sm:text-xs font-bold transition-all flex items-center justify-center gap-1 sm:gap-1.5 active:scale-95 flex-1 min-w-0 max-w-[120px] ${
                 streamQuality === '1'
                   ? 'bg-sky-950/80 border-sky-500/80 text-sky-300 shadow-sm shadow-sky-950/50'
                   : 'bg-neutral-900 border-neutral-800 text-neutral-400 hover:text-white'
@@ -1960,7 +1968,7 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
               title={serverControlsQuality ? 'Calidad gestionada por el servidor' : streamQuality === '1' ? 'Calidad HD 1080p activa' : 'Calidad SD fluida activa'}
             >
               <Sparkles className={`w-3.5 h-3.5 text-sky-400 shrink-0 ${isSwitchingQuality ? 'animate-spin' : ''}`} />
-              <span className="font-mono text-xs font-bold">{serverControlsQuality ? 'AUTO' : streamQuality === '1' ? 'HD' : 'SD'}</span>
+              <span className="font-mono text-[10px] sm:text-xs font-bold truncate">{serverControlsQuality ? 'AUTO' : streamQuality === '1' ? 'HD' : 'SD'}</span>
             </button>
           )}
 
@@ -1970,7 +1978,7 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
               type="button"
               aria-label={isMuted ? 'Activar sonido ambiental' : 'Silenciar audio'}
               onClick={handleToggleAudio}
-              className={`min-h-[46px] h-[46px] px-2 sm:px-2.5 rounded-xl border text-xs transition-all flex items-center justify-center gap-1 active:scale-95 flex-1 max-w-[120px] ${
+              className={`h-[38px] min-h-[38px] sm:min-h-[46px] sm:h-[46px] px-2.5 sm:px-2.5 rounded-lg sm:rounded-xl border text-[10px] sm:text-xs transition-all flex items-center justify-center gap-1 active:scale-95 shrink-0 sm:flex-1 max-w-[120px] ${
                 isMuted 
                   ? 'bg-neutral-900 border-neutral-800 text-neutral-400 hover:text-white' 
                   : 'bg-emerald-950/90 border-emerald-500/80 text-emerald-300 shadow-sm shadow-emerald-950/50'
@@ -1982,7 +1990,7 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
               ) : (
                 <Volume2 className="w-3.5 h-3.5 text-emerald-400 shrink-0 animate-pulse" />
               )}
-              <span className={`text-[11px] font-bold font-mono ${isMuted ? 'text-neutral-400' : 'text-emerald-300'}`}>
+              <span className={`text-[10px] sm:text-[11px] font-bold font-mono truncate ${isMuted ? 'text-neutral-400' : 'text-emerald-300'}`}>
                 {isMuted ? 'Mute' : 'Audio'}
               </span>
             </button>
@@ -1994,11 +2002,11 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
               type="button"
               aria-label="Guardar foto o captura"
               onClick={handleTakeSnapshot}
-              className="min-h-[46px] h-[46px] px-2 sm:px-2.5 bg-neutral-900 hover:bg-neutral-850 active:bg-neutral-800 border border-neutral-800 text-neutral-200 hover:text-white rounded-xl transition-all flex items-center justify-center gap-1 active:scale-95 flex-1 max-w-[120px]"
+              className="h-[38px] min-h-[38px] sm:min-h-[46px] sm:h-[46px] px-1 sm:px-2.5 bg-neutral-900 hover:bg-neutral-850 active:bg-neutral-800 border border-neutral-800 text-neutral-200 hover:text-white rounded-lg sm:rounded-xl transition-all flex items-center justify-center gap-1 active:scale-95 flex-1 min-w-0 max-w-[120px]"
               title="Descargar Foto / Captura JPG"
             >
               <CameraIcon className="w-3.5 h-3.5 text-sky-400 shrink-0" />
-              <span className="text-[11px] font-medium">Foto</span>
+              <span className="hidden sm:inline text-xs font-medium">Foto</span>
             </button>
           )}
 
@@ -2007,7 +2015,7 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
             type="button"
             aria-label="Ajustes de video y visión"
             onClick={() => setShowAdvancedMenu(!showAdvancedMenu)}
-            className={`min-h-[46px] h-[46px] px-2 sm:px-2.5 rounded-xl border text-xs transition-all flex items-center justify-center gap-1 active:scale-95 flex-1 max-w-[120px] ${
+            className={`h-[38px] min-h-[38px] sm:min-h-[46px] sm:h-[46px] px-1 sm:px-2.5 rounded-lg sm:rounded-xl border text-[10px] sm:text-xs transition-all flex items-center justify-center gap-1 active:scale-95 flex-1 min-w-0 max-w-[120px] ${
               showAdvancedMenu
                 ? 'bg-sky-600/30 border-sky-500 text-sky-300 shadow-sm'
                 : 'bg-neutral-900 border-neutral-800 text-neutral-400 hover:text-white'
@@ -2015,7 +2023,7 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
             title="Ajustes de cámara"
           >
             <Sliders className="w-3.5 h-3.5 shrink-0" />
-            <span className="text-[11px] font-medium">Ajustes</span>
+            <span className="hidden sm:inline text-xs font-medium">Ajustes</span>
           </button>
 
           {/* Botón Ampliar (Modo Teatro con fondo desenfocado) */}
@@ -2023,7 +2031,7 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
             type="button"
             aria-label={isFullscreen ? 'Salir de pantalla ampliada' : 'Modo teatro ampliado'}
             onClick={toggleFullscreen}
-            className={`min-h-[46px] h-[46px] px-2 sm:px-3 rounded-xl border transition-all flex items-center justify-center gap-1 active:scale-95 font-medium flex-1 max-w-[120px] ${
+            className={`h-[38px] min-h-[38px] sm:min-h-[46px] sm:h-[46px] px-1 sm:px-3 rounded-lg sm:rounded-xl border transition-all flex items-center justify-center gap-1 active:scale-95 font-medium flex-1 min-w-0 max-w-[120px] ${
               isFullscreen 
                 ? 'bg-neutral-800 border-neutral-700 text-white' 
                 : 'bg-sky-600/25 hover:bg-sky-600/35 border-sky-500/60 text-sky-200 shadow-sm'
@@ -2031,7 +2039,7 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
             title={isFullscreen ? 'Salir de modo teatro' : 'Ampliar en Modo Teatro'}
           >
             {isFullscreen ? <Minimize2 className="w-3.5 h-3.5 shrink-0" /> : <Maximize2 className="w-3.5 h-3.5 text-sky-400 shrink-0" />}
-            <span className="text-[11px] font-bold">{isFullscreen ? 'Salir' : 'Ampliar'}</span>
+            <span className="hidden sm:inline text-xs font-bold">{isFullscreen ? 'Salir' : 'Ampliar'}</span>
           </button>
         </div>
       </div>

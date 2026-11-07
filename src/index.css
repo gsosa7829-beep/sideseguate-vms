@@ -303,7 +303,28 @@
   .camera-card-footer { flex-direction: column; align-items: stretch; gap: 10px; }
   .camera-card-footer > div:last-child { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .camera-card-footer button { min-height: 44px; justify-content: center; }
-  .live-player-actions > button { flex-direction: column; min-width: 0; height: 56px; gap: 4px; }
+  /* Botones móviles: tamaño compacto, perfectamente proporcionados y con espacio entre sí */
+  .live-player-actions {
+    display: flex !important;
+    gap: 0.35rem !important;
+    padding: 0 0.2rem !important;
+    width: 100% !important;
+    justify-content: center !important;
+    align-items: center !important;
+    box-sizing: border-box !important;
+  }
+  .live-player-actions > button {
+    flex: 1 1 0% !important;
+    min-width: 0 !important;
+    height: 36px !important;
+    min-height: 36px !important;
+    padding: 0 0.2rem !important;
+    font-size: 10px !important;
+    border-radius: 0.5rem !important;
+    flex-direction: row !important;
+    gap: 0.2rem !important;
+    box-sizing: border-box !important;
+  }
   .mobile-assistant { bottom: calc(5rem + env(safe-area-inset-bottom)); width: 48px; height: 48px; padding: 0; justify-content: center; border-radius: 50%; }
 }
 
@@ -311,4 +332,16 @@
   height: 100dvh;
   padding: env(safe-area-inset-top) env(safe-area-inset-right)
     env(safe-area-inset-bottom) env(safe-area-inset-left);
+}
+
+/* Suavizado de video HD y eliminación de ruido en pantallas retina y móviles */
+.ezuikit-live-player canvas,
+.ezuikit-live-player video,
+.ezplayer-canvas,
+.ezplayer-content-video canvas,
+.ezplayer-content-video video,
+video {
+  image-rendering: auto !important;
+  image-rendering: smooth !important;
+  -webkit-font-smoothing: antialiased;
 }
