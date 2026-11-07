@@ -1811,19 +1811,11 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
         )}
       </div>
 
-      {/* Bottom Control Bar: 1 Fila Perfecta en Móvil y Escritorio (5 Botones Simétricos) */}
+      {/* Bottom Control Bar: 1 Fila Perfecta en Móvil y Escritorio */}
       <div className="relative z-20 bg-neutral-950 border-t border-neutral-800/90 px-2 sm:px-4 py-2 text-neutral-300">
-<div className="live-player-actions grid grid-cols-5 gap-1.5 sm:gap-2 max-w-xl mx-auto">
-          {/* Botón 1: Calidad (HD / SD) - Ocós 4G queda fijo en SD Ahorro sin opción HD */}
-          {is4gCamera ? (
-            <div
-              className="min-h-[46px] h-[46px] px-1 sm:px-3 rounded-xl border border-emerald-800/60 bg-emerald-950/40 text-emerald-400 text-xs font-bold flex items-center justify-center gap-1 col-span-1 select-none"
-              title="Calidad SD Fluida Fija (Modo Ahorro 4G activo - HD desactivado)"
-            >
-              <Sparkles className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-              <span className="font-mono text-xs font-bold">SD</span>
-            </div>
-          ) : (
+        <div className="live-player-actions flex items-center justify-center gap-1.5 sm:gap-2 max-w-xl mx-auto">
+          {/* Botón Calidad (HD / SD) - Sólo disponible si la cámara no es Ocós 4G (fija en SD) */}
+          {!is4gCamera && (
             <button
               type="button"
               disabled={serverControlsQuality}
@@ -1832,87 +1824,85 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
                 setIsSwitchingQuality(true);
                 setStreamQuality((q) => (q === '1' ? '2' : '1'));
               }}
-              className={`min-h-[46px] h-[46px] px-1 sm:px-3 rounded-xl border text-xs font-bold transition-all flex items-center justify-center gap-1 sm:gap-1.5 active:scale-95 col-span-1 ${
+              className={`min-h-[44px] h-[44px] px-2 sm:px-3 rounded-xl border text-xs font-bold transition-all flex items-center justify-center gap-1 sm:gap-1.5 active:scale-95 flex-1 max-w-[120px] ${
                 streamQuality === '1'
                   ? 'bg-sky-950/80 border-sky-500/80 text-sky-300 shadow-sm shadow-sky-950/50'
                   : 'bg-neutral-900 border-neutral-800 text-neutral-400 hover:text-white'
               }`}
-              title={serverControlsQuality ? 'Calidad gestionada por el servidor' : streamQuality === '1' ? 'Calidad HD 1080p activa (Encuadre óptico completo)' : 'Calidad SD fluida activa'}
+              title={serverControlsQuality ? 'Calidad gestionada por el servidor' : streamQuality === '1' ? 'Calidad HD 1080p activa' : 'Calidad SD fluida activa'}
             >
-              <Sparkles className={`w-4 h-4 text-sky-400 shrink-0 ${isSwitchingQuality ? 'animate-spin' : ''}`} />
+              <Sparkles className={`w-3.5 h-3.5 text-sky-400 shrink-0 ${isSwitchingQuality ? 'animate-spin' : ''}`} />
               <span className="font-mono text-xs font-bold">{serverControlsQuality ? 'AUTO' : streamQuality === '1' ? 'HD' : 'SD'}</span>
             </button>
           )}
 
-          {/* Botón 2: Audio */}
-          <button
-            type="button"
-            disabled={!allowAudio}
-            aria-label={isMuted ? 'Activar sonido ambiental' : 'Silenciar audio'}
-            onClick={handleToggleAudio}
-            className={`min-h-[46px] h-[46px] px-1 sm:px-2.5 rounded-xl border text-xs transition-all flex items-center justify-center gap-1 active:scale-95 col-span-1 ${
-              !allowAudio
-                ? 'opacity-30 cursor-not-allowed bg-neutral-900 border-neutral-800 text-neutral-500'
-                : isMuted 
-                ? 'bg-neutral-900 border-neutral-800 text-neutral-400 hover:text-white' 
-                : 'bg-emerald-950/90 border-emerald-500/80 text-emerald-300 shadow-sm shadow-emerald-950/50'
-            }`}
-            title={allowAudio ? (isMuted ? 'Audio silenciado · Toca para activar' : 'Sonido ambiental activo · Toca para silenciar') : 'Audio no disponible'}
-          >
-            {isMuted ? (
-              <VolumeX className="w-4 h-4 text-neutral-400 shrink-0" />
-            ) : (
-              <Volume2 className="w-4 h-4 text-emerald-400 shrink-0 animate-pulse" />
-            )}
-            <span className={`text-[11px] font-bold font-mono ${isMuted ? 'text-neutral-400' : 'text-emerald-300'}`}>
-              {isMuted ? 'Mute' : 'Audio'}
-            </span>
-          </button>
+          {/* Botón Audio - Sólo si la cámara o permiso lo permite */}
+          {allowAudio && (
+            <button
+              type="button"
+              aria-label={isMuted ? 'Activar sonido ambiental' : 'Silenciar audio'}
+              onClick={handleToggleAudio}
+              className={`min-h-[44px] h-[44px] px-2 sm:px-2.5 rounded-xl border text-xs transition-all flex items-center justify-center gap-1 active:scale-95 flex-1 max-w-[120px] ${
+                isMuted 
+                  ? 'bg-neutral-900 border-neutral-800 text-neutral-400 hover:text-white' 
+                  : 'bg-emerald-950/90 border-emerald-500/80 text-emerald-300 shadow-sm shadow-emerald-950/50'
+              }`}
+              title={isMuted ? 'Audio silenciado · Toca para activar' : 'Sonido ambiental activo · Toca para silenciar'}
+            >
+              {isMuted ? (
+                <VolumeX className="w-3.5 h-3.5 text-neutral-400 shrink-0" />
+              ) : (
+                <Volume2 className="w-3.5 h-3.5 text-emerald-400 shrink-0 animate-pulse" />
+              )}
+              <span className={`text-[11px] font-bold font-mono ${isMuted ? 'text-neutral-400' : 'text-emerald-300'}`}>
+                {isMuted ? 'Mute' : 'Audio'}
+              </span>
+            </button>
+          )}
 
-          {/* Botón 3: Foto */}
-          <button
-            type="button"
-            disabled={!allowSnapshot}
-            aria-label="Guardar foto o captura"
-            onClick={handleTakeSnapshot}
-            className={`min-h-[46px] h-[46px] px-1 sm:px-2.5 bg-neutral-900 hover:bg-neutral-850 active:bg-neutral-800 border border-neutral-800 text-neutral-200 hover:text-white rounded-xl transition-all flex items-center justify-center gap-1 active:scale-95 col-span-1 ${
-              !allowSnapshot ? 'opacity-30 cursor-not-allowed' : ''
-            }`}
-            title="Descargar Foto / Captura JPG"
-          >
-            <CameraIcon className="w-4 h-4 text-sky-400 shrink-0" />
-            <span className="text-[11px] font-medium">Foto</span>
-          </button>
+          {/* Botón Foto - Sólo si está habilitado */}
+          {allowSnapshot && (
+            <button
+              type="button"
+              aria-label="Guardar foto o captura"
+              onClick={handleTakeSnapshot}
+              className="min-h-[44px] h-[44px] px-2 sm:px-2.5 bg-neutral-900 hover:bg-neutral-850 active:bg-neutral-800 border border-neutral-800 text-neutral-200 hover:text-white rounded-xl transition-all flex items-center justify-center gap-1 active:scale-95 flex-1 max-w-[120px]"
+              title="Descargar Foto / Captura JPG"
+            >
+              <CameraIcon className="w-3.5 h-3.5 text-sky-400 shrink-0" />
+              <span className="text-[11px] font-medium">Foto</span>
+            </button>
+          )}
 
-          {/* Botón 4: Ajustes */}
+          {/* Botón Ajustes */}
           <button
             type="button"
             aria-label="Ajustes de video y visión"
             onClick={() => setShowAdvancedMenu(!showAdvancedMenu)}
-            className={`min-h-[46px] h-[46px] px-1 sm:px-2.5 rounded-xl border text-xs transition-all flex items-center justify-center gap-1 active:scale-95 col-span-1 ${
+            className={`min-h-[44px] h-[44px] px-2 sm:px-2.5 rounded-xl border text-xs transition-all flex items-center justify-center gap-1 active:scale-95 flex-1 max-w-[120px] ${
               showAdvancedMenu
                 ? 'bg-sky-600/30 border-sky-500 text-sky-300 shadow-sm'
                 : 'bg-neutral-900 border-neutral-800 text-neutral-400 hover:text-white'
             }`}
-            title="Ajustes de cámara (Visión nocturna, detección, zoom)"
+            title="Ajustes de cámara"
           >
-            <Sliders className="w-4 h-4 shrink-0" />
+            <Sliders className="w-3.5 h-3.5 shrink-0" />
             <span className="text-[11px] font-medium">Ajustes</span>
           </button>
 
-          {/* Botón 5: Ampliar */}
+          {/* Botón Ampliar */}
           <button
             type="button"
             aria-label={isFullscreen ? 'Salir de pantalla completa' : 'Pantalla completa'}
             onClick={toggleFullscreen}
-            className={`min-h-[46px] h-[46px] px-1 sm:px-3 rounded-xl border transition-all flex items-center justify-center gap-1 active:scale-95 font-medium col-span-1 ${
+            className={`min-h-[44px] h-[44px] px-2 sm:px-3 rounded-xl border transition-all flex items-center justify-center gap-1 active:scale-95 font-medium flex-1 max-w-[120px] ${
               isFullscreen 
                 ? 'bg-neutral-800 border-neutral-700 text-white' 
                 : 'bg-sky-600/25 hover:bg-sky-600/35 border-sky-500/60 text-sky-200 shadow-sm'
             }`}
             title={isFullscreen ? 'Salir de pantalla completa' : 'Ver a Pantalla Completa'}
           >
-            {isFullscreen ? <Minimize2 className="w-4 h-4 shrink-0" /> : <Maximize2 className="w-4 h-4 text-sky-400 shrink-0" />}
+            {isFullscreen ? <Minimize2 className="w-3.5 h-3.5 shrink-0" /> : <Maximize2 className="w-3.5 h-3.5 text-sky-400 shrink-0" />}
             <span className="text-[11px] font-bold">{isFullscreen ? 'Salir' : 'Ampliar'}</span>
           </button>
         </div>
@@ -1983,17 +1973,6 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
             >
               <RefreshCw className={`w-4 h-4 ${isReconnecting ? 'animate-spin' : ''}`} />
               <span>{isReconnecting ? 'Conectando…' : 'Reconectar'}</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setAiDetection(!aiDetection)}
-              className={`min-h-[44px] px-3 rounded-xl border text-xs font-medium transition flex items-center justify-center gap-2 active:scale-95 ${
-                aiDetection ? 'bg-sky-950 border-sky-500 text-sky-300' : 'bg-neutral-950 border-neutral-800 text-neutral-300 hover:text-white'
-              }`}
-            >
-              <Scan className="w-4 h-4 text-sky-400" />
-              <span>{aiDetection ? 'Detección ON' : 'Detección OFF'}</span>
             </button>
 
           {!isContinuousLive && (

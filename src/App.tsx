@@ -1138,7 +1138,6 @@ function AppShell() {
                 setShareDefaultProjectId(cam.projectId);
                 setIsShareModalOpen(true);
               }}
-              onOpenAiAssistant={() => setIsAiAssistantOpen(true)}
             />
           </div>
 
@@ -1835,18 +1834,20 @@ function AppShell() {
         />
       )}
 
-      {/* Botón Flotante del Asistente IA para Agregar Cámaras Automáticamente */}
+      {/* Botón Flotante Independiente y Minimalista: Asistente de Cámaras */}
       {!isAiAssistantOpen && (
         <button
           type="button"
           onClick={() => setIsAiAssistantOpen(true)}
-          aria-label="Abrir asistente de cámaras"
-          className="mobile-assistant fixed bottom-20 md:bottom-6 right-4 md:right-6 z-40 px-4 py-3 rounded-2xl bg-gradient-to-r from-sky-600 via-indigo-600 to-sky-600 hover:from-sky-500 hover:to-indigo-500 text-white font-bold text-xs flex items-center gap-2.5 shadow-2xl shadow-sky-900/60 border border-sky-400/40 transition-all hover:scale-105 cursor-pointer"
-          title="Abrir Asistente IA para Agregar Cámaras Automáticamente"
+          aria-label="Asistente de Cámaras"
+          title="Asistente de Cámaras"
+          className="fixed bottom-20 md:bottom-6 right-4 md:right-6 z-40 w-12 h-12 md:w-14 md:h-14 rounded-full bg-neutral-900/95 hover:bg-neutral-850 active:scale-95 text-sky-400 border border-neutral-700/80 hover:border-sky-500/60 shadow-2xl shadow-black/80 backdrop-blur-md flex items-center justify-center transition-all duration-200 hover:scale-105 cursor-pointer group"
         >
-          <Bot className="w-5 h-5 text-sky-200" />
-          <span className="hidden md:inline">Asistente IA · Auto-Setup</span>
-          <Sparkles className="hidden md:block w-4 h-4 text-amber-300 animate-pulse" />
+          <Bot className="w-6 h-6 text-sky-400 group-hover:text-sky-300 transition-colors shrink-0" />
+          <span className="absolute top-1.5 right-1.5 flex h-2.5 w-2.5">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+            <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500" />
+          </span>
         </button>
       )}
 

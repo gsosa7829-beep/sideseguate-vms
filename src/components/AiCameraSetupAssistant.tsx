@@ -89,7 +89,7 @@ export const AiCameraSetupAssistant: React.FC<AiCameraSetupAssistantProps> = ({
     {
       id: 'welcome-msg',
       sender: 'bot',
-      text: '¡Hola! Escribe los datos de tu DVR o cámara (marca, IP o serie, usuario y clave) para configurarla automáticamente, o usa una prueba rápida abajo.',
+      text: '¡Hola! Soy tu Asistente de Cámaras. Escribe los datos de tu DVR o cámara (marca, IP o serie, usuario y clave) para configurarla automáticamente, o elige una consulta rápida abajo.',
       timestamp: new Date().toLocaleTimeString('es-GT', { hour: '2-digit', minute: '2-digit' }),
     },
   ]);
@@ -191,7 +191,7 @@ export const AiCameraSetupAssistant: React.FC<AiCameraSetupAssistantProps> = ({
 
       onAddCamerasBatch(
         generatedCameras,
-        targetProj?.clientName || intent.cameraNamePrefix || 'Asistente IA'
+        targetProj?.clientName || intent.cameraNamePrefix || 'Asistente de Cámaras'
       );
 
       const activeCount = probed.filter((c) => c.active).length;
@@ -252,14 +252,14 @@ export const AiCameraSetupAssistant: React.FC<AiCameraSetupAssistantProps> = ({
             <div className="min-w-0">
               <div className="flex items-center gap-2">
                 <h2 className="text-base font-bold text-white tracking-tight">
-                  Asistente IA
+                  Asistente de Cámaras
                 </h2>
                 <span className="px-2 py-0.5 text-[10px] font-semibold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 rounded-full flex items-center gap-1">
                   <Sparkles className="w-3 h-3" /> Activo
                 </span>
               </div>
               <p className="text-xs text-neutral-400 truncate">
-                Auto-configuración y diagnóstico de cámaras
+                Gestión inteligente, configuración y diagnóstico de cámaras
               </p>
             </div>
           </div>
@@ -294,7 +294,7 @@ export const AiCameraSetupAssistant: React.FC<AiCameraSetupAssistantProps> = ({
                     {msg.sender === 'bot' ? (
                       <>
                         <Sparkles className="w-3 h-3 text-sky-400" />
-                        Asistente IA
+                        Asistente de Cámaras
                       </>
                     ) : (
                       'Tú'
@@ -525,7 +525,7 @@ export const AiCameraSetupAssistant: React.FC<AiCameraSetupAssistantProps> = ({
             value={inputText}
             onChange={(e) => setInputText(e.target.value)}
             disabled={isProcessing}
-            placeholder="Escribe tu DVR a agregar o tu consulta..."
+            placeholder="Escribe a tu Asistente de Cámaras o ingresa datos del DVR..."
             className="flex-1 bg-neutral-900 border border-neutral-700 focus:border-sky-500 rounded-xl px-4 py-3 text-sm text-white placeholder-neutral-500 focus:outline-none transition-colors"
           />
           <button

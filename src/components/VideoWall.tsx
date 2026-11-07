@@ -13,7 +13,6 @@ interface VideoWallProps {
   onClearFocus?: () => void;
   onOpenNewCamera: () => void;
   onGenerateLink: (camera: Camera) => void;
-  onOpenAiAssistant?: () => void;
 }
 
 export const VideoWall: React.FC<VideoWallProps> = ({
@@ -23,7 +22,6 @@ export const VideoWall: React.FC<VideoWallProps> = ({
   onClearFocus,
   onOpenNewCamera,
   onGenerateLink,
-  onOpenAiAssistant,
 }) => {
   const [gridSize, setGridSize] = useState<'1' | '2' | '3'>('2');
   const [filterType, setFilterType] = useState<string>('all');
@@ -84,9 +82,9 @@ export const VideoWall: React.FC<VideoWallProps> = ({
 
   return (
     <div className="video-wall space-y-3 md:space-y-5">
-      {/* Estado del servidor + Acceso directo al Asistente IA Setup Wizard */}
+      {/* Estado del servidor */}
       <div
-        className={`flex flex-wrap items-center justify-between gap-x-3 gap-y-2 rounded-xl border px-3.5 py-2.5 ${
+        className={`flex items-center justify-between gap-x-3 gap-y-1.5 rounded-xl border px-3.5 py-2.5 ${
           serverOnline
             ? 'border-emerald-500/30 bg-emerald-500/[0.06]'
             : 'border-neutral-800 bg-neutral-900/80'
@@ -123,33 +121,6 @@ export const VideoWall: React.FC<VideoWallProps> = ({
             {onlineCameras.length} de {cameras.length}{' '}
             {cameras.length === 1 ? 'canal en línea' : 'canales en línea'}
           </span>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => {
-              setReconnectKey((k) => k + 1);
-              prewarmHikvisionCameras();
-            }}
-            className="px-3 py-1.5 rounded-lg bg-neutral-800 hover:bg-neutral-750 text-neutral-200 hover:text-white border border-neutral-700/80 text-xs font-semibold flex items-center gap-1.5 transition active:scale-95 cursor-pointer shadow-sm"
-            title="Re-sincronizar y forzar reconexión inmediata con todos los DVRs"
-          >
-            <RefreshCw className="w-3.5 h-3.5 text-sky-400" />
-            <span>Reconectar Señal DVRs</span>
-          </button>
-
-          {onOpenAiAssistant && (
-            <button
-              type="button"
-              onClick={onOpenAiAssistant}
-              className="hidden md:flex px-3.5 py-1.5 rounded-lg bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-500 hover:to-indigo-500 text-white text-xs font-semibold flex items-center gap-1.5 shadow-md shadow-sky-950/50 transition cursor-pointer"
-            >
-              <Bot className="w-4 h-4" />
-              <span>Asistente IA · Auto-Agregar Cámaras</span>
-              <Sparkles className="w-3.5 h-3.5 text-amber-300" />
-            </button>
-          )}
         </div>
       </div>
 
@@ -270,18 +241,9 @@ export const VideoWall: React.FC<VideoWallProps> = ({
         <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-12 text-center">
           <p className="text-sm font-medium text-white mb-1">No hay cámaras en esta categoría</p>
           <p className="text-xs text-neutral-400 mb-4">
-            Agrega un nuevo canal RTSP o usa el Asistente IA para configurarlas automáticamente.
+            Agrega un nuevo canal RTSP o usa el Asistente de Cámaras flotante para configurarlas automáticamente.
           </p>
           <div className="flex flex-wrap items-center justify-center gap-2">
-            {onOpenAiAssistant && (
-              <button
-                onClick={onOpenAiAssistant}
-                className="px-4 py-2 bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-500 hover:to-indigo-500 text-white font-semibold rounded-lg text-xs inline-flex items-center gap-1.5 transition"
-              >
-                <Bot className="w-3.5 h-3.5" />
-                <span>Configurar con Asistente IA</span>
-              </button>
-            )}
             <button
               onClick={onOpenNewCamera}
               className="px-4 py-2 bg-neutral-800 hover:bg-neutral-700 text-white font-semibold rounded-lg text-xs inline-flex items-center gap-1.5 transition"

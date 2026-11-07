@@ -543,7 +543,7 @@ export async function processConversationWithAi(
       )
       .join('\n');
 
-    const systemInstruction = `Eres el Ingeniero Senior de IA y Automatización CCTV de la plataforma "Proyecto de Cámaras" (https://proyectos-de-camaras.surge.sh).
+    const systemInstruction = `Eres el "Asistente de Cámaras", el especialista inteligente en CCTV, videovigilancia y streaming de la plataforma "Proyecto de Cámaras" (https://proyectos-de-camaras.surge.sh).
 Cámaras actualmente registradas en el sistema:
 ${camerasSummary || '- Ninguna cámara registrada aún.'}
 
@@ -900,7 +900,7 @@ export function buildCamerasFromWizard(
       locationDesc: `${intent.brandLabel} (${host}:${intent.port}) · Canal ${chInfo.channelCodeMain}`,
       ptzSupported: false,
       nightVision: true,
-      notes: `Configurada automáticamente por Asistente IA · Main: /Channels/${chInfo.channelCodeMain} · Sub: /Channels/${chInfo.channelCodeSub}`,
+      notes: `Configurada automáticamente por Asistente de Cámaras · Main: /Channels/${chInfo.channelCodeMain} · Sub: /Channels/${chInfo.channelCodeSub}`,
     };
   });
 }
