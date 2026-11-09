@@ -6,6 +6,19 @@ import { cloudP2pClient } from '../lib/cloudP2pClient';
 import { getLiveResumePosition, getPlaybackEnvironment } from '../lib/livePlayback';
 import { isPlaceholderStreamUrl, loadGateway, resolveStreamUrls, isPublicGateway } from '../lib/streamGateway';
 import { getAccessToken, refreshEzvizToken, subscribeEzvizAuth, hasEzvizCredentials } from '../lib/ezvizAuth';
+import {
+  ECO_SLEEP_OPTIONS,
+  Ocos4gTelemetryState,
+  formatEcoCountdown,
+  formatMobileDataUsage,
+  getOcos4gState,
+  recordOcosStreamSecond,
+  resetOcosDataUsage,
+  setOcosEcoSleepOption,
+  setOcosStreamingStatus,
+  subscribeOcos4gState,
+  updateOcosRemainingSec,
+} from '../lib/ocos4gMonitor';
 import { 
   Maximize2,
   Sliders,
@@ -471,7 +484,13 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
   useEffect(() => {
     is4gEcoPausedRef.current = is4gEcoPaused;
   }, [is4gEcoPaused]);
-  const [ecoRemainingSec, setEcoRemainingSec] = useState<number>(90);
+  const [ocosTelemetry, setOcosTelemetry] = useState<Ocos4gTelemetryState>(() => getOcos4gState());
+  useEffect(() => {
+    if (!is4gCamera) return;
+    return subscribeOcos4gState(setOcosTelemetry);
+  }, [is4gCamera]);
+  const ecoSleepSec = ocosTelemetry.ecoSleepSec;
+  const [ecoRemainingSec, setEcoRemainingSec] = useState<number>(() => getOcos4gState().ecoSleepSec || 60);
   const ecoDeadline = useRef(0);
   const canLoadVideo = canLoadInViewport && !is4gEcoPaused && isStreamPlaying;
   const channel = Math.min(4, Math.max(1, camera.channel || 1));
@@ -573,22 +592,37 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
     hlsLiveReadyRef.current = false;
     setIs4gEcoPaused(true);
     is4gEcoPausedRef.current = true;
+    setOcosStreamingStatus(false, 0);
   }, [camera.channel, camera.deviceSerial, ezuikitContainerId]);
 
   const resume4gStream = useCallback(() => {
-    setEcoRemainingSec(90);
+    const targetSec = getOcos4gState().ecoSleepSec;
+    if (targetSec > 0) {
+      ecoDeadline.current = Date.now() + targetSec * 1000;
+      setEcoRemainingSec(targetSec);
+      updateOcosRemainingSec(targetSec);
+    } else {
+      ecoDeadline.current = 0;
+      setEcoRemainingSec(0);
+      updateOcosRemainingSec(0);
+    }
     setStreamQuality('2'); // Siempre iniciar en Sub-Stream Fluido H.265 (~256 kbps) para máximo ahorro
     setIs4gEcoPaused(false);
     is4gEcoPausedRef.current = false;
-  }, []);
+    setOcosStreamingStatus(true, camera.bitrateKbps || 256);
+  }, [camera.bitrateKbps]);
 
   const handleToggleStream = useCallback((play: boolean) => {
     setInternalPlaying(play);
     onPlayStateChange?.(play);
-    if (play && is4gCamera && is4gEcoPaused) {
-      resume4gStream();
+    if (is4gCamera) {
+      if (play) {
+        resume4gStream();
+      } else {
+        pause4gStreamForDataSaving();
+      }
     }
-  }, [is4gCamera, is4gEcoPaused, onPlayStateChange, resume4gStream]);
+  }, [is4gCamera, onPlayStateChange, pause4gStreamForDataSaving, resume4gStream]);
 
   // Suspensión al minimizar pestaña o bloquear el celular en cámara 4G (con margen de 3.5s para evitar cortes al abrir Pantalla Completa)
   useEffect(() => {
@@ -601,6 +635,8 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
             hiddenTimer = null;
             if (document.hidden) {
               pause4gStreamForDataSaving();
+              setInternalPlaying(false);
+              onPlayStateChange?.(false);
             }
           }, 3500);
         }
@@ -614,23 +650,46 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
       if (hiddenTimer) clearTimeout(hiddenTimer);
       document.removeEventListener('visibilitychange', handleVisibility);
     };
-  }, [is4gCamera, pause4gStreamForDataSaving]);
+  }, [is4gCamera, onPlayStateChange, pause4gStreamForDataSaving]);
 
-  // Temporizador Eco-Timer de 90 segundos para cortar transmisión 4G si se deja abierta sin uso
+  // Temporizador de Reposo Inteligente configurable (1m, 3m, 5m o Continuo) y Medidor de Consumo 4G
   useEffect(() => {
-    if (!is4gCamera || is4gEcoPaused) return;
-    ecoDeadline.current = Date.now() + 90_000;
-    setEcoRemainingSec(90);
+    if (!is4gCamera) return;
+    const activelyStreaming = isStreamPlaying && !is4gEcoPaused;
+    if (!activelyStreaming) {
+      setOcosStreamingStatus(false, 0);
+      return;
+    }
+
+    if (ecoSleepSec > 0) {
+      ecoDeadline.current = Date.now() + ecoSleepSec * 1000;
+      setEcoRemainingSec(ecoSleepSec);
+      updateOcosRemainingSec(ecoSleepSec);
+    } else {
+      ecoDeadline.current = 0;
+      setEcoRemainingSec(0);
+      updateOcosRemainingSec(0);
+    }
+    setOcosStreamingStatus(true, camera.bitrateKbps || 256);
+
     const timer = setInterval(() => {
-      const remaining = Math.max(0, Math.ceil((ecoDeadline.current - Date.now()) / 1000));
-      setEcoRemainingSec(remaining);
-      if (remaining === 0) {
-        clearInterval(timer);
-        pause4gStreamForDataSaving();
+      // Contabilizar consumo real en transmisión (~256 kbps H.265 Sub-Stream)
+      recordOcosStreamSecond(camera.bitrateKbps || 256);
+
+      if (ecoSleepSec > 0 && ecoDeadline.current > 0) {
+        const remaining = Math.max(0, Math.ceil((ecoDeadline.current - Date.now()) / 1000));
+        setEcoRemainingSec(remaining);
+        updateOcosRemainingSec(remaining);
+        if (remaining === 0) {
+          clearInterval(timer);
+          pause4gStreamForDataSaving();
+          setInternalPlaying(false);
+          onPlayStateChange?.(false);
+        }
       }
     }, 1000);
     return () => clearInterval(timer);
-  }, [is4gCamera, is4gEcoPaused, pause4gStreamForDataSaving]);
+  }, [is4gCamera, isStreamPlaying, is4gEcoPaused, ecoSleepSec, camera.bitrateKbps, pause4gStreamForDataSaving, onPlayStateChange]);
 
   // Bloqueo definitivo 4G (Ocós): Eliminar HD y forzar 100% en SD Fluido ('2') para proteger datos
   useEffect(() => {
@@ -644,12 +703,20 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
   const handleForceReconnect = useCallback((userInitiated = true) => {
     if (!canLoadInViewport) return;
     if (is4gEcoPausedRef.current) {
-      if (userInitiated) resume4gStream();
+      if (userInitiated) {
+        setInternalPlaying(true);
+        onPlayStateChange?.(true);
+        resume4gStream();
+      }
       return;
     }
     if (is4gCamera && userInitiated) {
-      ecoDeadline.current = Date.now() + 90_000;
-      setEcoRemainingSec(90);
+      const targetSec = getOcos4gState().ecoSleepSec;
+      if (targetSec > 0) {
+        ecoDeadline.current = Date.now() + targetSec * 1000;
+        setEcoRemainingSec(targetSec);
+        updateOcosRemainingSec(targetSec);
+      }
     }
     // Restaurar protocolos principales y reintentar conexión limpia
     setUseHlsFallback(false);
@@ -1514,8 +1581,10 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
       {/* Main Video Viewport */}
       <div 
         onClick={() => {
-          if (is4gCamera && !is4gEcoPaused) {
-            setEcoRemainingSec(90);
+          if (is4gCamera && !is4gEcoPaused && ecoSleepSec > 0) {
+            ecoDeadline.current = Date.now() + ecoSleepSec * 1000;
+            setEcoRemainingSec(ecoSleepSec);
+            updateOcosRemainingSec(ecoSleepSec);
           }
         }}
         onTouchStart={handleTouchStart}
@@ -1566,12 +1635,20 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
           {is4gCamera && !is4gEcoPaused && (
             <button
               type="button"
-              onClick={pause4gStreamForDataSaving}
+              onClick={() => {
+                pause4gStreamForDataSaving();
+                setInternalPlaying(false);
+                onPlayStateChange?.(false);
+              }}
               className="flex items-center gap-1 bg-emerald-950/90 hover:bg-emerald-900 border border-emerald-500/50 text-emerald-300 px-2 sm:px-2.5 py-1 rounded-full text-[10px] sm:text-[11px] font-mono font-bold shadow-lg transition active:scale-95 cursor-pointer whitespace-nowrap"
               title="Pausar transmisión ahora para ahorrar datos de la tarjeta SIM 4G"
             >
-              <span className="sm:hidden">⏸ {ecoRemainingSec}s</span>
-              <span className="hidden sm:inline">⏸ Ahorro 4G ({ecoRemainingSec}s)</span>
+              <span className="sm:hidden">
+                ⏸ {formatEcoCountdown(ecoRemainingSec, ecoSleepSec)}
+              </span>
+              <span className="hidden sm:inline">
+                ⏸ Ahorro 4G ({formatEcoCountdown(ecoRemainingSec, ecoSleepSec)}) · {formatMobileDataUsage(ocosTelemetry.sessionBytes)}
+              </span>
             </button>
           )}
           <div className="flex items-center gap-1 bg-black/65 backdrop-blur-md px-2 sm:px-2.5 py-1 rounded-full border border-white/10 text-[10px] sm:text-[11px] font-mono tabular-nums text-neutral-200 whitespace-nowrap shadow-lg">
@@ -1630,8 +1707,15 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
               </button>
 
               <p className="text-[11px] text-neutral-400 font-mono">
-                {is4gCamera ? 'Transmisión 4G bajo demanda · Ahorro SIM' : 'Transmisión bajo demanda · Cero lag'}
+                {is4gCamera
+                  ? `Transmisión 4G bajo demanda · Auto-pausa: ${ecoSleepSec === 0 ? 'Continuo' : `${ecoSleepSec / 60} min`}`
+                  : 'Transmisión bajo demanda · Cero lag'}
               </p>
+              {is4gCamera && ocosTelemetry.sessionBytes > 0 && (
+                <span className="mt-1.5 px-2.5 py-0.5 rounded-full bg-emerald-950/80 border border-emerald-500/30 text-[10px] font-mono text-emerald-300">
+                  Consumo estimado: {formatMobileDataUsage(ocosTelemetry.sessionBytes)} (0 KB/s en reposo)
+                </span>
+              )}
             </div>
           </div>
         )}
@@ -2064,27 +2148,72 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
 
           {/* Card Especial de Ahorro y Consumo de Datos Móviles 4G (Proyecto Ocós) */}
           {is4gCamera && (
-            <div className="mb-2.5 p-3 rounded-xl bg-sky-950/40 border border-sky-500/30 text-xs">
-              <div className="flex items-center justify-between mb-1.5">
+            <div className="mb-2.5 p-3 rounded-xl bg-sky-950/40 border border-sky-500/30 text-xs space-y-2.5">
+              <div className="flex items-center justify-between gap-2">
                 <span className="font-bold text-sky-300 flex items-center gap-1.5">
-                  <Sparkles className="w-3.5 h-3.5 text-sky-400" />
-                  <span>Ultra-Ahorro SIM 4G · HiLookVision (5nctiv)</span>
+                  <Sparkles className="w-3.5 h-3.5 text-sky-400 shrink-0" />
+                  <span className="truncate">Control SIM 4G · HiLookVision (5nctiv)</span>
                 </span>
-                <span className="font-mono text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-2 py-0.5 rounded-full font-bold">
-                  92% Ahorro Activo
+                <span className="font-mono text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-2 py-0.5 rounded-full font-bold shrink-0">
+                  {isStreamPlaying && !is4gEcoPaused ? `~${ocosTelemetry.currentRateKBs || 32} KB/s` : '0 KB/s en Reposo'}
                 </span>
               </div>
-              <p className="text-[11px] text-neutral-300 leading-relaxed mb-2">
-                Configurada en <strong className="text-white">H.265 Sub-Stream (~256 kbps · Código LBNZYU)</strong> con desconexión automática a los <strong className="text-emerald-300">90 segundos</strong> y modo espera en mosaico (<strong className="text-emerald-300">0 KB/s</strong>).
-              </p>
-              <div className="grid grid-cols-2 gap-2 text-[10px] font-mono text-neutral-400">
-                <div className="bg-black/50 p-1.5 rounded-lg border border-neutral-800">
-                  <span className="text-neutral-500 block">En Espera / Mosaico:</span>
-                  <span className="text-emerald-400 font-bold">0.00 MB / hora</span>
+
+              {/* Medidor de Consumo de Datos Móviles (MB/GB) */}
+              <div className="grid grid-cols-2 gap-2 text-[10px] font-mono">
+                <div className="bg-black/60 p-2 rounded-lg border border-neutral-800 flex flex-col justify-between">
+                  <span className="text-neutral-400 block">Consumo en sesión:</span>
+                  <span className="text-emerald-400 font-bold text-xs mt-0.5">
+                    {formatMobileDataUsage(ocosTelemetry.sessionBytes)}
+                  </span>
                 </div>
-                <div className="bg-black/50 p-1.5 rounded-lg border border-neutral-800">
-                  <span className="text-neutral-500 block">Viendo en Sub-Stream:</span>
-                  <span className="text-sky-300 font-bold">~1.8 MB / minuto</span>
+                <div className="bg-black/60 p-2 rounded-lg border border-neutral-800 flex items-center justify-between gap-1">
+                  <div>
+                    <span className="text-neutral-400 block">Acumulado SIM:</span>
+                    <span className="text-sky-300 font-bold text-xs mt-0.5 block">
+                      {formatMobileDataUsage(ocosTelemetry.accumulatedBytes)}
+                    </span>
+                  </div>
+                  {ocosTelemetry.accumulatedBytes > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => resetOcosDataUsage()}
+                      className="px-2 py-1 rounded bg-neutral-900 hover:bg-neutral-800 text-neutral-300 hover:text-white border border-neutral-700 text-[10px] transition cursor-pointer shrink-0"
+                      title="Reiniciar contador acumulado de datos móviles (ej. tras recargar SIM)"
+                    >
+                      Reiniciar
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Selector de Tiempo de Reposo Inteligente */}
+              <div className="bg-black/50 p-2 rounded-lg border border-neutral-800 space-y-1.5">
+                <div className="flex items-center justify-between text-[11px]">
+                  <span className="text-neutral-300 font-semibold">⏱️ Auto-pausa de Reposo Inteligente:</span>
+                  <span className="font-mono text-[10px] text-emerald-400">
+                    {ecoSleepSec === 0 ? 'Sin límite (Continuo)' : `Corta a los ${ecoSleepSec / 60} min`}
+                  </span>
+                </div>
+                <div className="grid grid-cols-4 gap-1.5">
+                  {ECO_SLEEP_OPTIONS.map((opt) => {
+                    const active = ecoSleepSec === opt.value;
+                    return (
+                      <button
+                        key={opt.value}
+                        type="button"
+                        onClick={() => setOcosEcoSleepOption(opt.value)}
+                        className={`h-8 rounded-lg font-mono text-[11px] font-bold border transition cursor-pointer ${
+                          active
+                            ? 'bg-emerald-600/30 border-emerald-400 text-emerald-200 shadow-xs'
+                            : 'bg-neutral-900 hover:bg-neutral-800 border-neutral-800 text-neutral-400 hover:text-white'
+                        }`}
+                        title={opt.description}
+                      >
+                        {opt.label}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
             </div>

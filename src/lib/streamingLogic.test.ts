@@ -1365,3 +1365,56 @@ test('el QR nunca cae en un dominio fijo que no sea el de la plataforma', async 
   // Y no debe coincidir con el dominio fijo que se usaba antes como relleno.
   assert.notEqual(matrixOf('https://sideseguate.com'), expected);
 });
+
+
+// ---------------------------------------------------------------------------
+// Medidor de Consumo 4G (MB/GB) y Selector de Reposo Inteligente (Ocós)
+// ---------------------------------------------------------------------------
+
+test('formatMobileDataUsage formatea MB y GB con precisión para monitoreo SIM 4G', async () => {
+  const { formatMobileDataUsage, formatEcoCountdown } = await import('./ocos4gMonitor.ts');
+
+  assert.equal(formatMobileDataUsage(0), '0.00 MB');
+  assert.equal(formatMobileDataUsage(-500), '0.00 MB');
+  assert.equal(formatMobileDataUsage(512 * 1024), '0.50 MB');
+  assert.equal(formatMobileDataUsage(Math.round(14.2 * 1024 * 1024)), '14.2 MB');
+  assert.equal(formatMobileDataUsage(Math.round(1.5 * 1024 * 1024 * 1024)), '1.50 GB');
+
+  assert.equal(formatEcoCountdown(45, 60), '45s');
+  assert.equal(formatEcoCountdown(165, 180), '2:45');
+  assert.equal(formatEcoCountdown(0, 0), 'Continuo');
+});
+
+test('ocos4gMonitor gestiona opciones de reposo inteligente (1m, 3m, 5m, Continuo) y contabiliza bytes', async () => {
+  const {
+    ECO_SLEEP_OPTIONS,
+    getOcos4gState,
+    setOcosEcoSleepOption,
+    recordOcosStreamSecond,
+    resetOcosDataUsage,
+  } = await import('./ocos4gMonitor.ts');
+
+  assert.deepEqual(
+    ECO_SLEEP_OPTIONS.map((o) => o.value),
+    [60, 180, 300, 0]
+  );
+
+  resetOcosDataUsage();
+  assert.equal(getOcos4gState().sessionBytes, 0);
+
+  setOcosEcoSleepOption(180);
+  assert.equal(getOcos4gState().ecoSleepSec, 180);
+
+  setOcosEcoSleepOption(0);
+  assert.equal(getOcos4gState().ecoSleepSec, 0);
+
+  // 1 segundo a 256 kbps = 32,000 bytes
+  recordOcosStreamSecond(256);
+  assert.equal(getOcos4gState().sessionBytes, 32000);
+  assert.equal(getOcos4gState().accumulatedBytes, 32000);
+
+  resetOcosDataUsage();
+  assert.equal(getOcos4gState().sessionBytes, 0);
+  assert.equal(getOcos4gState().accumulatedBytes, 0);
+  setOcosEcoSleepOption(60);
+});

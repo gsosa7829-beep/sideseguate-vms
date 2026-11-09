@@ -3,6 +3,16 @@ import { Camera } from '../lib/types';
 import { LiveCameraPlayer, prewarmHikvisionCameras } from './LiveCameraPlayer';
 import { cloudP2pClient } from '../lib/cloudP2pClient';
 import { getTokenHealth, subscribeEzvizAuth, refreshEzvizToken, TokenHealthInfo } from '../lib/ezvizAuth';
+import {
+  ECO_SLEEP_OPTIONS,
+  Ocos4gTelemetryState,
+  formatEcoCountdown,
+  formatMobileDataUsage,
+  getOcos4gState,
+  resetOcosDataUsage,
+  setOcosEcoSleepOption,
+  subscribeOcos4gState,
+} from '../lib/ocos4gMonitor';
 import { EzvizTokenRenewalModal } from './EzvizTokenRenewalModal';
 import {
   Square,
@@ -18,7 +28,8 @@ import {
   Radio,
   Layers,
   LayoutGrid,
-  Video
+  Video,
+  RotateCcw
 } from 'lucide-react';
 
 interface VideoWallProps {
@@ -47,6 +58,11 @@ export const VideoWall: React.FC<VideoWallProps> = ({
 
   // Control de reproducción independiente por cámara (reproducción bajo demanda)
   const [activeStreams, setActiveStreams] = useState<Record<string, boolean>>({});
+  const [ocosTelemetry, setOcosTelemetry] = useState<Ocos4gTelemetryState>(() => getOcos4gState());
+
+  useEffect(() => {
+    return subscribeOcos4gState(setOcosTelemetry);
+  }, []);
 
   useEffect(() => {
     return subscribeEzvizAuth(() => {
@@ -581,10 +597,70 @@ export const VideoWall: React.FC<VideoWallProps> = ({
                     </p>
                   </div>
 
-                  {/* Telemetría de Ahorro SIM 4G */}
-                  <div className="flex items-center gap-2 bg-neutral-900 border border-neutral-800 px-3 py-2 rounded-xl text-xs text-neutral-300 font-mono self-start md:self-center">
-                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                    <span>0 KB/s en Reposo</span>
+                  {/* Panel de Ahorro, Medidor de Consumo (MB/GB) y Selector de Reposo Inteligente */}
+                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 self-stretch md:self-center">
+                    {/* Medidor de Consumo de Datos Móviles (MB/GB) */}
+                    <div className="flex items-center justify-between sm:justify-start gap-2.5 bg-neutral-950/90 border border-neutral-800 px-3 py-2 rounded-xl text-xs text-neutral-300 font-mono">
+                      <div className="flex items-center gap-2">
+                        <span
+                          className={`w-2 h-2 rounded-full shrink-0 ${
+                            ocosTelemetry.isStreaming
+                              ? 'bg-emerald-400 animate-ping'
+                              : 'bg-emerald-400 animate-pulse'
+                          }`}
+                        />
+                        <div className="flex flex-col sm:flex-row sm:items-center sm:gap-2">
+                          <span className="text-neutral-200 font-semibold">
+                            Consumo estimado:{' '}
+                            <strong className="text-emerald-400">
+                              {formatMobileDataUsage(ocosTelemetry.sessionBytes)}
+                            </strong>
+                          </span>
+                          <span className="text-[11px] text-neutral-400">
+                            {ocosTelemetry.isStreaming
+                              ? `(~${ocosTelemetry.currentRateKBs || 32} KB/s · ${formatEcoCountdown(ocosTelemetry.remainingSec, ocosTelemetry.ecoSleepSec)})`
+                              : '(0 KB/s en Reposo)'}
+                          </span>
+                        </div>
+                      </div>
+                      {ocosTelemetry.accumulatedBytes > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => resetOcosDataUsage()}
+                          className="p-1 rounded-lg bg-neutral-900 hover:bg-neutral-800 text-neutral-400 hover:text-white border border-neutral-800 transition cursor-pointer shrink-0"
+                          title={`Acumulado total SIM: ${formatMobileDataUsage(ocosTelemetry.accumulatedBytes)} · Toca para reiniciar medidor`}
+                        >
+                          <RotateCcw className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Selector de Tiempo de Reposo Inteligente (1 min, 3 min, 5 min, Continuo) */}
+                    <div className="flex items-center justify-between sm:justify-start gap-1.5 bg-neutral-950/90 border border-neutral-800 px-2.5 py-1.5 rounded-xl text-xs font-mono">
+                      <span className="text-[11px] text-neutral-400 px-1 shrink-0" title="Tiempo antes de pausar automáticamente la cámara 4G para ahorrar datos">
+                        ⏱️ Auto-pausa:
+                      </span>
+                      <div className="grid grid-cols-4 sm:flex items-center gap-1 flex-1 sm:flex-initial">
+                        {ECO_SLEEP_OPTIONS.map((opt) => {
+                          const isSelected = ocosTelemetry.ecoSleepSec === opt.value;
+                          return (
+                            <button
+                              key={opt.value}
+                              type="button"
+                              onClick={() => setOcosEcoSleepOption(opt.value)}
+                              className={`h-7 px-2 rounded-lg text-[11px] font-bold transition cursor-pointer text-center ${
+                                isSelected
+                                  ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/50 shadow-xs'
+                                  : 'bg-neutral-900 hover:bg-neutral-800 text-neutral-400 hover:text-neutral-200 border border-transparent'
+                              }`}
+                              title={opt.description}
+                            >
+                              {opt.label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
                   </div>
                 </div>
 
@@ -618,9 +694,11 @@ export const VideoWall: React.FC<VideoWallProps> = ({
                           <div className="flex items-center gap-1.5 text-neutral-400 text-[11px] font-mono tabular-nums shrink-0">
                             <span>H.265 SD</span>
                             <span aria-hidden="true">·</span>
-                            <span>15 FPS</span>
-                            <span aria-hidden="true">·</span>
                             <span>~256 kbps</span>
+                            <span aria-hidden="true">·</span>
+                            <span className="text-emerald-400 font-semibold">
+                              {formatMobileDataUsage(ocosTelemetry.sessionBytes)}
+                            </span>
                           </div>
                         </div>
 
