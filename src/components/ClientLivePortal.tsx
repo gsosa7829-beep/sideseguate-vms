@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Camera, ShareLink, Project } from '../lib/types';
 import { INITIAL_CAMERAS, INITIAL_SHARE_LINKS } from '../lib/initialData';
+import { storage } from '../lib/storage';
 import { verifyShareLink, formatExpirationText } from '../lib/tokenSecurity';
 import {
   subscribeToSingleShareLinkByToken,
@@ -91,11 +92,18 @@ export const ClientLivePortal: React.FC<ClientLivePortalProps> = ({
   onClientAddCameras,
 }) => {
   const { isInstallable, isInstalled, isIOS, install } = usePWAInstall();
-  const fallbackInitialLink = INITIAL_SHARE_LINKS.find((l) =>
-    l.token === token ||
-    (token && (token.toLowerCase().includes('ocos') && l.id === 'link-proyecto-ocos')) ||
-    (token && (token.toLowerCase().includes('cementerio') && l.id === 'link-calle-del-cementerio'))
-  ) || null;
+  const deletedTokens = storage.getDeletedShareTokens();
+  const isTokenDeleted = Boolean(token && deletedTokens.has(token));
+  const fallbackInitialLink = isTokenDeleted
+    ? null
+    : INITIAL_SHARE_LINKS.find(
+        (l) =>
+          !deletedTokens.has(l.id) &&
+          !deletedTokens.has(l.token) &&
+          (l.token === token ||
+            (token && token.toLowerCase().includes('ocos') && l.id === 'link-proyecto-ocos') ||
+            (token && token.toLowerCase().includes('cementerio') && l.id === 'link-calle-del-cementerio'))
+      ) || null;
 
   const [cloudShareLink, setCloudShareLink] = useState<ShareLink | null>(null);
   const [directTokenLoading, setDirectTokenLoading] = useState<boolean>(Boolean(token && !shareLink && !fallbackInitialLink));
@@ -123,7 +131,10 @@ export const ClientLivePortal: React.FC<ClientLivePortalProps> = ({
     }
 
     const unsub = subscribeToSingleShareLinkByToken(activeToken, (remoteLink, loading) => {
-      if (remoteLink) {
+      const currentDeleted = storage.getDeletedShareTokens();
+      if (remoteLink && (currentDeleted.has(remoteLink.token) || currentDeleted.has(remoteLink.id))) {
+        setCloudShareLink(null);
+      } else {
         setCloudShareLink(remoteLink);
       }
       setDirectTokenLoading(loading);
@@ -132,7 +143,7 @@ export const ClientLivePortal: React.FC<ClientLivePortalProps> = ({
     return () => unsub();
   }, [token, shareLink?.token]);
 
-  const activeShareLink = cloudShareLink || shareLink || fallbackInitialLink;
+  const activeShareLink = isTokenDeleted ? null : cloudShareLink || shareLink || fallbackInitialLink;
   const pinStorageKey = activeShareLink?.token ? `sideseguate_pin_${activeShareLink.token}` : null;
 
   useEffect(() => {

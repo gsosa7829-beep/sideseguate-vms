@@ -512,9 +512,9 @@ function AppShell() {
         );
       },
       onShareLinks: (cloudLinks) => {
-        // La nube solo aporta/actualiza enlaces; nunca elimina los locales.
+        // La nube solo aporta/actualiza enlaces que no hayan sido eliminados por el operador.
         setShareLinks((prev) => {
-          const merged = mergeCloudShareLinks(prev, cloudLinks);
+          const merged = mergeCloudShareLinks(prev, cloudLinks, storage.getDeletedShareTokens());
           if (merged === prev || !shareLinkListsDiffer(merged, prev)) return prev;
           storage.saveShareLinks(merged);
           return merged;
@@ -667,29 +667,32 @@ function AppShell() {
    * la nube y veía "enlace expirado / revocado".
    */
   const handleSaveShareLink = (link: ShareLink) => {
+    storage.unmarkShareLinkDeleted(link.token, link.id);
     let updated: ShareLink[];
-    const exists = shareLinks.some((l) => l.id === link.id);
+    const exists = shareLinks.some((l) => l.id === link.id || l.token === link.token);
     if (exists) {
-      updated = shareLinks.map((l) => (l.id === link.id ? link : l));
+      updated = shareLinks.map((l) => (l.id === link.id || l.token === link.token ? link : l));
     } else {
       updated = [link, ...shareLinks];
     }
     setShareLinks(updated);
     storage.saveShareLinks(updated);
+    setCopiedToken(link.token);
+    setTimeout(() => setCopiedToken(null), 2500);
 
-    showToast(exists ? 'Guardando cambios del enlace…' : 'Creando enlace y publicándolo en la nube…');
+    showToast(exists ? 'Enlace actualizado y copiado al portapapeles' : 'Enlace creado y copiado al portapapeles');
 
     upsertCloudShareLink(link)
       .then(() => {
         showToast(
           exists
-            ? 'Enlace actualizado en la nube (listo para 4G/Wi-Fi)'
-            : 'Enlace creado y sincronizado en la nube para celulares 4G/Wi-Fi'
+            ? 'Enlace actualizado y copiado (listo para 4G/Wi-Fi)'
+            : 'Enlace listo, copiado y sincronizado en la nube'
         );
       })
       .catch((err) => {
         console.error('Cloud share link sync error:', err);
-        showToast('⚠️ El enlace quedó guardado sólo en este equipo: no se pudo publicar en la nube. El cliente no podrá abrirlo todavía.');
+        showToast('⚠️ El enlace se copió localmente, pero no se pudo sincronizar en la nube todavía.');
       });
   };
 
@@ -765,27 +768,28 @@ function AppShell() {
   };
 
   const handleExpireAllLinksNow = () => {
+    shareLinks.forEach((l) => storage.markShareLinkDeleted(l.token, l.id));
+    INITIAL_SHARE_LINKS.forEach((l) => storage.markShareLinkDeleted(l.token, l.id));
     setShareLinks([]);
     storage.saveShareLinks([]);
     purgeAllCloudShareLinks().catch((err) =>
       console.warn('Cloud purge all links error:', err)
     );
-    showToast('Todos los enlaces y accesos externos han sido eliminados de la nube');
+    showToast('Todos los enlaces han sido eliminados permanentemente');
   };
 
   const handleDeleteShareLink = (id: string) => {
-    if (confirm('¿Eliminar este enlace privado permanentemente?')) {
-      const target = shareLinks.find((l) => l.id === id);
-      const updated = shareLinks.filter((l) => l.id !== id);
-      setShareLinks(updated);
-      storage.saveShareLinks(updated);
-      if (target) {
-        deleteCloudShareLink(target.token).catch((err) =>
-          console.warn('Cloud share link delete error:', err)
-        );
-      }
-      showToast('Enlace eliminado de la nube');
+    const target = shareLinks.find((l) => l.id === id || l.token === id);
+    storage.markShareLinkDeleted(target?.token, target?.id || id);
+    const updated = shareLinks.filter((l) => l.id !== id && l.token !== id && l.token !== target?.token);
+    setShareLinks(updated);
+    storage.saveShareLinks(updated);
+    if (target) {
+      deleteCloudShareLink(target.token, target.id).catch((err) =>
+        console.warn('Cloud share link delete error:', err)
+      );
     }
+    showToast('Enlace eliminado permanentemente');
   };
 
   const handleSaveProject = (project: Project) => {
@@ -890,16 +894,29 @@ function AppShell() {
 
   // If in Client Portal View directly (client opening private token link)
   if (clientTokenView) {
-    let matchedShareLink = shareLinks.find((l) => l.token === clientTokenView) || null;
-    if (!matchedShareLink) {
-      matchedShareLink = INITIAL_SHARE_LINKS.find((l) => l.token === clientTokenView) || null;
+    const deletedTokens = storage.getDeletedShareTokens();
+    const isDeleted = deletedTokens.has(clientTokenView);
+    let matchedShareLink = isDeleted
+      ? null
+      : shareLinks.find((l) => l.token === clientTokenView && !deletedTokens.has(l.id)) || null;
+    if (!matchedShareLink && !isDeleted) {
+      matchedShareLink =
+        INITIAL_SHARE_LINKS.find(
+          (l) => l.token === clientTokenView && !deletedTokens.has(l.id) && !deletedTokens.has(l.token)
+        ) || null;
     }
-    if (!matchedShareLink) {
+    if (!matchedShareLink && !isDeleted) {
       const lower = clientTokenView.toLowerCase();
       if (lower.includes('ocos') || lower === 'ff9363270' || lower === 'cam-ocos-ch1') {
-        matchedShareLink = INITIAL_SHARE_LINKS.find((l) => l.id === 'link-proyecto-ocos') || null;
+        matchedShareLink =
+          INITIAL_SHARE_LINKS.find(
+            (l) => l.id === 'link-proyecto-ocos' && !deletedTokens.has(l.id) && !deletedTokens.has(l.token)
+          ) || null;
       } else if (lower.includes('cementerio') || lower === 'f31700438' || lower.includes('hilook')) {
-        matchedShareLink = INITIAL_SHARE_LINKS.find((l) => l.id === 'link-calle-del-cementerio') || null;
+        matchedShareLink =
+          INITIAL_SHARE_LINKS.find(
+            (l) => l.id === 'link-calle-del-cementerio' && !deletedTokens.has(l.id) && !deletedTokens.has(l.token)
+          ) || null;
       }
     }
     const matchedProject = projects.find((p) => p.id === matchedShareLink?.projectId) ||
@@ -1149,222 +1166,241 @@ function AppShell() {
                   <div className="flex items-center gap-2.5 flex-wrap">
                     <h2 className="text-sm font-bold text-white flex items-center gap-2">
                       <Link2 className="w-4 h-4 text-sky-400" />
-                      Enlaces de Cámaras para Clientes y Compradores
+                      Enlaces de Cámaras para Clientes y Vecinos
                     </h2>
                     <span className="text-[11px] font-mono text-emerald-400 flex items-center gap-1.5">
                       <Cloud className="w-3.5 h-3.5 text-sky-400" />
-                      Sincronización Real en Nube (4G / Wi-Fi)
+                      Sincronización en Nube (4G / Wi-Fi)
                     </span>
                   </div>
                   <p className="text-xs text-neutral-400 mt-0.5 max-w-2xl leading-relaxed">
-                    Cualquier enlace, PIN o cámara que crees desde tu PC se sincroniza al instante en Google Cloud Firestore para que el comprador lo abra en su celular desde cualquier red 4G o Wi-Fi.
+                    Crea un enlace y envíalo en 1 clic por WhatsApp o cópialo directamente. Puedes eliminar cualquier enlace cuando desees.
                   </p>
                 </div>
 
                 <div className="flex flex-wrap items-center gap-2 shrink-0">
-                  <button
-                    onClick={handleExpireAllLinksNow}
-                    className="px-3.5 py-2 bg-red-950/80 hover:bg-red-900 border border-red-800/80 text-red-200 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition whitespace-nowrap"
-                    title="Expirar y bloquear todos los enlaces temporales inmediatamente"
-                  >
-                    <Lock className="w-3.5 h-3.5 text-red-400" />
-                    <span>Expirar Todos Ahora</span>
-                  </button>
+                  {shareLinks.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={handleExpireAllLinksNow}
+                      className="px-3 py-2 bg-red-950/80 hover:bg-red-900 border border-red-800/80 text-red-200 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition whitespace-nowrap cursor-pointer"
+                      title="Eliminar todos los enlaces inmediatamente"
+                    >
+                      <Trash2 className="w-3.5 h-3.5 text-red-400" />
+                      <span>Eliminar Todos</span>
+                    </button>
+                  )}
 
                   <button
                     type="button"
-                    onClick={() => {
-                      setWhatsAppTimedTargetLink(null);
-                      setIsWhatsAppTimedModalOpen(true);
-                    }}
-                    className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 shadow-sm transition shrink-0 whitespace-nowrap active:scale-95"
-                    title="Crear y enviar enlace por WhatsApp con temporizador personalizado"
-                  >
-                    <MessageSquare className="w-3.5 h-3.5" />
-                    <span>WhatsApp con Temporizador</span>
-                  </button>
-
-                  <button
                     onClick={() => {
                       setEditingShareLink(null);
                       setShareDefaultProjectId(null);
                       setIsShareModalOpen(true);
                     }}
-                    className="px-3.5 py-2 bg-sky-600 hover:bg-sky-500 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 shadow-sm transition shrink-0 whitespace-nowrap"
+                    className="px-4 py-2 bg-sky-600 hover:bg-sky-500 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 shadow-sm transition shrink-0 whitespace-nowrap cursor-pointer"
                   >
-                    <Plus className="w-3.5 h-3.5" />
-                    <span>Generar Nuevo Enlace</span>
+                    <Plus className="w-4 h-4" />
+                    <span>Nuevo Enlace</span>
                   </button>
                 </div>
               </div>
 
-              
+              {shareLinks.length === 0 ? (
+                <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-8 text-center flex flex-col items-center justify-center">
+                  <div className="w-11 h-11 rounded-2xl bg-neutral-800/80 border border-neutral-700 flex items-center justify-center mb-3 text-sky-400">
+                    <Link2 className="w-5 h-5" />
+                  </div>
+                  <h3 className="text-sm font-bold text-white mb-1">No hay enlaces creados</h3>
+                  <p className="text-xs text-neutral-400 max-w-sm mb-4">
+                    Todos los enlaces anteriores fueron eliminados. Crea un enlace nuevo para compartir el acceso a las cámaras por WhatsApp o enlace directo.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditingShareLink(null);
+                      setShareDefaultProjectId(null);
+                      setIsShareModalOpen(true);
+                    }}
+                    className="px-4 py-2 bg-sky-600 hover:bg-sky-500 text-white rounded-xl text-xs font-semibold flex items-center gap-1.5 shadow-md transition cursor-pointer"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span>Crear Primer Enlace</span>
+                  </button>
+                </div>
+              ) : (
+                /* Links Grid */
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {shareLinks.map((link) => {
+                    const proj = projects.find((p) => p.id === link.projectId);
+                    const assignedCams = cameras.filter((c) =>
+                      link.cameraIds && link.cameraIds.length > 0 ? link.cameraIds.includes(c.id) : c.projectId === link.projectId
+                    );
+                    const isExpired = link.expiresAt ? new Date(link.expiresAt).getTime() <= Date.now() : false;
 
-              {/* Links Grid (Single-Elevation Cards with Hairline Dividers) */}
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {shareLinks.map((link) => {
-                  const proj = projects.find((p) => p.id === link.projectId);
-                  const assignedCams = cameras.filter((c) => 
-                    link.cameraIds && link.cameraIds.length > 0 ? link.cameraIds.includes(c.id) : c.projectId === link.projectId
-                  );
-                  const isExpired = link.expiresAt ? new Date(link.expiresAt).getTime() <= Date.now() : false;
+                    return (
+                      <article
+                        key={link.id}
+                        className={`bg-neutral-900 border rounded-xl p-4 flex flex-col justify-between transition relative ${
+                          !link.isActive || isExpired
+                            ? 'border-neutral-800 opacity-75'
+                            : 'border-neutral-800 hover:border-neutral-700'
+                        }`}
+                      >
+                        <div>
+                          {/* Status & Admin Quick Actions row */}
+                          <div className="flex items-center justify-between mb-3 text-xs">
+                            <div className="flex items-center gap-1.5">
+                              <span
+                                className={`w-2 h-2 rounded-full ${
+                                  !link.isActive ? 'bg-neutral-500' : isExpired ? 'bg-red-500' : 'bg-emerald-400'
+                                }`}
+                              />
+                              <span className="font-semibold text-neutral-200 text-xs">
+                                {!link.isActive ? 'Pausado' : isExpired ? 'Expirado' : 'Activo'}
+                              </span>
+                            </div>
 
-                  return (
-                    <article
-                      key={link.id}
-                      className={`bg-neutral-900 border rounded-xl p-4 flex flex-col justify-between transition relative ${
-                        !link.isActive || isExpired
-                          ? 'border-neutral-800 opacity-75'
-                          : 'border-neutral-800 hover:border-neutral-700'
-                      }`}
-                    >
-                      <div>
-                        {/* Status & Admin Quick Actions row */}
-                        <div className="flex items-center justify-between mb-3 text-xs">
-                          <div className="flex items-center gap-1.5">
-                            <span className={`w-1.5 h-1.5 rounded-full ${
-                              !link.isActive ? 'bg-neutral-500' : isExpired ? 'bg-red-500' : 'bg-emerald-400'
-                            }`} />
-                            <span className="font-medium text-neutral-300 text-xs">
-                              {!link.isActive ? 'Desactivado' : isExpired ? 'Expirado' : 'Activo en Vivo'}
-                            </span>
-                          </div>
-
-                          <div className="flex items-center gap-1">
-                            <button
-                              aria-label={link.isActive ? 'Desactivar enlace' : 'Activar enlace'}
-                              onClick={() => handleToggleLinkActive(link.id)}
-                              className={`p-1.5 rounded-lg border text-xs transition ${
-                                link.isActive
-                                  ? 'bg-neutral-950 border-neutral-800 text-neutral-400 hover:text-white'
-                                  : 'bg-emerald-950/80 border-emerald-800 text-emerald-400'
-                              }`}
-                              title={link.isActive ? 'Desactivar Enlace' : 'Activar Enlace'}
-                            >
-                              <Power className="w-3.5 h-3.5" />
-                            </button>
-
-                            {link.isActive && !isExpired && (
+                            <div className="flex items-center gap-1.5">
                               <button
-                                aria-label="Forzar expiración del enlace"
-                                onClick={() => handleExpireLinkNow(link.id)}
-                                className="p-1.5 bg-neutral-950 hover:bg-neutral-800 border border-neutral-800 text-neutral-400 hover:text-amber-400 rounded-lg text-xs transition"
-                                title="Expirar Enlace Ahora"
+                                type="button"
+                                aria-label={link.isActive ? 'Pausar enlace' : 'Activar enlace'}
+                                onClick={() => handleToggleLinkActive(link.id)}
+                                className={`px-2 py-1 rounded-lg border text-[11px] font-medium flex items-center gap-1 transition cursor-pointer ${
+                                  link.isActive
+                                    ? 'bg-neutral-950 border-neutral-800 text-neutral-400 hover:text-white'
+                                    : 'bg-emerald-950/80 border-emerald-800 text-emerald-300'
+                                }`}
+                                title={link.isActive ? 'Pausar enlace temporalmente' : 'Reactivar enlace'}
                               >
-                                <Clock className="w-3.5 h-3.5" />
+                                <Power className="w-3 h-3" />
+                                <span>{link.isActive ? 'Pausar' : 'Activar'}</span>
                               </button>
-                            )}
+
+                              <button
+                                type="button"
+                                aria-label="Editar enlace"
+                                onClick={() => {
+                                  setEditingShareLink(link);
+                                  setIsShareModalOpen(true);
+                                }}
+                                className="p-1.5 bg-neutral-950 hover:bg-neutral-800 border border-neutral-800 text-neutral-400 hover:text-white rounded-lg text-xs transition cursor-pointer"
+                                title="Editar enlace"
+                              >
+                                <Edit3 className="w-3.5 h-3.5" />
+                              </button>
+
+                              <button
+                                type="button"
+                                aria-label="Eliminar enlace permanentemente"
+                                onClick={() => handleDeleteShareLink(link.id)}
+                                className="px-2 py-1 bg-red-950/60 hover:bg-red-900/90 border border-red-800/60 text-red-300 hover:text-white rounded-lg text-[11px] font-semibold flex items-center gap-1 transition cursor-pointer"
+                                title="Eliminar este enlace permanentemente"
+                              >
+                                <Trash2 className="w-3 h-3" />
+                                <span>Eliminar</span>
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* Title & Client */}
+                          <div className="mb-3">
+                            <h3 className="font-semibold text-sm text-white leading-snug mb-0.5">
+                              {link.title}
+                            </h3>
+                            <div className="text-xs text-neutral-400 flex items-center gap-1.5">
+                              <span className="text-neutral-300 font-medium">{link.clientName}</span>
+                              {proj && <span className="text-neutral-500 truncate">· {proj.name}</span>}
+                            </div>
+                          </div>
+
+                          {/* Resumen limpio del enlace */}
+                          <div className="py-2.5 border-y border-neutral-800 text-xs space-y-1.5 mb-3 font-mono tabular-nums">
+                            <div className="flex items-center justify-between text-neutral-400 font-sans">
+                              <span>Cámaras incluidas:</span>
+                              <span className="text-white font-mono font-medium">{assignedCams.length}</span>
+                            </div>
+                            <div className="flex items-center justify-between text-neutral-400 font-sans">
+                              <span>Validez:</span>
+                              <span className={`font-medium ${isExpired ? 'text-red-400' : 'text-neutral-200'}`}>
+                                {formatExpirationText(link.expiresAt)}
+                              </span>
+                            </div>
+                            <div className="flex items-center justify-between text-neutral-400 font-sans">
+                              <span>Seguridad:</span>
+                              <span className="text-neutral-300 font-mono text-[11px]">
+                                {link.pinCode ? `PIN ${link.pinCode}` : 'Acceso directo'} · {link.accessCount} visitas
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Botones Simples y Directos para Mandar el Enlace */}
+                        <div className="space-y-2">
+                          <div className="grid grid-cols-2 gap-2">
+                            <a
+                              href={getWhatsAppShareUrl(link)}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="px-3 py-2 bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 text-white rounded-xl text-xs font-semibold transition flex items-center justify-center gap-1.5 shadow-sm whitespace-nowrap cursor-pointer"
+                              title="Enviar enlace directo por WhatsApp en 1 clic"
+                            >
+                              <MessageCircle className="w-3.5 h-3.5 shrink-0" />
+                              <span>Enviar WhatsApp</span>
+                            </a>
 
                             <button
-                              aria-label="Editar enlace"
-                              onClick={() => {
-                                setEditingShareLink(link);
-                                setIsShareModalOpen(true);
-                              }}
-                              className="p-1.5 bg-neutral-950 hover:bg-neutral-800 border border-neutral-800 text-neutral-400 hover:text-white rounded-lg text-xs transition"
-                              title="Editar"
+                              type="button"
+                              onClick={() => handleCopyLinkUrl(link.token)}
+                              className={`px-3 py-2 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 border transition whitespace-nowrap cursor-pointer ${
+                                copiedToken === link.token
+                                  ? 'bg-emerald-950 border-emerald-500 text-emerald-300'
+                                  : 'bg-sky-600 hover:bg-sky-500 border-sky-500 text-white shadow-sm'
+                              }`}
+                              title="Copiar enlace al portapapeles en 1 clic"
                             >
-                              <Edit3 className="w-3.5 h-3.5" />
+                              {copiedToken === link.token ? (
+                                <>
+                                  <Check className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                                  <span>¡Copiado!</span>
+                                </>
+                              ) : (
+                                <>
+                                  <Copy className="w-3.5 h-3.5 shrink-0" />
+                                  <span>Copiar Enlace</span>
+                                </>
+                              )}
+                            </button>
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-2">
+                            <button
+                              type="button"
+                              aria-label={`Ver código QR de ${link.title}`}
+                              onClick={() => setHandoverShareLink(link)}
+                              className="px-2.5 py-1.5 bg-neutral-950 hover:bg-neutral-800 text-neutral-300 hover:text-white border border-neutral-800 rounded-lg text-xs font-medium transition flex items-center justify-center gap-1.5 whitespace-nowrap cursor-pointer"
+                              title="Mostrar Código QR"
+                            >
+                              <QrCode className="w-3.5 h-3.5 text-sky-400 shrink-0" />
+                              <span>Código QR</span>
                             </button>
 
                             <button
-                              aria-label="Eliminar enlace privado"
-                              onClick={() => handleDeleteShareLink(link.id)}
-                              className="p-1.5 bg-neutral-950 hover:bg-red-950/80 border border-neutral-800 text-neutral-400 hover:text-red-400 rounded-lg text-xs transition"
-                              title="Eliminar"
+                              type="button"
+                              onClick={() => setClientTokenView(link.token)}
+                              className="px-2.5 py-1.5 bg-neutral-950 hover:bg-neutral-800 text-neutral-300 hover:text-white border border-neutral-800 rounded-lg text-xs font-medium flex items-center justify-center gap-1.5 transition whitespace-nowrap cursor-pointer"
+                              title="Abrir y probar cómo lo ve el cliente"
                             >
-                              <Trash2 className="w-3.5 h-3.5" />
+                              <Eye className="w-3.5 h-3.5 text-sky-400 shrink-0" />
+                              <span>Probar Vista</span>
                             </button>
                           </div>
                         </div>
-
-                        {/* Title & Client */}
-                        <div className="mb-3">
-                          <h3 className="font-semibold text-sm text-white leading-snug mb-0.5">
-                            {link.title}
-                          </h3>
-                          <div className="text-xs text-neutral-400 flex items-center gap-1.5">
-                            <span className="text-neutral-300 font-medium">{link.clientName}</span>
-                            {proj && <span className="text-neutral-500 truncate">· {proj.name}</span>}
-                          </div>
-                        </div>
-
-                        {/* Hairline Divided Telemetry Block (No Card-Inside-Card) */}
-                        <div className="py-3 border-y border-neutral-800 text-xs space-y-1.5 mb-3 font-mono tabular-nums">
-                          <div className="flex items-center justify-between text-neutral-400 font-sans">
-                            <span>Cámaras asignadas:</span>
-                            <span className="text-white font-mono font-medium">{assignedCams.length}</span>
-                          </div>
-                          <div className="flex items-center justify-between text-neutral-400 font-sans">
-                            <span>Vencimiento:</span>
-                            <span className={`font-medium ${isExpired ? 'text-red-400' : 'text-neutral-200'}`}>
-                              {formatExpirationText(link.expiresAt)}
-                            </span>
-                          </div>
-                          <div className="flex items-center justify-between text-neutral-400 font-sans">
-                            <span>Seguridad / Accesos:</span>
-                            <span className="text-neutral-300 font-mono text-[11px]">
-                              {link.pinCode ? `PIN ${link.pinCode}` : 'Directo'} · {link.accessCount} visitas
-                            </span>
-                          </div>
-                        </div>
-
-                        {/* Clean Unboxed Permissions Row */}
-                        <div className="flex flex-wrap items-center gap-1.5 mb-3.5 text-[11px] text-neutral-400">
-                          {link.allowPtz && <span>PTZ</span>}
-                          {link.allowAudio && <span>· Audio</span>}
-                          {link.allowSnapshot && <span>· Capturas</span>}
-                          {link.showWatermark && <span>· Marca de Agua</span>}
-                        </div>
-                      </div>
-
-                      {/* Client Sharing Action Bar */}
-                      <div className="pt-3 border-t border-neutral-800 grid grid-cols-2 sm:grid-cols-4 gap-2">
-                        <button
-                          aria-label={`Ver código QR y ficha de ${link.title}`}
-                          onClick={() => setHandoverShareLink(link)}
-                          className="px-2 py-1.5 bg-neutral-950 hover:bg-neutral-800 text-neutral-200 border border-neutral-800 rounded-lg text-xs font-medium transition flex items-center justify-center gap-1 whitespace-nowrap"
-                          title="Ver Código QR y Ficha de Entrega"
-                        >
-                          <QrCode className="w-3.5 h-3.5 text-sky-400 shrink-0" />
-                          <span>QR</span>
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setWhatsAppTimedTargetLink(link);
-                            setIsWhatsAppTimedModalOpen(true);
-                          }}
-                          className="px-2 py-1.5 bg-neutral-950 hover:bg-emerald-950 text-neutral-200 hover:text-emerald-300 border border-neutral-800 rounded-lg text-xs font-medium transition flex items-center justify-center gap-1 whitespace-nowrap active:scale-95"
-                          title="Enviar o renovar enlace por WhatsApp con temporizador personalizado"
-                        >
-                          <MessageCircle className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                          <span>WhatsApp</span>
-                        </button>
-
-                        <button
-                          onClick={() => handleCopyLinkUrl(link.token)}
-                          className="px-2 py-1.5 bg-neutral-950 hover:bg-neutral-800 text-neutral-200 rounded-lg text-xs font-medium flex items-center justify-center gap-1 border border-neutral-800 transition whitespace-nowrap"
-                          title="Copiar URL para el cliente"
-                        >
-                          {copiedToken === link.token ? <Check className="w-3.5 h-3.5 text-emerald-400 shrink-0" /> : <Copy className="w-3.5 h-3.5 text-neutral-400 shrink-0" />}
-                          <span>{copiedToken === link.token ? 'Listo' : 'Copiar'}</span>
-                        </button>
-
-                        <button
-                          onClick={() => setClientTokenView(link.token)}
-                          className="px-2 py-1.5 bg-sky-600 hover:bg-sky-500 text-white rounded-lg text-xs font-semibold flex items-center justify-center gap-1 transition shadow-sm whitespace-nowrap"
-                          title="Probar vista de cliente"
-                        >
-                          <Eye className="w-3.5 h-3.5 shrink-0" />
-                          <span>Abrir</span>
-                        </button>
-                      </div>
-                    </article>
-                  );
-                })}
-              </div>
+                      </article>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           )}
 

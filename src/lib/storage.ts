@@ -5,6 +5,7 @@ const STORAGE_KEYS = {
   PROJECTS: 'sideseguate_projects_v11_ocos',
   CAMERAS: 'sideseguate_cameras_v11_ocos',
   SHARE_LINKS: 'sideseguate_share_links_v12_revoked',
+  DELETED_SHARE_LINKS: 'sideseguate_deleted_share_links_v1',
   ACCESS_LOGS: 'sideseguate_access_logs_v6',
 };
 
@@ -89,31 +90,68 @@ export const storage = {
     }
   },
 
+  getDeletedShareTokens(): Set<string> {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEYS.DELETED_SHARE_LINKS);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) {
+          return new Set(parsed.filter((v): v is string => typeof v === 'string' && v.length > 0));
+        }
+      }
+    } catch {
+      // fallback
+    }
+    return new Set();
+  },
+
+  markShareLinkDeleted(token?: string, id?: string): void {
+    try {
+      const set = this.getDeletedShareTokens();
+      if (token) set.add(token);
+      if (id) set.add(id);
+      localStorage.setItem(STORAGE_KEYS.DELETED_SHARE_LINKS, JSON.stringify(Array.from(set)));
+    } catch {
+      // fallback
+    }
+  },
+
+  unmarkShareLinkDeleted(token?: string, id?: string): void {
+    try {
+      const set = this.getDeletedShareTokens();
+      if (token) set.delete(token);
+      if (id) set.delete(id);
+      localStorage.setItem(STORAGE_KEYS.DELETED_SHARE_LINKS, JSON.stringify(Array.from(set)));
+    } catch {
+      // fallback
+    }
+  },
+
   getShareLinks(): ShareLink[] {
+    const deleted = this.getDeletedShareTokens();
     try {
       localStorage.removeItem('sideseguate_share_links_v5');
       localStorage.removeItem('sideseguate_share_links_v6');
       localStorage.removeItem('sideseguate_share_links_v7');
       localStorage.removeItem('sideseguate_share_links_v11_ocos');
       const data = localStorage.getItem(STORAGE_KEYS.SHARE_LINKS);
-      if (data) {
+      if (data !== null) {
         const parsed = JSON.parse(data);
-        const map = new Map<string, ShareLink>();
-        INITIAL_SHARE_LINKS.forEach((l) => map.set(l.id, l));
         if (Array.isArray(parsed)) {
-          parsed.forEach((l: any) => {
-            if (l && l.id) {
-              const base = map.get(l.id);
-              map.set(l.id, base ? { ...base, ...l } : l);
-            }
-          });
+          const byId = new Map<string, ShareLink>();
+          for (const item of parsed) {
+            if (!item || !item.id || !item.token) continue;
+            if (deleted.has(item.id) || deleted.has(item.token)) continue;
+            const base = INITIAL_SHARE_LINKS.find((l) => l.id === item.id);
+            byId.set(item.id, base ? { ...base, ...item } : item);
+          }
+          return Array.from(byId.values());
         }
-        return Array.from(map.values());
       }
     } catch {
       // fallback
     }
-    return INITIAL_SHARE_LINKS;
+    return INITIAL_SHARE_LINKS.filter((l) => !deleted.has(l.id) && !deleted.has(l.token));
   },
 
   saveShareLinks(links: ShareLink[]): void {

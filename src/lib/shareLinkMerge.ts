@@ -12,17 +12,24 @@ import { ShareLink } from './types';
  */
 export function mergeCloudShareLinks(
   localLinks: ShareLink[],
-  cloudLinks: ShareLink[] | null | undefined
+  cloudLinks: ShareLink[] | null | undefined,
+  deletedTokens?: ReadonlySet<string>
 ): ShareLink[] {
-  if (!cloudLinks || cloudLinks.length === 0) return localLinks;
+  const isDeleted = (link: ShareLink | null | undefined): boolean => {
+    if (!link || !deletedTokens || deletedTokens.size === 0) return false;
+    return Boolean((link.token && deletedTokens.has(link.token)) || (link.id && deletedTokens.has(link.id)));
+  };
+
+  const filteredLocal = localLinks.filter((l) => !isDeleted(l));
+  if (!cloudLinks || cloudLinks.length === 0) return filteredLocal;
 
   const byToken = new Map<string, ShareLink>();
-  for (const link of localLinks) {
+  for (const link of filteredLocal) {
     if (link?.token) byToken.set(link.token, link);
   }
 
   for (const cloudLink of cloudLinks) {
-    if (!cloudLink?.token) continue;
+    if (!cloudLink?.token || isDeleted(cloudLink)) continue;
     const local = byToken.get(cloudLink.token);
     byToken.set(
       cloudLink.token,

@@ -296,11 +296,17 @@ export async function upsertCloudShareLink(link: ShareLink): Promise<void> {
   }
 }
 
-export async function deleteCloudShareLink(token: string): Promise<void> {
+export async function deleteCloudShareLink(token: string, linkId?: string): Promise<void> {
   const cleanToken = sanitizeCloudId(token, 'sdg_live');
   const docPath = `cloud_share_links/${cleanToken}`;
   try {
     await deleteDoc(doc(db, 'cloud_share_links', cleanToken));
+    if (linkId && linkId !== token) {
+      const cleanId = sanitizeCloudId(linkId, 'sdg_live');
+      if (cleanId !== cleanToken) {
+        await deleteDoc(doc(db, 'cloud_share_links', cleanId)).catch(() => {});
+      }
+    }
   } catch (error) {
     handleFirestoreError(error, OperationType.DELETE, docPath);
   }

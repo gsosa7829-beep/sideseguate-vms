@@ -1418,3 +1418,45 @@ test('ocos4gMonitor gestiona opciones de reposo inteligente (1m, 3m, 5m, Continu
   assert.equal(getOcos4gState().accumulatedBytes, 0);
   setOcosEcoSleepOption(60);
 });
+
+
+// ---------------------------------------------------------------------------
+// Eliminación permanente de enlaces (local + nube sin resurrección)
+// ---------------------------------------------------------------------------
+
+test('mergeCloudShareLinks respeta enlaces eliminados y nunca los restaura desde la nube', async () => {
+  const { mergeCloudShareLinks } = await import('./shareLinkMerge.ts');
+
+  const linkA = {
+    id: 'link-a',
+    projectId: 'proj-1',
+    token: 'sdg_live_aaa',
+    title: 'Enlace A',
+    clientName: 'Cliente A',
+    cameraIds: ['cam-1'],
+    expiresAt: null,
+    isActive: true,
+    allowPtz: false,
+    allowAudio: true,
+    allowSnapshot: true,
+    showWatermark: false,
+    maxConcurrentViewers: 3,
+    accessCount: 0,
+    lastAccessedAt: null,
+    createdAt: '2026-11-01T00:00:00.000Z',
+  };
+
+  const linkB = {
+    ...linkA,
+    id: 'link-b',
+    token: 'sdg_live_bbb',
+    title: 'Enlace B',
+  };
+
+  // Si link-a fue eliminado por el operador, aunque siga viniendo en cloudLinks NO debe reaparecer
+  const deleted = new Set(['sdg_live_aaa', 'link-a']);
+  const merged = mergeCloudShareLinks([linkB], [linkA, linkB], deleted);
+
+  assert.equal(merged.length, 1);
+  assert.equal(merged[0].token, 'sdg_live_bbb');
+});
