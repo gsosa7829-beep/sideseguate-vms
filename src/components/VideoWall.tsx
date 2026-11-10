@@ -21,6 +21,7 @@ import {
   Link2,
   Sparkles,
   ArrowLeft,
+  ArrowRight,
   Play,
   Pause,
   Key,
@@ -29,7 +30,9 @@ import {
   Layers,
   LayoutGrid,
   Video,
-  RotateCcw
+  RotateCcw,
+  Folder,
+  FolderOpen
 } from 'lucide-react';
 
 interface VideoWallProps {
@@ -50,7 +53,8 @@ export const VideoWall: React.FC<VideoWallProps> = ({
   onGenerateLink,
 }) => {
   const [filterProjectId, setFilterProjectId] = useState<string>('all');
-  const [layoutMode, setLayoutMode] = useState<'sections' | 'grid'>('sections');
+  const [layoutMode, setLayoutMode] = useState<'folders' | 'sections' | 'grid'>('folders');
+  const [activeFolderId, setActiveFolderId] = useState<string | null>(null);
   const [serverOnline, setServerOnline] = useState(false);
   const [tokenHealth, setTokenHealth] = useState<TokenHealthInfo>(() => getTokenHealth());
   const [isRenewingToken, setIsRenewingToken] = useState(false);
@@ -117,6 +121,17 @@ export const VideoWall: React.FC<VideoWallProps> = ({
     (c) => !cementerioCameras.some((cc) => cc.id === c.id) && !ocosCameras.some((oc) => oc.id === c.id)
   );
 
+  // Cuadrícula inteligente y dinámica según el número de cámaras del proyecto:
+  // - 1 cámara: centrada en tamaño óptimo (no gigante)
+  // - 2 cámaras: 2 columnas proporcionadas
+  // - 3 o más cámaras: 3 o 4 columnas automáticas compactas
+  const getProjectGridClass = (count: number) => {
+    if (count === 1) return 'max-w-2xl mx-auto';
+    if (count === 2) return 'grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-5 max-w-5xl mx-auto';
+    if (count === 3) return 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5';
+    return 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-5';
+  };
+
   const toggleCameraStream = (id: string, play?: boolean) => {
     setActiveStreams((prev) => ({
       ...prev,
@@ -180,70 +195,158 @@ export const VideoWall: React.FC<VideoWallProps> = ({
 
         {/* Project Filter Pills & System Counters */}
         <div className="flex flex-wrap items-center gap-2">
-          {/* Selector Móvil de Proyectos */}
+          {/* Selector Móvil de Proyectos / Carpetas */}
           <div className="md:hidden w-full">
             <select
-              aria-label="Filtrar por proyecto"
-              value={filterProjectId}
+              aria-label="Filtrar por proyecto o carpeta"
+              value={
+                layoutMode === 'folders'
+                  ? activeFolderId || 'folders-dir'
+                  : layoutMode === 'grid'
+                  ? 'grid'
+                  : filterProjectId
+              }
               onChange={(e) => {
                 onClearFocus?.();
-                setFilterProjectId(e.target.value);
+                const val = e.target.value;
+                if (val === 'folders-dir') {
+                  setLayoutMode('folders');
+                  setActiveFolderId(null);
+                } else if (val === 'proj-calle-cementerio') {
+                  setLayoutMode('folders');
+                  setActiveFolderId('proj-calle-cementerio');
+                } else if (val === 'proj-ocos') {
+                  setLayoutMode('folders');
+                  setActiveFolderId('proj-ocos');
+                } else if (val === 'grid') {
+                  setLayoutMode('grid');
+                  setActiveFolderId(null);
+                } else {
+                  setLayoutMode('sections');
+                  setActiveFolderId(null);
+                  setFilterProjectId(val);
+                }
               }}
               className="min-h-[46px] w-full rounded-xl border border-neutral-800 bg-neutral-900 px-3.5 text-white text-xs font-medium focus:outline-hidden focus:border-neutral-700"
             >
-              {filterTabs.map((tab) => (
-                <option key={tab.id} value={tab.id}>
-                  {tab.label}
-                </option>
-              ))}
+              <option value="folders-dir">📁 Carpetas de Proyectos (Directorio)</option>
+              <option value="proj-calle-cementerio">📂 Carpeta: Calle del Cementerio (2 Canales)</option>
+              <option value="proj-ocos">📂 Carpeta: Proyecto Ocós (1 Canal 4G)</option>
+              <option value="all">📑 Muro Completo (Todos los Proyectos)</option>
+              <option value="grid">⊞ Vista Mosaico</option>
             </select>
           </div>
 
-          {/* Píldoras de Filtros en Pantallas Medianas y Grandes (Gris / Negro Carbón) */}
-          <div className="hidden md:flex items-center gap-1 p-1 bg-neutral-900 border border-neutral-800 rounded-xl text-xs">
-            {filterTabs.map((tab) => {
-              const active = filterProjectId === tab.id;
-              return (
-                <button
-                  key={tab.id}
-                  type="button"
-                  onClick={() => {
-                    onClearFocus?.();
-                    setFilterProjectId(tab.id);
-                  }}
-                  className={`min-h-[36px] px-3.5 py-1 rounded-lg transition whitespace-nowrap shrink-0 font-medium ${
-                    active && !focusedCamera
-                      ? 'bg-neutral-800 text-white border border-neutral-700/80 font-semibold shadow-xs'
-                      : 'text-neutral-400 hover:text-white border border-transparent'
-                  }`}
-                >
-                  {tab.label}
-                </button>
-              );
-            })}
-          </div>
+          {/* Píldoras de Filtros en Pantallas Medianas y Grandes */}
+          {layoutMode === 'folders' ? (
+            <div className="hidden md:flex items-center gap-1 p-1 bg-neutral-900 border border-neutral-800 rounded-xl text-xs">
+              <button
+                type="button"
+                onClick={() => {
+                  onClearFocus?.();
+                  setActiveFolderId(null);
+                }}
+                className={`min-h-[36px] px-3.5 py-1 rounded-lg transition whitespace-nowrap shrink-0 font-medium cursor-pointer ${
+                  activeFolderId === null && !focusedCamera
+                    ? 'bg-neutral-800 text-white border border-neutral-700/80 font-semibold shadow-xs'
+                    : 'text-neutral-400 hover:text-white border border-transparent'
+                }`}
+              >
+                📁 Todas las Carpetas (2)
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  onClearFocus?.();
+                  setActiveFolderId('proj-calle-cementerio');
+                }}
+                className={`min-h-[36px] px-3.5 py-1 rounded-lg transition whitespace-nowrap shrink-0 font-medium cursor-pointer ${
+                  activeFolderId === 'proj-calle-cementerio' && !focusedCamera
+                    ? 'bg-neutral-800 text-white border border-neutral-700/80 font-semibold shadow-xs'
+                    : 'text-neutral-400 hover:text-white border border-transparent'
+                }`}
+              >
+                📂 Calle del Cementerio (2)
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  onClearFocus?.();
+                  setActiveFolderId('proj-ocos');
+                }}
+                className={`min-h-[36px] px-3.5 py-1 rounded-lg transition whitespace-nowrap shrink-0 font-medium cursor-pointer ${
+                  activeFolderId === 'proj-ocos' && !focusedCamera
+                    ? 'bg-neutral-800 text-white border border-neutral-700/80 font-semibold shadow-xs'
+                    : 'text-neutral-400 hover:text-white border border-transparent'
+                }`}
+              >
+                📂 Proyecto Ocós (1)
+              </button>
+            </div>
+          ) : layoutMode === 'sections' ? (
+            <div className="hidden md:flex items-center gap-1 p-1 bg-neutral-900 border border-neutral-800 rounded-xl text-xs">
+              {filterTabs.map((tab) => {
+                const active = filterProjectId === tab.id;
+                return (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    onClick={() => {
+                      onClearFocus?.();
+                      setFilterProjectId(tab.id);
+                    }}
+                    className={`min-h-[36px] px-3.5 py-1 rounded-lg transition whitespace-nowrap shrink-0 font-medium cursor-pointer ${
+                      active && !focusedCamera
+                        ? 'bg-neutral-800 text-white border border-neutral-700/80 font-semibold shadow-xs'
+                        : 'text-neutral-400 hover:text-white border border-transparent'
+                    }`}
+                  >
+                    {tab.label}
+                  </button>
+                );
+              })}
+            </div>
+          ) : null}
 
           <span className="hidden lg:inline text-xs text-neutral-400 font-mono ml-2">
             {onlineCameras.length}/{cameras.length} Canales configurados
           </span>
 
-          {/* Switcher de Diseño: Por Proyectos / Mosaico Rápido */}
+          {/* Switcher de Modos de Vista: Por Carpetas / Muro Completo / Mosaico */}
           <div className="hidden md:flex items-center gap-1 bg-neutral-900 p-1 rounded-xl border border-neutral-800 text-xs ml-auto">
+            <button
+              type="button"
+              onClick={() => {
+                onClearFocus?.();
+                setLayoutMode('folders');
+                setActiveFolderId(null);
+              }}
+              className={`min-h-[36px] px-3 py-1 rounded-lg transition flex items-center gap-1.5 whitespace-nowrap cursor-pointer ${
+                layoutMode === 'folders' && !focusedCamera
+                  ? 'bg-neutral-800 text-white border border-neutral-700/80 font-semibold shadow-xs'
+                  : 'text-neutral-400 hover:text-white border border-transparent'
+              }`}
+              title="Vista de Carpetas por Proyecto (Enfocada y limpia)"
+            >
+              <Folder className="w-3.5 h-3.5 text-sky-400" />
+              <span>Por Carpetas</span>
+            </button>
+
             <button
               type="button"
               onClick={() => {
                 onClearFocus?.();
                 setLayoutMode('sections');
               }}
-              className={`min-h-[36px] px-3 py-1 rounded-lg transition flex items-center gap-1.5 whitespace-nowrap ${
+              className={`min-h-[36px] px-3 py-1 rounded-lg transition flex items-center gap-1.5 whitespace-nowrap cursor-pointer ${
                 layoutMode === 'sections' && !focusedCamera
-                  ? 'bg-neutral-800 text-white border border-neutral-700/80 font-semibold'
+                  ? 'bg-neutral-800 text-white border border-neutral-700/80 font-semibold shadow-xs'
                   : 'text-neutral-400 hover:text-white border border-transparent'
               }`}
-              title="Vista organizada por proyectos independientes"
+              title="Ver todas las secciones abiertas a la vez"
             >
               <Layers className="w-3.5 h-3.5 text-neutral-300" />
-              <span>Por Proyectos</span>
+              <span>Muro Completo</span>
             </button>
 
             <button
@@ -252,9 +355,9 @@ export const VideoWall: React.FC<VideoWallProps> = ({
                 onClearFocus?.();
                 setLayoutMode('grid');
               }}
-              className={`min-h-[36px] px-3 py-1 rounded-lg transition flex items-center gap-1.5 whitespace-nowrap ${
+              className={`min-h-[36px] px-3 py-1 rounded-lg transition flex items-center gap-1.5 whitespace-nowrap cursor-pointer ${
                 layoutMode === 'grid' && !focusedCamera
-                  ? 'bg-neutral-800 text-white border border-neutral-700/80 font-semibold'
+                  ? 'bg-neutral-800 text-white border border-neutral-700/80 font-semibold shadow-xs'
                   : 'text-neutral-400 hover:text-white border border-transparent'
               }`}
               title="Vista mosaico en cuadrícula"
@@ -304,14 +407,14 @@ export const VideoWall: React.FC<VideoWallProps> = ({
             className="min-h-[46px] sm:min-h-[38px] px-4 py-2 rounded-xl bg-neutral-800 hover:bg-neutral-700 active:bg-neutral-600 text-white font-semibold flex items-center justify-center gap-2 transition shrink-0 cursor-pointer border border-neutral-700 shadow-md"
           >
             <ArrowLeft className="w-4 h-4" />
-            <span>Volver a las Secciones de Proyectos</span>
+            <span>Volver al Muro</span>
           </button>
         </div>
       )}
 
       {/* CONTENIDO PRINCIPAL: VISTA DETALLADA O SECCIONES POR PROYECTO */}
       {focusedCamera ? (
-        <div className="max-w-5xl mx-auto bg-neutral-900 border border-neutral-800 rounded-2xl overflow-hidden shadow-2xl">
+        <div className="max-w-3xl mx-auto bg-neutral-900 border border-neutral-800 rounded-2xl overflow-hidden shadow-2xl">
           <div className="px-4 py-3 bg-neutral-950/95 border-b border-neutral-800 flex items-center justify-between gap-3">
             <div className="flex items-center gap-2.5 min-w-0">
               <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse shrink-0" />
@@ -430,14 +533,281 @@ export const VideoWall: React.FC<VideoWallProps> = ({
             );
           })}
         </div>
+      ) : layoutMode === 'folders' && !activeFolderId ? (
+        /* VISTA DE CARPETAS DE PROYECTO (DIRECTORIO EJECUTIVO) */
+        <div className="space-y-6">
+          {/* Banner Informativo Sutil */}
+          <div className="flex items-center justify-between bg-neutral-900/60 border border-neutral-800/80 px-4 py-3 rounded-2xl text-xs text-neutral-300">
+            <div className="flex items-center gap-2.5">
+              <div className="w-7 h-7 rounded-lg bg-sky-950/60 border border-sky-500/30 text-sky-400 flex items-center justify-center shrink-0 font-bold">
+                📁
+              </div>
+              <div>
+                <span className="font-semibold text-white">Carpetas de Vigilancia:</span> Selecciona el proyecto que deseas inspeccionar para abrir sus cámaras y controles exclusivos.
+              </div>
+            </div>
+            <span className="hidden sm:inline font-mono text-[11px] text-neutral-400 bg-neutral-950 px-2.5 py-1 rounded-lg border border-neutral-800">
+              2 Carpetas disponibles
+            </span>
+          </div>
+
+          {/* Grid de Carpetas Principales */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5 sm:gap-6">
+            {/* CARPETA 01: CALLE DEL CEMENTERIO */}
+            <article
+              onClick={() => setActiveFolderId('proj-calle-cementerio')}
+              className="group relative bg-neutral-900 border border-neutral-800 hover:border-neutral-700 rounded-2xl p-5 sm:p-6 flex flex-col justify-between shadow-xl cursor-pointer overflow-hidden transition-all duration-200 hover:-translate-y-0.5 hover:shadow-2xl active:scale-[0.99]"
+            >
+              {/* Efecto de solapa de carpeta en esquina superior */}
+              <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-bl from-sky-500/10 via-transparent to-transparent pointer-events-none" />
+
+              <div>
+                {/* Encabezado de la Carpeta */}
+                <div className="flex items-start justify-between gap-3 mb-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-12 h-12 rounded-2xl bg-neutral-950 border border-neutral-800 group-hover:border-sky-500/40 flex items-center justify-center text-sky-400 shadow-md transition shrink-0">
+                      <Folder className="w-6 h-6 fill-sky-400/20 text-sky-400" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-mono font-bold text-sky-400 uppercase tracking-wider">
+                          PROYECTO 01
+                        </span>
+                        <span className="text-neutral-600">·</span>
+                        <span className="text-xs font-mono text-neutral-400">DVR HiLook</span>
+                      </div>
+                      <h2 className="text-lg font-bold text-white group-hover:text-sky-300 transition tracking-tight">
+                        Calle del Cementerio
+                      </h2>
+                    </div>
+                  </div>
+
+                  {/* Badge de Canales */}
+                  <span className="px-2.5 py-1 rounded-full bg-neutral-950 border border-neutral-800 text-sky-400 font-mono text-xs font-semibold shrink-0">
+                    {cementerioCameras.length} Canales
+                  </span>
+                </div>
+
+                {/* Descripción */}
+                <p className="text-xs text-neutral-400 mb-4 leading-relaxed">
+                  DVR TurboHD conectado a la red local por cable. Transmisión continua instantánea sin depender de tokens de nube.
+                </p>
+
+                {/* Previsualización de Cámaras en Miniatura (Previews) */}
+                <div className="grid grid-cols-2 gap-2.5 mb-4">
+                  <div className="relative rounded-xl overflow-hidden bg-black border border-neutral-800 aspect-video group-hover:border-neutral-700 transition">
+                    <img
+                      src="/frames/f317-ch1.jpg"
+                      alt="CH01 Portón"
+                      className="w-full h-full object-cover opacity-60 group-hover:opacity-85 transition"
+                    />
+                    <div className="absolute bottom-1.5 inset-x-1.5 flex items-center justify-between text-[10px] font-mono bg-black/75 px-1.5 py-0.5 rounded backdrop-blur-xs">
+                      <span className="font-bold text-sky-300">CH01</span>
+                      <span className="text-neutral-300 truncate">Portón</span>
+                    </div>
+                  </div>
+
+                  <div className="relative rounded-xl overflow-hidden bg-black border border-neutral-800 aspect-video group-hover:border-neutral-700 transition">
+                    <img
+                      src="/frames/f317-ch2.jpg"
+                      alt="CH02 Calle"
+                      className="w-full h-full object-cover opacity-60 group-hover:opacity-85 transition"
+                    />
+                    <div className="absolute bottom-1.5 inset-x-1.5 flex items-center justify-between text-[10px] font-mono bg-black/75 px-1.5 py-0.5 rounded backdrop-blur-xs">
+                      <span className="font-bold text-sky-300">CH02</span>
+                      <span className="text-neutral-300 truncate">Calle</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Fila de Etiquetas Técnicas */}
+                <div className="flex flex-wrap items-center gap-2 text-[11px] font-mono text-neutral-400 mb-4">
+                  <span className="flex items-center gap-1 bg-neutral-950 px-2 py-0.5 rounded-md border border-neutral-800 text-neutral-300">
+                    <span className="text-emerald-400">⚡</span> Cero lag (RTSP local)
+                  </span>
+                  <span className="flex items-center gap-1 bg-neutral-950 px-2 py-0.5 rounded-md border border-neutral-800 text-neutral-300">
+                    <span className="text-sky-400">🔒</span> Cero Tokens
+                  </span>
+                  <span className="flex items-center gap-1 bg-neutral-950 px-2 py-0.5 rounded-md border border-neutral-800 text-neutral-300">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" /> 1080p FHD
+                  </span>
+                </div>
+              </div>
+
+              {/* Botón de Abrir Carpeta */}
+              <div className="pt-3 border-t border-neutral-800/80 flex items-center justify-between gap-3">
+                <span className="text-xs text-neutral-400 group-hover:text-neutral-300 font-medium transition">
+                  Toca para abrir cámaras
+                </span>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setActiveFolderId('proj-calle-cementerio');
+                  }}
+                  className="h-9 px-4 rounded-xl bg-neutral-800 group-hover:bg-sky-600 text-neutral-200 group-hover:text-white border border-neutral-700 group-hover:border-sky-500 font-semibold text-xs transition flex items-center gap-2 shadow-sm cursor-pointer"
+                >
+                  <span>Abrir Proyecto</span>
+                  <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition" />
+                </button>
+              </div>
+            </article>
+
+            {/* CARPETA 02: PROYECTO OCÓS (4G LTE) */}
+            <article
+              onClick={() => setActiveFolderId('proj-ocos')}
+              className="group relative bg-neutral-900 border border-neutral-800 hover:border-neutral-700 rounded-2xl p-5 sm:p-6 flex flex-col justify-between shadow-xl cursor-pointer overflow-hidden transition-all duration-200 hover:-translate-y-0.5 hover:shadow-2xl active:scale-[0.99]"
+            >
+              {/* Efecto de solapa de carpeta en esquina superior */}
+              <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-bl from-emerald-500/10 via-transparent to-transparent pointer-events-none" />
+
+              <div>
+                {/* Encabezado de la Carpeta */}
+                <div className="flex items-start justify-between gap-3 mb-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-12 h-12 rounded-2xl bg-neutral-950 border border-neutral-800 group-hover:border-emerald-500/40 flex items-center justify-center text-emerald-400 shadow-md transition shrink-0">
+                      <Folder className="w-6 h-6 fill-emerald-400/20 text-emerald-400" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-mono font-bold text-emerald-400 uppercase tracking-wider">
+                          PROYECTO 02
+                        </span>
+                        <span className="text-neutral-600">·</span>
+                        <span className="text-xs font-mono text-neutral-400">Chip 4G Celular</span>
+                      </div>
+                      <h2 className="text-lg font-bold text-white group-hover:text-emerald-300 transition tracking-tight">
+                        Proyecto Ocós
+                      </h2>
+                    </div>
+                  </div>
+
+                  {/* Badge de Cámaras */}
+                  <span className="px-2.5 py-1 rounded-full bg-neutral-950 border border-neutral-800 text-emerald-400 font-mono text-xs font-semibold shrink-0">
+                    {ocosCameras.length} Cámara 4G
+                  </span>
+                </div>
+
+                {/* Descripción */}
+                <p className="text-xs text-neutral-400 mb-4 leading-relaxed">
+                  Cámara remota conectada por chip SIM celular 4G. Incluye medidor de consumo (MB) y auto-reposo inteligente para no agotar el saldo.
+                </p>
+
+                {/* Previsualización de Cámara en Miniatura */}
+                <div className="mb-4">
+                  <div className="relative rounded-xl overflow-hidden bg-black border border-neutral-800 aspect-[16/7] group-hover:border-neutral-700 transition">
+                    <img
+                      src="/frames/ocos-ch1.jpg"
+                      alt="CH01 Ocós 4G"
+                      className="w-full h-full object-cover opacity-65 group-hover:opacity-90 transition"
+                    />
+                    <div className="absolute bottom-2 inset-x-2 flex items-center justify-between text-[11px] font-mono bg-black/80 px-2 py-1 rounded-lg backdrop-blur-xs">
+                      <div className="flex items-center gap-1.5">
+                        <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                        <span className="font-bold text-emerald-300">CH01</span>
+                        <span className="text-neutral-300">Proyecto Ocós</span>
+                      </div>
+                      <span className="text-emerald-400 font-semibold">
+                        {ocosTelemetry.isStreaming ? `~${ocosTelemetry.currentRateKBs || 32} KB/s` : '0 KB/s en Reposo'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Fila de Etiquetas Técnicas */}
+                <div className="flex flex-wrap items-center gap-2 text-[11px] font-mono text-neutral-400 mb-4">
+                  <span className="flex items-center gap-1 bg-neutral-950 px-2 py-0.5 rounded-md border border-neutral-800 text-neutral-300">
+                    <span className="text-emerald-400">📶</span> Transmisión 4G LTE
+                  </span>
+                  <span className="flex items-center gap-1 bg-neutral-950 px-2 py-0.5 rounded-md border border-neutral-800 text-neutral-300">
+                    <span className="text-emerald-400">🍃</span> 0 KB/s en Reposo
+                  </span>
+                  <span className="flex items-center gap-1 bg-neutral-950 px-2 py-0.5 rounded-md border border-neutral-800 text-neutral-300">
+                    <span className="text-sky-400">⏱️</span> Auto-pausa 1m / 3m / 5m
+                  </span>
+                </div>
+              </div>
+
+              {/* Botón de Abrir Carpeta */}
+              <div className="pt-3 border-t border-neutral-800/80 flex items-center justify-between gap-3">
+                <span className="text-xs text-neutral-400 group-hover:text-neutral-300 font-medium transition">
+                  Toca para abrir cámara 4G
+                </span>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setActiveFolderId('proj-ocos');
+                  }}
+                  className="h-9 px-4 rounded-xl bg-neutral-800 group-hover:bg-emerald-600 text-neutral-200 group-hover:text-white border border-neutral-700 group-hover:border-emerald-500 font-semibold text-xs transition flex items-center gap-2 shadow-sm cursor-pointer"
+                >
+                  <span>Abrir Proyecto</span>
+                  <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition" />
+                </button>
+              </div>
+            </article>
+          </div>
+        </div>
       ) : (
-        /* VISTA ORGANIZADA POR SECCIONES DE PROYECTO (DISEÑO FORMAL Y MINIMALISTA) */
+        /* VISTA ORGANIZADA POR SECCIONES DE PROYECTO O CARPETA ABIERTA */
         <div className="space-y-8 sm:space-y-10">
+          {/* Barra de Navegación cuando una Carpeta de Proyecto está Abierta */}
+          {layoutMode === 'folders' && activeFolderId && (
+            <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-3.5 sm:p-4 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 text-xs shadow-sm">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <button
+                  type="button"
+                  onClick={() => setActiveFolderId(null)}
+                  className="h-9 min-h-[36px] px-3.5 rounded-xl bg-neutral-800 hover:bg-neutral-750 active:bg-neutral-700 text-white font-semibold flex items-center gap-2 transition cursor-pointer border border-neutral-700 shadow-sm shrink-0"
+                  title="Volver a la vista de carpetas"
+                >
+                  <ArrowLeft className="w-4 h-4 text-sky-400" />
+                  <span>Volver a Carpetas</span>
+                </button>
+
+                <span className="text-neutral-600 font-bold hidden sm:inline" aria-hidden="true">/</span>
+
+                {/* Migas de Pan */}
+                <div className="min-w-0 flex items-center gap-2 truncate">
+                  <span className="text-neutral-400 hidden sm:inline">Muro de Video</span>
+                  <span className="text-neutral-600 hidden sm:inline">/</span>
+                  <span className={`font-bold truncate text-xs sm:text-sm ${
+                    activeFolderId === 'proj-calle-cementerio' ? 'text-sky-300' : 'text-emerald-300'
+                  }`}>
+                    {activeFolderId === 'proj-calle-cementerio'
+                      ? '📁 Proyecto 01: Calle del Cementerio (2 Canales)'
+                      : '📁 Proyecto 02: Proyecto Ocós (1 Canal 4G)'}
+                  </span>
+                </div>
+              </div>
+
+              {/* Selector Rápido para alternar entre proyectos directamente */}
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveFolderId(
+                      activeFolderId === 'proj-calle-cementerio' ? 'proj-ocos' : 'proj-calle-cementerio'
+                    );
+                  }}
+                  className="h-8 px-3 rounded-lg bg-neutral-950 hover:bg-neutral-800 text-neutral-300 hover:text-white border border-neutral-800 text-xs font-medium flex items-center gap-1.5 transition cursor-pointer"
+                >
+                  <span>
+                    {activeFolderId === 'proj-calle-cementerio'
+                      ? 'Ver Proyecto Ocós (4G) ➔'
+                      : 'Ver Calle del Cementerio ➔'}
+                  </span>
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* =========================================================================
               SECCIÓN 01: PROYECTO CALLE DEL CEMENTERIO
               Paleta gris/negro con botones de control independiente y grupal
              ========================================================================= */}
-          {(filterProjectId === 'all' || filterProjectId === 'proj-calle-cementerio') &&
+          {((layoutMode === 'folders' && activeFolderId === 'proj-calle-cementerio') ||
+            (layoutMode === 'sections' && (filterProjectId === 'all' || filterProjectId === 'proj-calle-cementerio'))) &&
             cementerioCameras.length > 0 && (
               <section className="space-y-4">
                 {/* Encabezado Ejecutivo de Sección (Estilo Idéntico a Captura de Referencia) */}
@@ -484,8 +854,8 @@ export const VideoWall: React.FC<VideoWallProps> = ({
                   </div>
                 </div>
 
-                {/* Grid de Cámaras del Cementerio: 2 Columnas en PC, 1 en Móvil */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-5">
+                {/* Grid Dinámica de Cámaras del Cementerio */}
+                <div className={getProjectGridClass(cementerioCameras.length)}>
                   {cementerioCameras.map((cam) => {
                     const isPlaying = activeStreams[cam.id] ?? false;
                     const poster =
@@ -574,7 +944,8 @@ export const VideoWall: React.FC<VideoWallProps> = ({
               SECCIÓN 02: PROYECTO OCÓS (CÁMARA 4G LTE)
               Paleta gris/negro con indicador de ahorro SIM 4G
              ========================================================================= */}
-          {(filterProjectId === 'all' || filterProjectId === 'proj-ocos') &&
+          {((layoutMode === 'folders' && activeFolderId === 'proj-ocos') ||
+            (layoutMode === 'sections' && (filterProjectId === 'all' || filterProjectId === 'proj-ocos'))) &&
             ocosCameras.length > 0 && (
               <section className="space-y-4">
                 {/* Encabezado Ejecutivo de Sección */}
@@ -664,8 +1035,8 @@ export const VideoWall: React.FC<VideoWallProps> = ({
                   </div>
                 </div>
 
-                {/* Tarjeta de la Cámara 4G de Ocós */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-5">
+                {/* Tarjeta de la Cámara 4G de Ocós (Dinámica según cantidad) */}
+                <div className={getProjectGridClass(ocosCameras.length)}>
                   {ocosCameras.map((cam) => {
                     const isPlaying = activeStreams[cam.id] ?? false;
 
@@ -694,7 +1065,7 @@ export const VideoWall: React.FC<VideoWallProps> = ({
                           <div className="flex items-center gap-1.5 text-neutral-400 text-[11px] font-mono tabular-nums shrink-0">
                             <span>H.265 SD</span>
                             <span aria-hidden="true">·</span>
-                            <span>~256 kbps</span>
+                            <span className="text-sky-300 font-semibold">~512 kbps</span>
                             <span aria-hidden="true">·</span>
                             <span className="text-emerald-400 font-semibold">
                               {formatMobileDataUsage(ocosTelemetry.sessionBytes)}
@@ -755,7 +1126,9 @@ export const VideoWall: React.FC<VideoWallProps> = ({
           {/* =========================================================================
               SECCIÓN 03: OTROS PROYECTOS / CÁMARAS ADICIONALES (SI HUBIERA MÁS)
              ========================================================================= */}
-          {otherCameras.length > 0 && (filterProjectId === 'all' || filterProjectId === 'other') && (
+          {otherCameras.length > 0 &&
+            ((layoutMode === 'folders' && activeFolderId === 'other') ||
+              (layoutMode === 'sections' && (filterProjectId === 'all' || filterProjectId === 'other'))) && (
             <section className="space-y-4">
               <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-4 sm:p-5 shadow-sm">
                 <h3 className="text-base sm:text-lg font-bold text-white tracking-tight">
@@ -766,7 +1139,7 @@ export const VideoWall: React.FC<VideoWallProps> = ({
                 </p>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5">
+              <div className={getProjectGridClass(otherCameras.length)}>
                 {otherCameras.map((cam) => {
                   const isPlaying = activeStreams[cam.id] ?? false;
 

@@ -51,30 +51,20 @@ export const NAV_SECTIONS: NavSection[] = [
       {
         id: 'videowall',
         label: 'Muro de video',
-        hint: 'Todas tus cámaras en vivo, una al lado de otra.',
+        hint: 'Todas tus cámaras en vivo, organizadas por proyecto.',
       },
     ],
   },
   {
     id: 'clients',
-    label: 'Clientes',
-    shortLabel: 'Clientes',
+    label: 'Enlaces',
+    shortLabel: 'Enlaces',
     Icon: Send,
     items: [
       {
         id: 'share_links',
         label: 'Enlaces',
-        hint: 'Crea el link que le envías al cliente por WhatsApp o QR.',
-      },
-      {
-        id: 'clients_projects',
-        label: 'Clientes y demos',
-        hint: 'Fichas de cada cliente y sus proyectos.',
-      },
-      {
-        id: 'access_audit',
-        label: 'Auditoría',
-        hint: 'Quién abrió cada enlace y cuándo.',
+        hint: 'Enlaces activos, temporales y expirados con acceso QR y WhatsApp.',
       },
     ],
   },
@@ -85,24 +75,9 @@ export const NAV_SECTIONS: NavSection[] = [
     Icon: Cctv,
     items: [
       {
-        id: 'dvr_registry',
-        label: 'Registrar DVR',
-        hint: 'Da de alta la grabadora y sus canales.',
-      },
-      {
         id: 'devices_catalog',
         label: 'Cámaras',
-        hint: 'Listado y edición de todas las cámaras.',
-      },
-      {
-        id: 'sadp_scanner',
-        label: 'Buscar en la red',
-        hint: 'Localiza equipos Hikvision conectados a tu LAN.',
-      },
-      {
-        id: 'client_onboarding',
-        label: 'Agregar cámaras fácil',
-        hint: 'Asistente paso a paso para dar de alta una cámara.',
+        hint: 'Listado y gestión de todas las cámaras.',
       },
     ],
   },
@@ -115,12 +90,7 @@ export const NAV_SECTIONS: NavSection[] = [
       {
         id: 'windows_server',
         label: 'Servidor de video',
-        hint: 'Comprobación en tiempo real del estado del servidor (Verde / Rojo).',
-      },
-      {
-        id: 'mediamtx_config',
-        label: 'Autodiagnóstico',
-        hint: 'Comprobación general del sistema y base de datos.',
+        hint: 'Estado y renovación del token de autorización del servidor.',
       },
       {
         id: 'zero_storage',

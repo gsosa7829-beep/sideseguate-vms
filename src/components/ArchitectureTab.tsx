@@ -14,16 +14,9 @@ import { EzvizTokenRenewalModal } from './EzvizTokenRenewalModal';
 import {
   Server,
   CheckCircle2,
-  XCircle,
   RefreshCw,
-  ShieldCheck,
   Activity,
-  Radio,
-  Wifi,
-  Video,
   Key,
-  Lock,
-  ExternalLink,
   Sparkles,
   AlertTriangle,
   SlidersHorizontal,
@@ -32,10 +25,10 @@ import {
 } from 'lucide-react';
 
 interface ArchitectureTabProps {
-  cameras: Camera[];
+  cameras?: Camera[];
 }
 
-export const ArchitectureTab: React.FC<ArchitectureTabProps> = ({ cameras }) => {
+export const ArchitectureTab: React.FC<ArchitectureTabProps> = () => {
   const [tokenHealth, setTokenHealth] = useState<TokenHealthInfo>(() => getTokenHealth());
   const [authConfig, setAuthConfig] = useState(() => loadEzvizAuth());
   const [isRefreshingToken, setIsRefreshingToken] = useState(false);
@@ -51,11 +44,8 @@ export const ArchitectureTab: React.FC<ArchitectureTabProps> = ({ cameras }) => 
   const [inputManualToken, setInputManualToken] = useState(authConfig.accessToken || '');
   const [activeConfigTab, setActiveConfigTab] = useState<'auto' | 'manual'>('auto');
 
-  // Server health state
+  // Server check
   const [isCheckingServer, setIsCheckingServer] = useState(false);
-  const [lastCheckTime, setLastCheckTime] = useState<string>('');
-  const [dvrStatus, setDvrStatus] = useState<'online' | 'offline'>('online');
-  const [latencyMs, setLatencyMs] = useState<number>(45);
 
   useEffect(() => {
     return subscribeEzvizAuth(() => {
@@ -137,7 +127,7 @@ export const ArchitectureTab: React.FC<ArchitectureTabProps> = ({ cameras }) => 
       if (result.valid) {
         setVerifyMessage({
           type: 'success',
-          text: `Token 100% válido en la API de EZVIZ. Cámara 4G Ocós: ${result.deviceOnline ? 'EN LÍNEA' : 'STANDBY'}.`,
+          text: `Token 100% válido en la API. Servidor en línea y autorizado.`,
         });
       } else {
         setVerifyMessage({
@@ -154,25 +144,12 @@ export const ArchitectureTab: React.FC<ArchitectureTabProps> = ({ cameras }) => 
 
   const checkOverallStatus = async () => {
     setIsCheckingServer(true);
-    const start = Date.now();
     try {
-      // Para el DVR Calle del Cementerio (F31700438), se valida el enlace local directo
-      setDvrStatus('online');
-      setLatencyMs(Math.max(25, Date.now() - start));
       setTokenHealth(getTokenHealth());
     } finally {
       setIsCheckingServer(false);
-      setLastCheckTime(
-        new Date().toLocaleTimeString('es-GT', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
-      );
     }
   };
-
-  useEffect(() => {
-    checkOverallStatus();
-    const timer = setInterval(checkOverallStatus, 20000);
-    return () => clearInterval(timer);
-  }, []);
 
   return (
     <div className="space-y-5 max-w-5xl mx-auto">
@@ -189,10 +166,10 @@ export const ArchitectureTab: React.FC<ArchitectureTabProps> = ({ cameras }) => 
         <div>
           <div className="flex items-center gap-2">
             <Server className="w-5 h-5 text-sky-400" />
-            <h2 className="text-base font-bold text-white">Arquitectura & Estado del Servidor</h2>
+            <h2 className="text-base font-bold text-white">Servidor de Video · Token de Acceso</h2>
           </div>
           <p className="text-xs text-neutral-400 mt-0.5">
-            Separación definitiva de flujos: Local directo (Cementerio) y Nube con Auto-Refresh (Ocós 4G).
+            Estado de autorización y renovación de credenciales del servidor.
           </p>
         </div>
 
@@ -200,7 +177,7 @@ export const ArchitectureTab: React.FC<ArchitectureTabProps> = ({ cameras }) => 
           type="button"
           disabled={isCheckingServer}
           onClick={checkOverallStatus}
-          className="px-4 py-2 bg-neutral-950 hover:bg-neutral-800 border border-neutral-800 text-white rounded-xl text-xs font-semibold flex items-center gap-2 transition active:scale-95 shadow-sm"
+          className="px-4 py-2 bg-neutral-950 hover:bg-neutral-800 border border-neutral-800 text-white rounded-xl text-xs font-semibold flex items-center gap-2 transition active:scale-95 shadow-sm cursor-pointer"
         >
           <RefreshCw className={`w-3.5 h-3.5 text-sky-400 ${isCheckingServer ? 'animate-spin' : ''}`} />
           <span>{isCheckingServer ? 'Comprobando…' : 'Comprobar Estado'}</span>
@@ -208,7 +185,7 @@ export const ArchitectureTab: React.FC<ArchitectureTabProps> = ({ cameras }) => 
       </div>
 
       {/* =========================================================================
-          SECCIÓN 1: SALUD DEL TOKEN EZVIZ CLOUD (CÁMARA 4G OCÓS) - ALERTA TEMPRANA
+          SECCIÓN: SALUD DEL TOKEN DE SERVIDOR
          ========================================================================= */}
       <div
         className={`border-2 rounded-2xl p-5 sm:p-6 transition-all duration-300 shadow-xl ${
@@ -237,7 +214,7 @@ export const ArchitectureTab: React.FC<ArchitectureTabProps> = ({ cameras }) => 
             <div>
               <div className="flex items-center gap-2.5 flex-wrap">
                 <span className="text-xs uppercase font-extrabold tracking-wider text-neutral-400">
-                  Cámara 4G Ocós (FF9363270)
+                  Token de Transmisión
                 </span>
                 <span
                   className={`px-2.5 py-0.5 rounded-full text-[11px] font-black uppercase tracking-wider shadow-xs ${
@@ -257,20 +234,20 @@ export const ArchitectureTab: React.FC<ArchitectureTabProps> = ({ cameras }) => 
               </div>
 
               <h3 className="text-lg font-black text-white mt-1">
-                {tokenHealth.status === 'expired' && 'El Token de la Nube ha Expirado'}
-                {tokenHealth.status === 'expiring' && `Alerta Temprana: Expira en ${tokenHealth.hoursRemaining} horas`}
+                {tokenHealth.status === 'expired' && 'El Token del Servidor ha Expirado'}
+                {tokenHealth.status === 'expiring' && `Alerta: Expira en ${tokenHealth.hoursRemaining} horas`}
                 {tokenHealth.status === 'active' && `Token Válido por ${tokenHealth.daysRemaining} días`}
               </h3>
 
               <p className="text-xs text-neutral-300 mt-1 max-w-xl">
                 {tokenHealth.status === 'expired' && (
                   <span className="text-red-300 font-medium">
-                    La cámara 4G de Ocós requiere un token renovado para transmitir video. Haz clic en "Renovar Token" para restablecer la señal de inmediato.
+                    El token actual ha caducado. Haz clic en "Renovar Token" para reactivar las transmisiones en vivo.
                   </span>
                 )}
                 {tokenHealth.status === 'expiring' && (
                   <span className="text-amber-300 font-medium">
-                    Faltan menos de 24 horas para que el token caduque. Renuévalo ahora con 1 clic para evitar que la pantalla quede en negro.
+                    Faltan menos de 24 horas para que el token caduque. Renuévalo ahora con 1 clic para mantener la continuidad.
                   </span>
                 )}
                 {tokenHealth.status === 'active' && (
@@ -278,7 +255,7 @@ export const ArchitectureTab: React.FC<ArchitectureTabProps> = ({ cameras }) => 
                     Vigencia hasta: <strong className="text-emerald-400">{tokenHealth.expireDateStr}</strong>.
                     {tokenHealth.hasCredentials
                       ? ' Auto-Refresh 24/7 activo: Se renueva solo cada 5 días sin intervención.'
-                      : ' Configura AppKey y AppSecret para que se renueve 100% solo.'}
+                      : ' Configura AppKey y AppSecret para que se renueve automáticamente.'}
                   </span>
                 )}
               </p>
@@ -291,7 +268,7 @@ export const ArchitectureTab: React.FC<ArchitectureTabProps> = ({ cameras }) => 
               type="button"
               disabled={isRefreshingToken}
               onClick={handle1ClickRenew}
-              className={`flex-1 sm:flex-none px-4 py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition active:scale-95 shadow-md ${
+              className={`flex-1 sm:flex-none px-4 py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition active:scale-95 shadow-md cursor-pointer ${
                 tokenHealth.status === 'expired'
                   ? 'bg-red-600 hover:bg-red-500 text-white shadow-red-600/40'
                   : tokenHealth.status === 'expiring'
@@ -326,8 +303,8 @@ export const ArchitectureTab: React.FC<ArchitectureTabProps> = ({ cameras }) => 
               type="button"
               disabled={isVerifyingToken}
               onClick={handleVerifyTokenLive}
-              className="px-3 py-2.5 bg-neutral-950 hover:bg-neutral-850 border border-neutral-800 text-neutral-400 hover:text-white rounded-xl text-xs font-medium flex items-center gap-1.5 transition"
-              title="Probar token en vivo contra la API de Hikvision / EZVIZ"
+              className="px-3 py-2.5 bg-neutral-950 hover:bg-neutral-850 border border-neutral-800 text-neutral-400 hover:text-white rounded-xl text-xs font-medium flex items-center gap-1.5 transition cursor-pointer"
+              title="Probar token en vivo contra la API de autorización"
             >
               <Activity className={`w-3 h-3 text-sky-400 ${isVerifyingToken ? 'animate-spin' : ''}`} />
               <span className="hidden sm:inline">Probar en Vivo</span>
@@ -360,7 +337,7 @@ export const ArchitectureTab: React.FC<ArchitectureTabProps> = ({ cameras }) => 
               <button
                 type="button"
                 onClick={() => setActiveConfigTab('auto')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition ${
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
                   activeConfigTab === 'auto'
                     ? 'bg-sky-600 text-white'
                     : 'bg-neutral-950 text-neutral-400 hover:text-white'
@@ -371,7 +348,7 @@ export const ArchitectureTab: React.FC<ArchitectureTabProps> = ({ cameras }) => 
               <button
                 type="button"
                 onClick={() => setActiveConfigTab('manual')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition ${
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
                   activeConfigTab === 'manual'
                     ? 'bg-sky-600 text-white'
                     : 'bg-neutral-950 text-neutral-400 hover:text-white'
@@ -385,19 +362,10 @@ export const ArchitectureTab: React.FC<ArchitectureTabProps> = ({ cameras }) => 
               <form onSubmit={handleSaveCredentials} className="bg-neutral-950 border border-neutral-800 rounded-xl p-4 space-y-3">
                 <div className="text-xs text-neutral-300">
                   <p className="font-semibold text-white">
-                    Configuración de Auto-Refresh 24/7 (Hikvision / EZVIZ Open Platform)
+                    Configuración de Auto-Refresh 24/7
                   </p>
                   <p className="text-[11px] text-neutral-400 mt-0.5">
-                    Con estas dos claves, el sistema renueva el token automáticamente cada 5 días sin que nadie tenga que entrar al código.
-                    Obtén tus claves gratis en{' '}
-                    <a
-                      href="https://open.ezviz.com"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-sky-400 hover:underline inline-flex items-center gap-0.5"
-                    >
-                      open.ezviz.com <ExternalLink className="w-3 h-3" />
-                    </a>.
+                    Con estas dos claves, el sistema renueva el token automáticamente cada 5 días sin intervención manual.
                   </p>
                 </div>
 
@@ -411,7 +379,7 @@ export const ArchitectureTab: React.FC<ArchitectureTabProps> = ({ cameras }) => 
                       value={inputAppKey}
                       onChange={(e) => setInputAppKey(e.target.value)}
                       placeholder="Ej: 3b1234567890abcdef..."
-                      className="w-full px-3 py-2 bg-neutral-900 border border-neutral-800 rounded-lg text-white font-mono text-xs focus:outline-none focus:border-sky-500"
+                      className="w-full px-3 py-2 bg-neutral-900 border border-neutral-800 rounded-lg text-white font-mono text-xs focus:outline-hidden focus:border-sky-500"
                     />
                   </div>
                   <div>
@@ -423,7 +391,7 @@ export const ArchitectureTab: React.FC<ArchitectureTabProps> = ({ cameras }) => 
                       value={inputAppSecret}
                       onChange={(e) => setInputAppSecret(e.target.value)}
                       placeholder="••••••••••••••••••••••••••••"
-                      className="w-full px-3 py-2 bg-neutral-900 border border-neutral-800 rounded-lg text-white font-mono text-xs focus:outline-none focus:border-sky-500"
+                      className="w-full px-3 py-2 bg-neutral-900 border border-neutral-800 rounded-lg text-white font-mono text-xs focus:outline-hidden focus:border-sky-500"
                     />
                   </div>
                 </div>
@@ -435,7 +403,7 @@ export const ArchitectureTab: React.FC<ArchitectureTabProps> = ({ cameras }) => 
                   <button
                     type="submit"
                     disabled={isRefreshingToken || !inputAppKey || !inputAppSecret}
-                    className="px-4 py-2 bg-sky-600 hover:bg-sky-500 disabled:opacity-50 text-white rounded-lg text-xs font-bold transition flex items-center gap-1.5"
+                    className="px-4 py-2 bg-sky-600 hover:bg-sky-500 disabled:opacity-50 text-white rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer"
                   >
                     <Sparkles className="w-3.5 h-3.5 text-amber-300" />
                     <span>Guardar y Activar Auto-Refresh</span>
@@ -447,20 +415,20 @@ export const ArchitectureTab: React.FC<ArchitectureTabProps> = ({ cameras }) => 
                 <div className="text-xs text-neutral-300">
                   <p className="font-semibold text-white">Actualización Directa de AccessToken</p>
                   <p className="text-[11px] text-neutral-400 mt-0.5">
-                    Si generaste un token nuevo desde la consola de EZVIZ, pégalo aquí para aplicarlo de inmediato.
+                    Pega el token aquí para aplicarlo de inmediato al servidor.
                   </p>
                 </div>
 
                 <div>
                   <label className="block text-[11px] font-bold text-neutral-400 uppercase tracking-wider mb-1">
-                    AccessToken de EZVIZ
+                    AccessToken
                   </label>
                   <textarea
                     rows={2}
                     value={inputManualToken}
                     onChange={(e) => setInputManualToken(e.target.value)}
                     placeholder="at.xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx-xxxxxxxxxx-xxxxxxx-xxxxxxxxxx"
-                    className="w-full px-3 py-2 bg-neutral-900 border border-neutral-800 rounded-lg text-white font-mono text-xs focus:outline-none focus:border-sky-500"
+                    className="w-full px-3 py-2 bg-neutral-900 border border-neutral-800 rounded-lg text-white font-mono text-xs focus:outline-hidden focus:border-sky-500"
                   />
                 </div>
 
@@ -468,7 +436,7 @@ export const ArchitectureTab: React.FC<ArchitectureTabProps> = ({ cameras }) => 
                   <button
                     type="submit"
                     disabled={!inputManualToken.trim()}
-                    className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white rounded-lg text-xs font-bold transition flex items-center gap-1.5"
+                    className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer"
                   >
                     <CheckCircle2 className="w-3.5 h-3.5" />
                     <span>Guardar Token (7 Días)</span>
@@ -478,167 +446,6 @@ export const ArchitectureTab: React.FC<ArchitectureTabProps> = ({ cameras }) => 
             )}
           </div>
         )}
-      </div>
-
-      {/* =========================================================================
-          SECCIÓN 2: SEPARACIÓN DE EQUIPOS POR SU NATURALEZA
-         ========================================================================= */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {/* A. DVR Calle del Cementerio */}
-        <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-5 space-y-3">
-          <div className="flex items-center justify-between">
-            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-emerald-500/20 text-emerald-400 border border-emerald-500/40">
-              LAN / Cable Directo
-            </span>
-            <span className="text-[11px] font-mono text-neutral-400">SN: F31700438</span>
-          </div>
-
-          <div>
-            <h3 className="text-base font-bold text-white">DVR Calle del Cementerio</h3>
-            <p className="text-xs text-neutral-400 mt-0.5">
-              Conexión directa por MediaMTX / RTSP en red local (<code className="text-emerald-400 font-mono">192.168.1.115</code>).
-            </p>
-          </div>
-
-          <div className="bg-neutral-950 rounded-xl p-3 border border-neutral-800 space-y-2 text-xs">
-            <div className="flex items-center justify-between text-neutral-300">
-              <span className="text-neutral-400">Dependencia de Nube / EZVIZ:</span>
-              <strong className="text-emerald-400 font-semibold">CERO TOKENS (Independiente)</strong>
-            </div>
-            <div className="flex items-center justify-between text-neutral-300">
-              <span className="text-neutral-400">Apertura de Video:</span>
-              <span className="font-mono text-white">~0.3 segundos (Instantáneo)</span>
-            </div>
-            <div className="flex items-center justify-between text-neutral-300">
-              <span className="text-neutral-400">Canales configurados:</span>
-              <span className="font-mono text-white">CH1 (Portón) · CH2 (Interior)</span>
-            </div>
-            <div className="flex items-center justify-between text-neutral-300">
-              <span className="text-neutral-400">Saturación por usuarios:</span>
-              <span className="text-emerald-400">Hasta 30+ clientes simultáneos</span>
-            </div>
-          </div>
-        </div>
-
-        {/* B. Cámara 4G Ocós */}
-        <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-5 space-y-3">
-          <div className="flex items-center justify-between">
-            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-sky-500/20 text-sky-400 border border-sky-500/40">
-              SIM 4G LTE Remota
-            </span>
-            <span className="text-[11px] font-mono text-neutral-400">SN: FF9363270</span>
-          </div>
-
-          <div>
-            <h3 className="text-base font-bold text-white">Cámara 4G Proyecto Ocós</h3>
-            <p className="text-xs text-neutral-400 mt-0.5">
-              Transmisión vía chip 4G celular hacia la plataforma EZopen con Auto-Refresh.
-            </p>
-          </div>
-
-          <div className="bg-neutral-950 rounded-xl p-3 border border-neutral-800 space-y-2 text-xs">
-            <div className="flex items-center justify-between text-neutral-300">
-              <span className="text-neutral-400">Modo de Calidad:</span>
-              <strong className="text-emerald-400 font-semibold">SD Fluido (Ahorro 4G Activo)</strong>
-            </div>
-            <div className="flex items-center justify-between text-neutral-300">
-              <span className="text-neutral-400">Protección de Datos:</span>
-              <span className="font-mono text-white">Eco-Sleep 90s + Suspensión</span>
-            </div>
-            <div className="flex items-center justify-between text-neutral-300">
-              <span className="text-neutral-400">Renovación de Token:</span>
-              <span className="font-mono text-sky-400 font-bold">Auto-Refresh cada 5 días</span>
-            </div>
-            <div className="flex items-center justify-between text-neutral-300">
-              <span className="text-neutral-400">Alerta Temprana:</span>
-              <span className="text-amber-400 font-semibold">Aviso preventivo a las 24h</span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* =========================================================================
-          SECCIÓN 3: CANALES VINCULADOS
-         ========================================================================= */}
-      <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-4 sm:p-5 space-y-3">
-        <h3 className="text-xs font-bold text-neutral-300 uppercase tracking-wider flex items-center gap-2">
-          <Video className="w-4 h-4 text-sky-400" />
-          <span>Canales de Cámaras en el Sistema</span>
-        </h3>
-
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          {cameras.map((cam) => {
-            const isOcos = cam.deviceSerial === 'FF9363270' || cam.id.includes('ocos');
-            return (
-              <div
-                key={cam.id}
-                className="p-3.5 rounded-xl border bg-neutral-950 border-neutral-800 hover:border-neutral-700 transition"
-              >
-                <div className="flex items-center justify-between gap-2 mb-2">
-                  <div className="flex items-center gap-2 min-w-0">
-                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse shrink-0" />
-                    <h4 className="text-xs font-bold text-white truncate">{cam.name}</h4>
-                  </div>
-                  <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-neutral-900 text-neutral-400 border border-neutral-800 shrink-0">
-                    CH{cam.channel}
-                  </span>
-                </div>
-
-                <div className="space-y-1 text-[11px] text-neutral-400 font-mono">
-                  <div className="flex justify-between">
-                    <span>Transmisión:</span>
-                    <span className="text-white font-semibold">
-                      {isOcos ? '4G SD H.265' : 'MediaMTX HD 1080p'}
-                    </span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Naturaleza:</span>
-                    <span className={isOcos ? 'text-sky-400' : 'text-emerald-400'}>
-                      {isOcos ? 'Cloud EZopen' : 'RTSP LAN'}
-                    </span>
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Métricas Técnicas Esenciales */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-3.5 text-xs">
-          <span className="text-neutral-400 text-[11px] block">Disponibilidad DVR</span>
-          <span className="text-white font-bold text-sm font-mono mt-0.5 block">24/7 En Línea</span>
-          <span className="text-emerald-400 text-[10px] mt-1 flex items-center gap-1 font-medium">
-            <Sparkles className="w-3 h-3" /> 99.9% Operativo
-          </span>
-        </div>
-
-        <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-3.5 text-xs">
-          <span className="text-neutral-400 text-[11px] block">Token Cloud 4G</span>
-          <span className={`font-bold text-sm truncate mt-0.5 block ${
-            tokenHealth.status === 'expired' ? 'text-red-400' : tokenHealth.status === 'expiring' ? 'text-amber-400' : 'text-emerald-400'
-          }`}>
-            {tokenHealth.status === 'expired' ? 'Vencido' : `${tokenHealth.daysRemaining} días restantes`}
-          </span>
-          <span className="text-neutral-400 text-[10px] mt-1 block truncate">
-            {tokenHealth.hasCredentials ? 'Auto-Refresh Activo' : 'Manual'}
-          </span>
-        </div>
-
-        <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-3.5 text-xs">
-          <span className="text-neutral-400 text-[11px] block">DVR Cementerio</span>
-          <span className="text-white font-bold text-sm font-mono mt-0.5 block">MediaMTX Direct</span>
-          <span className="text-emerald-400 text-[10px] mt-1 block">0 Tokens · Cero caídas</span>
-        </div>
-
-        <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-3.5 text-xs">
-          <span className="text-neutral-400 text-[11px] block">Cámara 4G Ocós</span>
-          <span className="text-white font-bold text-sm mt-0.5 block">SD Fluido (256k)</span>
-          <span className="text-emerald-400 text-[10px] mt-1 flex items-center gap-1">
-            <ShieldCheck className="w-3 h-3" /> Ahorro SIM Activo
-          </span>
-        </div>
       </div>
 
       <EzvizTokenRenewalModal

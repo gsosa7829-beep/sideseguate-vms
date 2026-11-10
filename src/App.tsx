@@ -1109,10 +1109,10 @@ function AppShell() {
             <div className="flex items-center gap-2 shrink-0">
               <button
                 type="button"
-                onClick={() => setActiveTab('access_audit')}
+                onClick={() => setActiveTab('share_links')}
                 className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-[11px] transition"
               >
-                Ver Bitácora
+                Ver Enlaces
               </button>
               <button
                 type="button"
@@ -1404,162 +1404,6 @@ function AppShell() {
             </div>
           )}
 
-          {/* VIEW 4B: Autogestión de Cámaras por el Cliente (El Cliente Agrega Sus Cámaras al Servidor) */}
-          {activeTab === 'client_onboarding' && (
-            <ClientCameraOnboardingView
-              projects={projects}
-              cameras={cameras}
-              isStandaloneClientMode={false}
-              onAddCamerasBatch={handleClientAddCamerasBatch}
-              onOpenStandalonePreview={(projId) => setClientOnboardingProjectId(projId)}
-              onNavigateToYaml={() => setActiveTab('mediamtx_config')}
-              onSelectCameraInMonitor={(camId) => {
-                setSelectedCameraId(camId);
-                setFocusedCameraId(camId);
-                setActiveTab('videowall');
-              }}
-            />
-          )}
-
-          {/* VIEW 5: Cartera de Clientes y Demos de Cámaras */}
-          {activeTab === 'clients_projects' && (
-            <div className="space-y-4">
-              <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                <div>
-                  <h2 className="text-sm font-bold text-white flex items-center gap-2">
-                    <Building2 className="w-4 h-4 text-sky-400" />
-                    Cartera de Clientes y Demos de Cámaras
-                  </h2>
-                  <p className="text-xs text-neutral-400 mt-0.5">
-                    Registra a tus clientes o prospectos, asígnales las cámaras que desean ver o que ya tienen instaladas y envíales su enlace en 1 clic.
-                  </p>
-                </div>
-
-                <button
-                  onClick={() => {
-                    setEditingProject(null);
-                    setIsProjectModalOpen(true);
-                  }}
-                  className="px-3.5 py-2 bg-sky-600 hover:bg-sky-500 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 transition shadow-sm whitespace-nowrap shrink-0"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                  <span>Registrar Cliente / Demo</span>
-                </button>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {projects.map((proj) => {
-                  const projCameras = cameras.filter((c) => c.projectId === proj.id);
-                  const projLinks = shareLinks.filter((l) => l.projectId === proj.id);
-                  const primaryLink = projLinks[0];
-
-                  const getStatusLabel = (st: Project['status']) => {
-                    if (st === 'demo_venta') return 'Demo de Venta (Exhibición)';
-                    if (st === 'instalado_activo' || st === 'activo') return 'Equipos Instalados';
-                    if (st === 'prospecto') return 'Prospecto Interesado';
-                    return 'Cámaras Asignadas';
-                  };
-
-                  return (
-                    <article
-                      key={proj.id}
-                      className="bg-neutral-900 border border-neutral-800 rounded-xl p-5 flex flex-col justify-between"
-                    >
-                      <div>
-                        <div className="flex items-center justify-between mb-2">
-                          <span className="text-xs font-medium text-sky-400 flex items-center gap-1.5">
-                            <span className="w-1.5 h-1.5 rounded-full bg-sky-400" />
-                            {getStatusLabel(proj.status)}
-                          </span>
-                          <span className="text-xs font-mono tabular-nums text-neutral-400">
-                            {projCameras.length} Cámaras · {projLinks.length} Enlaces
-                          </span>
-                        </div>
-
-                        <h3 className="font-semibold text-sm text-white mb-0.5">{proj.name}</h3>
-                        <p className="text-xs text-neutral-400 mb-3">{proj.location}</p>
-
-                        <div className="py-3 border-y border-neutral-800 text-xs space-y-1.5 mb-3">
-                          <div className="flex justify-between text-neutral-400">
-                            <span>Cliente / Contacto:</span>
-                            <span className="text-white font-medium">{proj.clientName}</span>
-                          </div>
-                          <div className="flex justify-between text-neutral-400">
-                            <span>Teléfono / WhatsApp:</span>
-                            <span className="text-emerald-400 font-mono tabular-nums">{proj.clientPhone}</span>
-                          </div>
-                        </div>
-
-                        <div className="text-xs text-neutral-300 mb-4 leading-relaxed">
-                          <span className="text-neutral-500 block text-[11px] font-medium mb-0.5">
-                            Modelos de Cámaras en Demostración / Instalados:
-                          </span>
-                          {proj.equipmentNotes}
-                        </div>
-                      </div>
-
-                      <div className="pt-3 border-t border-neutral-800 flex flex-wrap items-center justify-between gap-2 text-xs">
-                        <div className="flex items-center gap-2">
-                          <button
-                            onClick={() => {
-                              setEditingShareLink(null);
-                              setShareDefaultProjectId(proj.id);
-                              setIsShareModalOpen(true);
-                            }}
-                            className="px-3 py-1.5 bg-sky-600 hover:bg-sky-500 text-white rounded-lg transition text-xs font-semibold flex items-center gap-1.5 shadow-sm"
-                          >
-                            <Link2 className="w-3.5 h-3.5" />
-                            <span>Crear Enlace de Cámaras</span>
-                          </button>
-
-                          {primaryLink && (
-                            <a
-                              href={getWhatsAppShareUrl(primaryLink)}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="px-3 py-1.5 bg-neutral-950 hover:bg-emerald-950 text-emerald-400 border border-neutral-800 rounded-lg transition text-xs font-medium flex items-center gap-1.5"
-                            >
-                              <MessageCircle className="w-3.5 h-3.5" />
-                              <span>Enviar WhatsApp</span>
-                            </a>
-                          )}
-                        </div>
-
-                        <button
-                          onClick={() => {
-                            setEditingProject(proj);
-                            setIsProjectModalOpen(true);
-                          }}
-                          className="px-3 py-1.5 bg-neutral-950 hover:bg-neutral-800 text-neutral-300 rounded-lg transition text-xs font-medium border border-neutral-800"
-                        >
-                          Editar
-                        </button>
-                      </div>
-                    </article>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
-          {/* VIEW 6: Auditoría de Accesos */}
-          {/* Registro de DVRs: el cliente agrega su equipo en 3 campos */}
-          {activeTab === 'dvr_registry' && (
-            <DvrRegistryView
-              clientName={currentAdminAccount.displayName}
-              isAdmin
-              onShowToast={showToast}
-            />
-          )}
-
-          {activeTab === 'access_audit' && (
-            <AccessAuditView
-              logs={accessLogs}
-              shareLinks={shareLinks}
-              onSimulateBuyerAccess={handleSimulateBuyerAccess}
-            />
-          )}
-
           {/* VIEW 7: Catálogo de Cámaras & DVRs */}
           {activeTab === 'devices_catalog' && (
             <div className="space-y-4">
@@ -1601,11 +1445,11 @@ function AppShell() {
                   </select>
 
                   <button
-                    onClick={() => setActiveTab('client_onboarding')}
+                    onClick={() => setIsAiAssistantOpen(true)}
                     className="px-3.5 py-1.5 bg-sky-600 hover:bg-sky-500 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 transition shadow-sm shrink-0"
                   >
-                    <Plus className="w-3.5 h-3.5" />
-                    <span>Asistente Rápido (DVR 4/8/16 CH)</span>
+                    <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+                    <span>Asistente IA (Agregar Cámaras)</span>
                   </button>
 
                   <button
@@ -1735,11 +1579,6 @@ function AppShell() {
             </div>
           )}
 
-          {/* VIEW 8: Escáner SADP Tool & Red Local */}
-          {activeTab === 'sadp_scanner' && (
-            <SadpScannerView />
-          )}
-
           {/* VIEW 9: Servidor Windows 24/7 */}
           {activeTab === 'windows_server' && (
             <ArchitectureTab cameras={cameras} />
@@ -1750,14 +1589,6 @@ function AppShell() {
             <ZeroStorageView />
           )}
 
-          {/* VIEW 11: Autodiagnóstico del Sistema */}
-          {activeTab === 'mediamtx_config' && (
-            <div className="space-y-4 max-w-5xl mx-auto">
-              <Suspense fallback={<div className="h-40 bg-neutral-900 animate-pulse rounded-xl" />}>
-                <SystemDiagnosticsCard />
-              </Suspense>
-            </div>
-          )}
           </div>
         </main>
       </div>

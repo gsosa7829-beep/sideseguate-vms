@@ -67,8 +67,8 @@ export const storage = {
                 streamType: 'sub',
                 codec: 'H.265',
                 fps: 15,
-                bitrateKbps: 256,
-                resolution: '640x360 (Sub-Stream Ahorro 4G)',
+                bitrateKbps: 512,
+                resolution: '768x432 (Sub-Stream SD 512k)',
                 locationDesc: 'Canal 1 HiLookVision (5nctiv) · PROYECTO OCOS 4G (FF9363270)',
               };
             }

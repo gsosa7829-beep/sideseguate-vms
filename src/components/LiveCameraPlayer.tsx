@@ -606,10 +606,10 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
       setEcoRemainingSec(0);
       updateOcosRemainingSec(0);
     }
-    setStreamQuality('2'); // Siempre iniciar en Sub-Stream Fluido H.265 (~256 kbps) para máximo ahorro
+    setStreamQuality('2'); // Siempre iniciar en Sub-Stream H.265 (~512 kbps) optimizado
     setIs4gEcoPaused(false);
     is4gEcoPausedRef.current = false;
-    setOcosStreamingStatus(true, camera.bitrateKbps || 256);
+    setOcosStreamingStatus(true, camera.bitrateKbps || 512);
   }, [camera.bitrateKbps]);
 
   const handleToggleStream = useCallback((play: boolean) => {
@@ -670,11 +670,11 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
       setEcoRemainingSec(0);
       updateOcosRemainingSec(0);
     }
-    setOcosStreamingStatus(true, camera.bitrateKbps || 256);
+    setOcosStreamingStatus(true, camera.bitrateKbps || 512);
 
     const timer = setInterval(() => {
-      // Contabilizar consumo real en transmisión (~256 kbps H.265 Sub-Stream)
-      recordOcosStreamSecond(camera.bitrateKbps || 256);
+      // Contabilizar consumo real en transmisión (~512 kbps H.265 Sub-Stream optimizado)
+      recordOcosStreamSecond(camera.bitrateKbps || 512);
 
       if (ecoSleepSec > 0 && ecoDeadline.current > 0) {
         const remaining = Math.max(0, Math.ceil((ecoDeadline.current - Date.now()) / 1000));
@@ -816,13 +816,9 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
 
       try {
         const rect = container.getBoundingClientRect();
-        const mobileDpr = typeof window !== 'undefined' ? Math.min(window.devicePixelRatio || 1, 2) : 1;
-        const width = isMobile
-          ? Math.max(720, Math.round((rect.width || container.clientWidth || 360) * mobileDpr))
-          : Math.max(320, Math.round(rect.width || container.clientWidth || window.innerWidth || 640));
-        const height = isMobile
-          ? Math.max(405, Math.round((width * 9) / 16))
-          : Math.max(180, Math.round(rect.height || container.clientHeight || (width * 9) / 16 || 360));
+        const dpr = typeof window !== 'undefined' ? Math.min(window.devicePixelRatio || 1, 2) : 1;
+        const width = Math.max(720, Math.round((rect.width || container.clientWidth || 640) * dpr));
+        const height = Math.max(405, Math.round((width * 9) / 16));
 
         startupTimer = setTimeout(() => {
           if (!ezuikitLiveReadyRef.current) fallbackToHls();
@@ -1059,7 +1055,7 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
       shortStatus = fullStatus = 'EN VIVO';
     } else {
       shortStatus = streamQuality === '1' ? '1080p FHD' : 'SD FLUIDO';
-      fullStatus = 'EN VIVO · ' + (is4gCamera && streamQuality === '2' ? 'SD AHORRO 4G' : shortStatus);
+      fullStatus = 'EN VIVO · ' + (is4gCamera && streamQuality === '2' ? 'SD MEJORADO (512 kbps)' : shortStatus);
     }
   } else if (nativeP2pReady) {
     shortStatus = fullStatus = 'VISTA PREVIA';

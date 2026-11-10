@@ -1308,15 +1308,9 @@ test('todas las pantallas están en una sección y ninguna se repite', async () 
   const expected = [
     'videowall',
     'share_links',
-    'client_onboarding',
-    'dvr_registry',
-    'clients_projects',
-    'access_audit',
     'devices_catalog',
-    'sadp_scanner',
     'windows_server',
     'zero_storage',
-    'mediamtx_config',
   ];
   for (const tab of expected) {
     assert.ok(allTabs.includes(tab), `la pantalla ${tab} no está en ninguna sección`);
@@ -1331,9 +1325,9 @@ test('sectionOfTab devuelve la sección correcta y defaultTabOfSection su entrad
 
   assert.equal(sectionOfTab('videowall').id, 'monitor');
   assert.equal(sectionOfTab('share_links').id, 'clients');
-  assert.equal(sectionOfTab('access_audit').id, 'clients');
-  assert.equal(sectionOfTab('sadp_scanner').id, 'devices');
-  assert.equal(sectionOfTab('mediamtx_config').id, 'settings');
+  assert.equal(sectionOfTab('devices_catalog').id, 'devices');
+  assert.equal(sectionOfTab('windows_server').id, 'settings');
+  assert.equal(sectionOfTab('zero_storage').id, 'settings');
 
   // Al pulsar una sección se abre su primera pantalla.
   for (const section of NAV_SECTIONS) {

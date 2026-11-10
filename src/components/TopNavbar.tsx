@@ -376,12 +376,12 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
                     <button
                       type="button"
                       onClick={() => {
-                        onSelectTab('access_audit');
+                        onSelectTab('share_links');
                         setShowAlertsPopover(false);
                       }}
                       className="w-full py-1.5 text-center text-[11px] font-semibold text-sky-400 hover:text-sky-300 transition"
                     >
-                      Ver historial completo ({accessLogs.length}) →
+                      Ver enlaces ({shareLinks.length}) →
                     </button>
                   </div>
                 )}

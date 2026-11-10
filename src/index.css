@@ -334,14 +334,17 @@
     env(safe-area-inset-bottom) env(safe-area-inset-left);
 }
 
-/* Suavizado de video HD y eliminación de ruido en pantallas retina y móviles */
+/* Suavizado y realce de nitidez para video SD/HD sin ruido ni distorsión */
 .ezuikit-live-player canvas,
 .ezuikit-live-player video,
 .ezplayer-canvas,
 .ezplayer-content-video canvas,
 .ezplayer-content-video video,
 video {
-  image-rendering: auto !important;
-  image-rendering: smooth !important;
+  image-rendering: -webkit-optimize-contrast !important;
   -webkit-font-smoothing: antialiased;
+  filter: contrast(1.06) saturate(1.04) brightness(1.01);
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  transform: translateZ(0);
 }
