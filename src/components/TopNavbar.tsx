@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { NavigationTab, AccessLog, ShareLink } from '../lib/types';
+import { NavigationTab, AccessLog, Camera, ShareLink } from '../lib/types';
 import { sectionOfTab, labelOfTab } from '../lib/navigation';
 import { AdminAccount } from '../lib/adminAuth';
 import {
@@ -16,7 +16,6 @@ import {
   Copy,
   Check,
   Terminal,
-  Monitor,
   Palette,
   Bell,
   Volume2,
@@ -36,7 +35,7 @@ import {
 } from '../lib/firebase';
 import { currentTenantId } from '../lib/tenant';
 import { formatBuyerAccessNotification } from '../lib/pcLauncherGenerator';
-import { usePWAInstall } from '../lib/usePWAInstall';
+import { DesktopProgramDownload } from './DesktopProgramDownload';
 import { MenuItem } from './MenuItem';
 import { getPublicUrlInfo, describeShareUrlWarning } from '../lib/publicUrl';
 import type { User } from 'firebase/auth';
@@ -48,7 +47,7 @@ interface TopNavbarProps {
   onOpenNewLink: () => void;
   onOpenNewCamera: () => void;
   onOpenMobilePreview: () => void;
-  onOpenDesktopProgram: () => void;
+  cameras: Camera[];
   searchTerm: string;
   onSearchChange: (value: string) => void;
   camerasOnline: number;
@@ -75,7 +74,7 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
   currentTab,
   onOpenNewLink,
   onOpenNewCamera,
-  onOpenDesktopProgram,
+  cameras,
   searchTerm,
   onSearchChange,
   totalCameras,
@@ -96,7 +95,6 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
   onOpenSecurityModal,
   onLockPanelNow,
 }) => {
-  const { isInstalled } = usePWAInstall();
   const [cloudUser, setCloudUser] = useState<User | null>(null);
   // Espacio (tenant) activo: cada cliente ve únicamente sus cámaras y enlaces.
   const [activeTenantId] = useState(() => currentTenantId());
@@ -428,15 +426,7 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
                   }}
                 />
 
-                <MenuItem
-                  icon={Monitor}
-                  label="Instalar programa PC"
-                  hint={isInstalled ? 'Ya instalado en este equipo' : 'Acceso directo de Windows'}
-                  onClick={() => {
-                    setShowMoreMenu(false);
-                    onOpenDesktopProgram();
-                  }}
-                />
+                <DesktopProgramDownload cameras={cameras} />
 
                 {onChangeUiTheme && (
                   <MenuItem

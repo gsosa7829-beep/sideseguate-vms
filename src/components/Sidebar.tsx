@@ -2,7 +2,6 @@ import React from 'react';
 import { NavigationTab } from '../lib/types';
 import { NAV_SECTIONS, sectionOfTab, defaultTabOfSection } from '../lib/navigation';
 import {
-  Monitor,
   Smartphone,
   ChevronLeft,
   ChevronRight,
@@ -19,7 +18,6 @@ interface SidebarProps {
   shareLinksCount: number;
   projectsCount: number;
   onOpenMobilePreview: () => void;
-  onOpenDesktopProgram: () => void;
 }
 
 /**
@@ -41,7 +39,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
   shareLinksCount,
   projectsCount,
   onOpenMobilePreview,
-  onOpenDesktopProgram,
 }) => {
   const activeSectionId = sectionOfTab(currentTab).id;
 
@@ -162,15 +159,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <>
             <button
               type="button"
-              aria-label="Instalar programa para PC"
-              onClick={onOpenDesktopProgram}
-              className="w-10 h-10 mx-auto rounded-lg bg-sky-500/15 hover:bg-sky-500/25 text-sky-400 border border-sky-500/30 flex items-center justify-center"
-              title="Instalar programa para PC"
-            >
-              <Monitor className="w-4 h-4" />
-            </button>
-            <button
-              type="button"
               aria-label="Simulador móvil"
               onClick={onOpenMobilePreview}
               className="w-10 h-10 mx-auto rounded-lg bg-neutral-900 hover:bg-neutral-850 text-neutral-300 border border-neutral-800 flex items-center justify-center"
@@ -181,14 +169,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </>
         ) : (
           <>
-            <button
-              type="button"
-              onClick={onOpenDesktopProgram}
-              className="w-full py-2 px-2.5 text-neutral-300 hover:text-white hover:bg-neutral-900 rounded-lg text-[11px] font-medium flex items-center gap-2 transition"
-            >
-              <Monitor className="w-3.5 h-3.5 text-sky-400 shrink-0" />
-              <span className="truncate">Instalar programa PC</span>
-            </button>
             <button
               type="button"
               onClick={onOpenMobilePreview}
