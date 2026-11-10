@@ -284,12 +284,7 @@ function AppShell() {
       return false;
     }
   });
-  const [liveBuyerBanner, setLiveBuyerBanner] = useState<{
-    headline: string;
-    subline: string;
-    severity: 'success' | 'info' | 'warning';
-    timestamp: string;
-  } | null>(null);
+  const [showServerNotice, setShowServerNotice] = useState<boolean>(true);
   const latestLogIdRef = useRef<string | null>(null);
   /** Evita republicar cámaras en cada snapshot vacío de Firestore. */
   const cloudRepairAttemptedRef = useRef(false);
@@ -358,31 +353,7 @@ function AppShell() {
       loadedCameras.forEach((cam) => {
         upsertCloudCamera(cam).catch((err) => console.warn('Auto-tunnel cloud camera sync error:', err));
       });
-      setLiveBuyerBanner({
-        headline: `Túnel Auto-Vinculado desde Windows (${loadedCameras.length} cámaras)`,
-        subline: `Dominio detectado: ${autoTunnelUrl} · Sincronizado en Google Cloud Firestore sin copiar ni pegar`,
-        severity: 'success',
-        timestamp: new Date().toLocaleTimeString('es-GT'),
-      });
       // Clean ?autoTunnel from address bar
-      params.delete('autoTunnel');
-      const cleanSearch = params.toString();
-      try {
-        window.history.replaceState(
-          {},
-          '',
-          window.location.pathname + (cleanSearch ? `?${cleanSearch}` : '') + window.location.hash
-        );
-      } catch {
-        // ignore in sandboxed iframe
-      }
-    } else {
-      setLiveBuyerBanner({
-        headline: `Servidor de Video en Línea (${loadedCameras.length} canales activos)`,
-        subline: `Transmisión continua HD 24/7 sincronizada en tiempo real`,
-        severity: 'success',
-        timestamp: new Date().toLocaleTimeString('es-GT'),
-      });
     }
 
     setProjects(loadedProjects);
@@ -522,20 +493,7 @@ function AppShell() {
       },
       onAccessLogs: (cloudLogs) => {
         if (cloudLogs.length > 0) {
-          const newest = cloudLogs[0];
-          if (latestLogIdRef.current && newest.id !== latestLogIdRef.current) {
-            const formatted = formatBuyerAccessNotification(newest, shareLinksRef.current);
-            const sev = formatted.isSecurityWarning ? 'warning' : 'success';
-            setLiveBuyerBanner({
-              headline: formatted.title,
-              subline: formatted.subtitle,
-              severity: sev,
-              timestamp: new Date(newest.timestamp).toLocaleTimeString('es-GT'),
-            });
-            setUnreadAlertsCount((prev) => prev + 1);
-            playNotificationChime(sev);
-          }
-          latestLogIdRef.current = newest.id;
+          latestLogIdRef.current = cloudLogs[0].id;
         }
         setAccessLogs(cloudLogs);
         storage.saveAccessLogs(cloudLogs);
@@ -578,16 +536,7 @@ function AppShell() {
     setAccessLogs(updatedLogs);
     storage.saveAccessLogs(updatedLogs);
 
-    const formatted = formatBuyerAccessNotification(simulatedLog, shareLinks);
-    setLiveBuyerBanner({
-      headline: formatted.title,
-      subline: formatted.subtitle,
-      severity: formatted.isSecurityWarning ? 'warning' : 'success',
-      timestamp: new Date(nowIso).toLocaleTimeString('es-GT'),
-    });
-    setUnreadAlertsCount((prev) => prev + 1);
-    playNotificationChime('success');
-    showToast('Alerta en Vivo: Comprador conectado desde celular 4G');
+    showToast('Prueba de acceso registrada');
 
     if (targetLink) {
       recordCloudShareLinkAccess(targetLink, 'stream_started').catch((err) =>
@@ -623,16 +572,8 @@ function AppShell() {
       upsertCloudCamera(cam).catch((err) => console.warn('Client camera batch cloud sync error:', err));
     });
 
-    setLiveBuyerBanner({
-      headline: `¡${clientName} agregó ${newCameras.length} ${newCameras.length === 1 ? 'cámara' : 'cámaras'} al servidor!`,
-      subline: `IP: ${newCameras[0].host}:${newCameras[0].port} · Añadida automáticamente a mediamtx.yml y Cloud Firestore`,
-      severity: 'success',
-      timestamp: new Date().toLocaleTimeString('es-GT'),
-    });
-    setUnreadAlertsCount((prev) => prev + 1);
-    playNotificationChime('success');
     showToast(
-      `${newCameras.length} ${newCameras.length === 1 ? 'cámara agregada' : 'cámaras agregadas'} automáticamente al servidor y sincronizadas en la nube`
+      `${newCameras.length} ${newCameras.length === 1 ? 'cámara agregada' : 'cámaras agregadas'} al servidor`
     );
   };
 
@@ -1096,33 +1037,27 @@ function AppShell() {
           }}
         />
 
-        {/* Real-Time Buyer Access / Auto-Tunnel Live Alert Banner */}
-        {liveBuyerBanner && (
-          <div className="mx-3 sm:mx-6 mt-3 px-3 sm:px-4 py-2 rounded-xl bg-emerald-950/90 border border-emerald-500/40 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 text-xs shadow-lg overflow-hidden">
-            <div className="flex items-start sm:items-center gap-2.5 min-w-0 flex-1">
-              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping shrink-0 mt-1 sm:mt-0" />
-              <div className="min-w-0 flex-1">
-                <span className="font-bold text-white mr-2 block sm:inline truncate">{liveBuyerBanner.headline}</span>
-                <span className="text-emerald-200/90 font-mono text-[11px] block sm:inline truncate">{liveBuyerBanner.subline}</span>
+        {/* Aviso Sutil: Servidor Activo */}
+        {showServerNotice && (
+          <div className="mx-3 sm:mx-6 mt-3 px-3.5 py-2 rounded-xl bg-neutral-900/80 border border-neutral-800 flex items-center justify-between gap-3 text-xs">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
+              <div className="flex items-center gap-2 min-w-0 flex-wrap">
+                <span className="font-semibold text-neutral-200">Servidor Activo</span>
+                <span className="text-neutral-600 hidden sm:inline" aria-hidden="true">·</span>
+                <span className="text-neutral-400 font-mono text-[11px] truncate">
+                  {cameras.length} canales sincronizados en tiempo real
+                </span>
               </div>
             </div>
-            <div className="flex items-center gap-2 shrink-0">
-              <button
-                type="button"
-                onClick={() => setActiveTab('share_links')}
-                className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-[11px] transition"
-              >
-                Ver Enlaces
-              </button>
-              <button
-                type="button"
-                aria-label="Cerrar alerta en vivo"
-                onClick={() => setLiveBuyerBanner(null)}
-                className="px-2 py-1 rounded-lg bg-neutral-900/80 hover:bg-neutral-800 text-neutral-300 text-[11px] transition"
-              >
-                Cerrar
-              </button>
-            </div>
+            <button
+              type="button"
+              aria-label="Cerrar aviso de servidor"
+              onClick={() => setShowServerNotice(false)}
+              className="text-neutral-500 hover:text-neutral-300 text-[11px] px-2 py-0.5 rounded-md hover:bg-neutral-800 transition cursor-pointer shrink-0"
+            >
+              Cerrar
+            </button>
           </div>
         )}
 
