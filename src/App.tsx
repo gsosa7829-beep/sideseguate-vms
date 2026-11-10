@@ -68,7 +68,6 @@ const ArchitectureTab = lazy(() =>
   import('./components/ArchitectureTab').then((m) => ({ default: m.ArchitectureTab }))
 );
 import { ClientHandoverCardModal } from './components/ClientHandoverCardModal';
-import { DesktopProgramModal } from './components/DesktopProgramModal';
 import { AdminLoginScreen } from './components/AdminLoginScreen';
 const SystemDiagnosticsCard = lazy(() =>
   import('./components/SystemDiagnosticsCard').then((m) => ({ default: m.SystemDiagnosticsCard }))
@@ -140,7 +139,6 @@ function AppShell() {
     typeof window !== 'undefined' ? window.innerWidth < 768 : false
   );
   const [isMobileSimulatorOpen, setIsMobileSimulatorOpen] = useState(false);
-  const [isDesktopProgramOpen, setIsDesktopProgramOpen] = useState(false);
   const [isSecurityModalOpen, setIsSecurityModalOpen] = useState(false);
   const [isAiAssistantOpen, setIsAiAssistantOpen] = useState(false);
 
@@ -840,16 +838,6 @@ function AppShell() {
     return { ok, failed };
   };
 
-  const handleApplyRemoteTunnel = (tunnelBaseUrl: string) => {
-    const updatedCameras = applyTunnelToCameras(tunnelBaseUrl, cameras);
-    setCameras(updatedCameras);
-    storage.saveCameras(updatedCameras);
-    updatedCameras.forEach((cam) => {
-      upsertCloudCamera(cam).catch((err) => console.warn('Cloud camera tunnel sync error:', err));
-    });
-    showToast(`Túnel 4G vinculado y sincronizado en la nube para ${updatedCameras.length} cámaras`);
-  };
-
   const handleCopyLinkUrl = (token: string) => {
     const fullUrl = buildPublicShareUrl(token);
     navigator.clipboard.writeText(fullUrl);
@@ -1021,7 +1009,6 @@ function AppShell() {
         shareLinksCount={shareLinks.length}
         projectsCount={projects.length}
         onOpenMobilePreview={() => setIsMobileSimulatorOpen(true)}
-        onOpenDesktopProgram={() => setIsDesktopProgramOpen(true)}
       />
 
       {/* Main Content Workspace */}
@@ -1029,6 +1016,7 @@ function AppShell() {
         {/* 2. Top Header Bar with Breadcrumbs, Search & KPIs */}
         <TopNavbar
           currentTab={activeTab}
+          cameras={cameras}
           onOpenNewLink={() => {
             setEditingShareLink(null);
             setShareDefaultProjectId(null);
@@ -1039,7 +1027,6 @@ function AppShell() {
             setIsCameraModalOpen(true);
           }}
           onOpenMobilePreview={() => setIsMobileSimulatorOpen(true)}
-          onOpenDesktopProgram={() => setIsDesktopProgramOpen(true)}
           searchTerm={globalSearchTerm}
           onSearchChange={(val) => setGlobalSearchTerm(val)}
           camerasOnline={onlineCamerasCount}
@@ -1791,14 +1778,6 @@ function AppShell() {
         project={projects.find((p) => p.id === handoverShareLink?.projectId)}
         cameras={cameras}
         onOpenPortalPreview={(token) => setClientTokenView(token)}
-      />
-
-      <DesktopProgramModal
-        isOpen={isDesktopProgramOpen}
-        onClose={() => setIsDesktopProgramOpen(false)}
-        cameras={cameras}
-        onApplyRemoteTunnel={handleApplyRemoteTunnel}
-        onShowToast={showToast}
       />
 
       {currentAdminAccount && (
