@@ -1038,3 +1038,116 @@ export function buildCamerasFromWizard(
     };
   });
 }
+
+export type GuidedConnectionMode = 'local' | 'remote' | 'hybrid';
+
+export interface GuidedCameraSetupInput {
+  mode: GuidedConnectionMode;
+  brand: ParsedCameraSetupIntent['brand'];
+  cameraName: string;
+  host: string;
+  port?: number;
+  username: string;
+  password: string;
+  deviceSerial: string;
+  verificationCode: string;
+  channelsCount: number;
+}
+
+const BRAND_CONFIG_MAP: Record<
+  ParsedCameraSetupIntent['brand'],
+  { brandLabel: string; deviceType: DeviceType }
+> = {
+  hikvision_dvr: { brandLabel: 'DVR Hikvision / HiLook', deviceType: 'hikvision_dvr' },
+  hikvision_ip: { brandLabel: 'Cámara IP / 4G Hikvision', deviceType: 'hikvision_ip' },
+  dahua_dvr: { brandLabel: 'Dahua XVR / DVR', deviceType: 'generic_rtsp' },
+  generic_rtsp: { brandLabel: 'Cámara RTSP / ONVIF', deviceType: 'generic_rtsp' },
+};
+
+/**
+ * Valida únicamente los campos requeridos según el escenario elegido (Local, Remoto/4G o Híbrido).
+ */
+export function validateGuidedCameraInput(input: GuidedCameraSetupInput): string | null {
+  const needsLocal = input.mode === 'local' || input.mode === 'hybrid';
+  const needsRemote = input.mode === 'remote' || input.mode === 'hybrid';
+
+  if (needsLocal) {
+    const cleanHost = input.host.trim();
+    if (!cleanHost) {
+      return 'Ingresa la Dirección IP local del DVR o cámara (ej. 192.168.1.115).';
+    }
+    if (!input.username.trim()) {
+      return 'Ingresa el Usuario del equipo (generalmente admin).';
+    }
+    if (!input.password.trim()) {
+      return 'Ingresa la Contraseña local del DVR o cámara.';
+    }
+  }
+
+  if (needsRemote) {
+    const cleanSerial = input.deviceSerial.trim().toUpperCase();
+    if (cleanSerial.length < 6) {
+      return 'Ingresa el Número de Serie (SN) impreso en la etiqueta del equipo (ej. FF9363192).';
+    }
+    const cleanCode = input.verificationCode.trim().toUpperCase();
+    if (cleanCode.length < 4) {
+      return 'Ingresa el Código de Verificación de la etiqueta o app (ej. WZRIKO).';
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Construye una intención estructurada lista para probeAndDiscoverChannels y buildCamerasFromWizard
+ * a partir de los recuadros guiados del Asistente.
+ */
+export function buildIntentFromGuidedForm(
+  input: GuidedCameraSetupInput
+): ParsedCameraSetupIntent {
+  const cleanSerial =
+    input.mode === 'local' ? undefined : input.deviceSerial.trim().toUpperCase() || undefined;
+  const cleanCode =
+    input.mode === 'local' ? '' : input.verificationCode.trim().toUpperCase();
+  const is4gSerial = Boolean(cleanSerial && /^FF9/i.test(cleanSerial));
+
+  const resolvedBrand: ParsedCameraSetupIntent['brand'] =
+    input.mode === 'remote' && is4gSerial ? 'hikvision_ip' : input.brand;
+  const brandMeta = BRAND_CONFIG_MAP[resolvedBrand] || BRAND_CONFIG_MAP.hikvision_dvr;
+
+  const cleanHost =
+    input.mode === 'remote'
+      ? 'open.ezviz.com'
+      : input.host.trim().replace(/^rtsp:\/\//i, '').replace(/\/.*$/, '') || '192.168.1.115';
+
+  const channelsCount =
+    input.mode === 'remote'
+      ? is4gSerial
+        ? 1
+        : Math.max(1, Math.min(32, Number(input.channelsCount) || 4))
+      : Math.max(1, Math.min(32, Number(input.channelsCount) || 1));
+
+  const cleanName = input.cameraName.trim();
+  const codec: 'H.264' | 'H.265' = is4gSerial ? 'H.265' : 'H.264';
+  const streamType: 'main' | 'sub' = input.mode === 'remote' ? 'sub' : 'main';
+
+  return {
+    brand: resolvedBrand,
+    brandLabel: is4gSerial ? 'Cámara 4G Hikvision' : brandMeta.brandLabel,
+    deviceType: brandMeta.deviceType,
+    host: cleanHost,
+    port: Math.max(1, Math.min(65535, Number(input.port) || 554)),
+    onvifPort: 80,
+    username: input.username.trim() || 'admin',
+    password: input.mode === 'remote' ? cleanCode : input.password.trim() || cleanCode,
+    verificationCode: cleanCode,
+    deviceSerial: cleanSerial,
+    channelsCount,
+    streamType,
+    codec,
+    cameraNamePrefix: cleanName || (is4gSerial ? 'Cámara 4G Hikvision' : brandMeta.brandLabel),
+    projectHint: cleanName || undefined,
+    isComplete: true,
+    missingFields: [],
+  };
+}

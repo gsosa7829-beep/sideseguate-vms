@@ -1454,3 +1454,97 @@ test('mergeCloudShareLinks respeta enlaces eliminados y nunca los restaura desde
   assert.equal(merged.length, 1);
   assert.equal(merged[0].token, 'sdg_live_bbb');
 });
+
+test('asistente guiado valida e interpreta los 3 modos (Local, Lejos 4G e Híbrido)', async () => {
+  const {
+    validateGuidedCameraInput,
+    buildIntentFromGuidedForm,
+    parseNaturalCameraPrompt,
+  } = await import('./aiCameraWizard.ts');
+
+  // 1. Modo Remoto / Lejos 4G: NO exige IP, solo Serie y Código
+  assert.equal(
+    validateGuidedCameraInput({
+      mode: 'remote',
+      brand: 'hikvision_ip',
+      cameraName: '',
+      host: '',
+      username: 'admin',
+      password: '',
+      deviceSerial: 'ff9363192',
+      verificationCode: 'wzriko',
+      channelsCount: 1,
+    }),
+    null
+  );
+
+  const remoteIntent = buildIntentFromGuidedForm({
+    mode: 'remote',
+    brand: 'hikvision_ip',
+    cameraName: '',
+    host: '',
+    username: 'admin',
+    password: '',
+    deviceSerial: 'ff9363192',
+    verificationCode: 'wzriko',
+    channelsCount: 1,
+  });
+  assert.equal(remoteIntent.deviceSerial, 'FF9363192');
+  assert.equal(remoteIntent.verificationCode, 'WZRIKO');
+  assert.equal(remoteIntent.host, 'open.ezviz.com');
+  assert.equal(remoteIntent.codec, 'H.265');
+  assert.equal(remoteIntent.channelsCount, 1);
+
+  // 2. Modo Misma Red Local: exige IP y clave, no serie
+  const localErr = validateGuidedCameraInput({
+    mode: 'local',
+    brand: 'hikvision_dvr',
+    cameraName: 'Bodega',
+    host: '',
+    username: 'admin',
+    password: '123',
+    deviceSerial: '',
+    verificationCode: '',
+    channelsCount: 4,
+  });
+  assert.ok(localErr && localErr.includes('IP'));
+
+  const localIntent = buildIntentFromGuidedForm({
+    mode: 'local',
+    brand: 'dahua_dvr',
+    cameraName: 'Bodega',
+    host: '192.168.1.200',
+    username: 'admin',
+    password: 'Secret123',
+    deviceSerial: '',
+    verificationCode: '',
+    channelsCount: 8,
+  });
+  assert.equal(localIntent.brand, 'dahua_dvr');
+  assert.equal(localIntent.host, '192.168.1.200');
+  assert.equal(localIntent.channelsCount, 8);
+  assert.equal(localIntent.deviceSerial, undefined);
+
+  // 3. Modo Híbrido: exige ambos y conserva ambos
+  const hybridErr = validateGuidedCameraInput({
+    mode: 'hybrid',
+    brand: 'hikvision_dvr',
+    cameraName: 'Portón',
+    host: '192.168.1.115',
+    username: 'admin',
+    password: 'Secret123',
+    deviceSerial: '',
+    verificationCode: '',
+    channelsCount: 4,
+  });
+  assert.ok(hybridErr && hybridErr.includes('Serie'));
+
+  // 4. Parser natural detecta cámara 4G remota en 1 canal sin confundir con DVR de 4 canales
+  const naturalRemote = parseNaturalCameraPrompt(
+    'Agrega esta cámara Hikvision serie FF9363192 código WZRIKO'
+  );
+  assert.equal(naturalRemote.deviceSerial, 'FF9363192');
+  assert.equal(naturalRemote.verificationCode, 'WZRIKO');
+  assert.equal(naturalRemote.channelsCount, 1);
+  assert.equal(naturalRemote.codec, 'H.265');
+});
