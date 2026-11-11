@@ -162,6 +162,8 @@ export const VideoWall: React.FC<VideoWallProps> = ({
   const focusedCamera = focusedCameraId ? cameras.find((c) => c.id === focusedCameraId) || null : null;
   const onlineCameras = cameras.filter((c) => c.status === 'online');
 
+  const totalFolders = 2 + (otherCameras.length > 0 ? 1 : 0);
+
   const filterTabs = [
     { id: 'all', label: `Todos (${cameras.length})` },
     { id: 'proj-calle-cementerio', label: `Calle del Cementerio (${cementerioCameras.length})` },
@@ -188,7 +190,7 @@ export const VideoWall: React.FC<VideoWallProps> = ({
               </span>
             </div>
             <p className="text-xs text-neutral-400 mt-0.5">
-              Monitoreo continuo y transmisión bajo demanda · 2 Proyectos Asignados
+              Monitoreo continuo y transmisión bajo demanda · {totalFolders} Proyectos Asignados
             </p>
           </div>
         </div>
@@ -212,12 +214,9 @@ export const VideoWall: React.FC<VideoWallProps> = ({
                 if (val === 'folders-dir') {
                   setLayoutMode('folders');
                   setActiveFolderId(null);
-                } else if (val === 'proj-calle-cementerio') {
+                } else if (val === 'proj-calle-cementerio' || val === 'proj-ocos' || val === 'other') {
                   setLayoutMode('folders');
-                  setActiveFolderId('proj-calle-cementerio');
-                } else if (val === 'proj-ocos') {
-                  setLayoutMode('folders');
-                  setActiveFolderId('proj-ocos');
+                  setActiveFolderId(val);
                 } else if (val === 'grid') {
                   setLayoutMode('grid');
                   setActiveFolderId(null);
@@ -230,8 +229,17 @@ export const VideoWall: React.FC<VideoWallProps> = ({
               className="min-h-[46px] w-full rounded-xl border border-neutral-800 bg-neutral-900 px-3.5 text-white text-xs font-medium focus:outline-hidden focus:border-neutral-700"
             >
               <option value="folders-dir">📁 Carpetas de Proyectos (Directorio)</option>
-              <option value="proj-calle-cementerio">📂 Carpeta: Calle del Cementerio (2 Canales)</option>
-              <option value="proj-ocos">📂 Carpeta: Proyecto Ocós (1 Canal 4G)</option>
+              <option value="proj-calle-cementerio">
+                📂 Carpeta: Calle del Cementerio ({cementerioCameras.length} {cementerioCameras.length === 1 ? 'Canal' : 'Canales'})
+              </option>
+              <option value="proj-ocos">
+                📂 Carpeta: Proyecto Ocós ({ocosCameras.length} {ocosCameras.length === 1 ? 'Canal 4G' : 'Canales 4G'})
+              </option>
+              {otherCameras.length > 0 && (
+                <option value="other">
+                  📂 Carpeta: Cámaras Adicionales ({otherCameras.length})
+                </option>
+              )}
               <option value="all">📑 Muro Completo (Todos los Proyectos)</option>
               <option value="grid">⊞ Vista Mosaico</option>
             </select>
@@ -252,7 +260,7 @@ export const VideoWall: React.FC<VideoWallProps> = ({
                     : 'text-neutral-400 hover:text-white border border-transparent'
                 }`}
               >
-                📁 Todas las Carpetas (2)
+                📁 Todas las Carpetas ({totalFolders})
               </button>
               <button
                 type="button"
@@ -266,7 +274,7 @@ export const VideoWall: React.FC<VideoWallProps> = ({
                     : 'text-neutral-400 hover:text-white border border-transparent'
                 }`}
               >
-                📂 Calle del Cementerio (2)
+                📂 Calle del Cementerio ({cementerioCameras.length})
               </button>
               <button
                 type="button"
@@ -280,8 +288,24 @@ export const VideoWall: React.FC<VideoWallProps> = ({
                     : 'text-neutral-400 hover:text-white border border-transparent'
                 }`}
               >
-                📂 Proyecto Ocós (1)
+                📂 Proyecto Ocós ({ocosCameras.length})
               </button>
+              {otherCameras.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    onClearFocus?.();
+                    setActiveFolderId('other');
+                  }}
+                  className={`min-h-[36px] px-3.5 py-1 rounded-lg transition whitespace-nowrap shrink-0 font-medium cursor-pointer ${
+                    activeFolderId === 'other' && !focusedCamera
+                      ? 'bg-neutral-800 text-white border border-neutral-700/80 font-semibold shadow-xs'
+                      : 'text-neutral-400 hover:text-white border border-transparent'
+                  }`}
+                >
+                  📂 Adicionales ({otherCameras.length})
+                </button>
+              )}
             </div>
           ) : layoutMode === 'sections' ? (
             <div className="hidden md:flex items-center gap-1 p-1 bg-neutral-900 border border-neutral-800 rounded-xl text-xs">
@@ -547,7 +571,7 @@ export const VideoWall: React.FC<VideoWallProps> = ({
               </div>
             </div>
             <span className="hidden sm:inline font-mono text-[11px] text-neutral-400 bg-neutral-950 px-2.5 py-1 rounded-lg border border-neutral-800">
-              2 Carpetas disponibles
+              {totalFolders} Carpetas disponibles
             </span>
           </div>
 
@@ -684,7 +708,7 @@ export const VideoWall: React.FC<VideoWallProps> = ({
 
                   {/* Badge de Cámaras */}
                   <span className="px-2.5 py-1 rounded-full bg-neutral-950 border border-neutral-800 text-emerald-400 font-mono text-xs font-semibold shrink-0">
-                    {ocosCameras.length} Cámara 4G
+                    {ocosCameras.length} {ocosCameras.length === 1 ? 'Cámara 4G' : 'Cámaras 4G'}
                   </span>
                 </div>
 
@@ -731,7 +755,7 @@ export const VideoWall: React.FC<VideoWallProps> = ({
               {/* Botón de Abrir Carpeta */}
               <div className="pt-3 border-t border-neutral-800/80 flex items-center justify-between gap-3">
                 <span className="text-xs text-neutral-400 group-hover:text-neutral-300 font-medium transition">
-                  Toca para abrir cámara 4G
+                  {ocosCameras.length === 1 ? 'Toca para abrir cámara 4G' : `Toca para abrir ${ocosCameras.length} cámaras 4G`}
                 </span>
                 <button
                   type="button"
@@ -746,6 +770,74 @@ export const VideoWall: React.FC<VideoWallProps> = ({
                 </button>
               </div>
             </article>
+
+            {/* CARPETA 03 DINÁMICA: CÁMARAS ADICIONALES AGREGADAS CON ASISTENTE IA / EQUIPOS */}
+            {otherCameras.length > 0 && (
+              <article
+                onClick={() => setActiveFolderId('other')}
+                className="group relative bg-neutral-900 border border-neutral-800 hover:border-neutral-700 rounded-2xl p-5 sm:p-6 flex flex-col justify-between shadow-xl cursor-pointer overflow-hidden transition-all duration-200 hover:-translate-y-0.5 hover:shadow-2xl active:scale-[0.99]"
+              >
+                <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-bl from-amber-500/10 via-transparent to-transparent pointer-events-none" />
+                <div>
+                  <div className="flex items-start justify-between gap-3 mb-4">
+                    <div className="flex items-center gap-3">
+                      <div className="w-12 h-12 rounded-2xl bg-neutral-950 border border-neutral-800 group-hover:border-amber-500/40 flex items-center justify-center text-amber-400 shadow-md transition shrink-0">
+                        <Folder className="w-6 h-6 fill-amber-400/20 text-amber-400" />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-mono font-bold text-amber-400 uppercase tracking-wider">
+                            PROYECTO 03
+                          </span>
+                          <span className="text-neutral-600">·</span>
+                          <span className="text-xs font-mono text-neutral-400">Asistente / P2P</span>
+                        </div>
+                        <h2 className="text-lg font-bold text-white group-hover:text-amber-300 transition tracking-tight">
+                          Nuevas Cámaras
+                        </h2>
+                      </div>
+                    </div>
+
+                    <span className="px-2.5 py-1 rounded-full bg-neutral-950 border border-neutral-800 text-amber-400 font-mono text-xs font-semibold shrink-0">
+                      {otherCameras.length} {otherCameras.length === 1 ? 'Cámara' : 'Cámaras'}
+                    </span>
+                  </div>
+
+                  <p className="text-xs text-neutral-400 mb-4 leading-relaxed">
+                    Cámaras y equipos adicionales configurados recientemente mediante el Asistente IA o enlace P2P remoto.
+                  </p>
+
+                  <div className="flex flex-wrap items-center gap-2 text-[11px] font-mono text-neutral-400 mb-4">
+                    {otherCameras.slice(0, 3).map((cam) => (
+                      <span
+                        key={cam.id}
+                        className="flex items-center gap-1.5 bg-neutral-950 px-2.5 py-1 rounded-md border border-neutral-800 text-neutral-300 truncate max-w-full"
+                      >
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" />
+                        <span className="truncate">{cam.name}</span>
+                      </span>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="pt-3 border-t border-neutral-800/80 flex items-center justify-between gap-3">
+                  <span className="text-xs text-neutral-400 group-hover:text-neutral-300 font-medium transition">
+                    Toca para abrir cámaras agregadas
+                  </span>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setActiveFolderId('other');
+                    }}
+                    className="h-9 px-4 rounded-xl bg-neutral-800 group-hover:bg-amber-600 text-neutral-200 group-hover:text-white border border-neutral-700 group-hover:border-amber-500 font-semibold text-xs transition flex items-center gap-2 shadow-sm cursor-pointer"
+                  >
+                    <span>Abrir Proyecto</span>
+                    <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition" />
+                  </button>
+                </div>
+              </article>
+            )}
           </div>
         </div>
       ) : (
@@ -772,11 +864,17 @@ export const VideoWall: React.FC<VideoWallProps> = ({
                   <span className="text-neutral-400 hidden sm:inline">Muro de Video</span>
                   <span className="text-neutral-600 hidden sm:inline">/</span>
                   <span className={`font-bold truncate text-xs sm:text-sm ${
-                    activeFolderId === 'proj-calle-cementerio' ? 'text-sky-300' : 'text-emerald-300'
+                    activeFolderId === 'proj-calle-cementerio'
+                      ? 'text-sky-300'
+                      : activeFolderId === 'other'
+                      ? 'text-amber-300'
+                      : 'text-emerald-300'
                   }`}>
                     {activeFolderId === 'proj-calle-cementerio'
-                      ? '📁 Proyecto 01: Calle del Cementerio (2 Canales)'
-                      : '📁 Proyecto 02: Proyecto Ocós (1 Canal 4G)'}
+                      ? `📁 Proyecto 01: Calle del Cementerio (${cementerioCameras.length} ${cementerioCameras.length === 1 ? 'Canal' : 'Canales'})`
+                      : activeFolderId === 'other'
+                      ? `📁 Proyecto 03: Nuevas Cámaras (${otherCameras.length})`
+                      : `📁 Proyecto 02: Proyecto Ocós (${ocosCameras.length} ${ocosCameras.length === 1 ? 'Canal 4G' : 'Canales 4G'})`}
                   </span>
                 </div>
               </div>
@@ -960,7 +1058,9 @@ export const VideoWall: React.FC<VideoWallProps> = ({
                         Proyecto Ocós
                       </h3>
                       <span className="px-2 py-0.5 rounded bg-neutral-800 border border-neutral-700 text-neutral-300 text-xs font-mono ml-1">
-                        Cámara 4G LTE · FF9363270
+                        {ocosCameras.length === 1
+                          ? `Cámara 4G LTE · ${ocosCameras[0]?.deviceSerial || 'FF9363270'}`
+                          : `${ocosCameras.length} Cámaras 4G LTE`}
                       </span>
                     </div>
                     <p className="text-xs text-neutral-400">
@@ -1084,7 +1184,7 @@ export const VideoWall: React.FC<VideoWallProps> = ({
                             isCompact={true}
                             isPlaying={isPlaying}
                             onPlayStateChange={(play) => toggleCameraStream(cam.id, play)}
-                            posterUrl="/frames/ocos-ch1.jpg"
+                            posterUrl={cam.deviceSerial === 'FF9363270' ? '/frames/ocos-ch1.jpg' : undefined}
                           />
                         </div>
 
@@ -1150,12 +1250,19 @@ export const VideoWall: React.FC<VideoWallProps> = ({
                     >
                       <div className="px-4 py-3 bg-neutral-950/95 border-b border-neutral-800 flex items-center justify-between gap-3 text-xs">
                         <div className="flex items-center gap-2 min-w-0">
-                          <span className="w-2 h-2 rounded-full bg-emerald-400 shrink-0" />
+                          <span
+                            className={`w-2 h-2 rounded-full shrink-0 ${
+                              isPlaying ? 'bg-emerald-400 animate-pulse' : 'bg-neutral-500'
+                            }`}
+                          />
                           <span className="font-mono text-xs text-sky-400 font-bold shrink-0">
                             CH0{cam.channel}
                           </span>
-                          <h4 className="font-semibold text-white truncate text-xs">{cam.name}</h4>
+                          <h4 className="font-semibold text-white truncate text-xs sm:text-sm">{cam.name}</h4>
                         </div>
+                        <span className="text-[11px] font-mono text-neutral-400 shrink-0">
+                          {cam.codec} · {cam.streamType === 'sub' ? 'SD' : 'HD'}
+                        </span>
                       </div>
 
                       <div className="flex-1 bg-black">
@@ -1171,15 +1278,24 @@ export const VideoWall: React.FC<VideoWallProps> = ({
                         />
                       </div>
 
-                      <div className="px-4 py-3 bg-neutral-950/95 border-t border-neutral-800 flex items-center justify-between gap-2 text-xs">
-                        <span className="text-neutral-400 truncate">{cam.locationDesc}</span>
+                      <div className="px-4 py-3 bg-neutral-950/95 border-t border-neutral-800 flex items-center justify-between gap-2.5 text-xs">
+                        <span className="text-neutral-300 truncate min-w-0">{cam.locationDesc}</span>
                         <div className="flex items-center gap-2 shrink-0">
                           <button
                             type="button"
                             onClick={() => onSelectCamera(cam.id)}
-                            className="min-h-[44px] px-3 bg-neutral-900 text-neutral-200 border border-neutral-800 rounded-xl"
+                            className="h-8 sm:h-[38px] min-h-[32px] sm:min-h-[38px] px-2.5 sm:px-3.5 bg-neutral-900 hover:bg-neutral-850 text-neutral-200 border border-neutral-800 rounded-lg sm:rounded-xl transition flex items-center gap-1.5 font-medium cursor-pointer text-xs"
                           >
-                            Detalle
+                            <Eye className="w-3.5 h-3.5 text-neutral-300 shrink-0" />
+                            <span>Detalle</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => onGenerateLink(cam)}
+                            className="h-8 sm:h-[38px] min-h-[32px] sm:min-h-[38px] px-2.5 sm:px-3.5 bg-neutral-800 hover:bg-neutral-700 text-white border border-neutral-700 rounded-lg sm:rounded-xl transition flex items-center gap-1.5 font-semibold cursor-pointer shadow-sm text-xs"
+                          >
+                            <Link2 className="w-3.5 h-3.5 text-neutral-300 shrink-0" />
+                            <span>Compartir</span>
                           </button>
                         </div>
                       </div>

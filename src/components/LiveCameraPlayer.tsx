@@ -93,10 +93,12 @@ const inFlightHlsRequests: Record<
   Promise<{ url: string | null; isOffline: boolean; error?: string }>
 > = {};
 
+const is4gSerial = (serial?: string) => Boolean(serial && (serial === 'FF9363270' || /^FF9/i.test(serial)));
+
 export function getCachedHlsUrl(channel: number, serial: string, quality: '1' | '2' = '2'): string | null {
   const devSerial = serial || 'F31700438';
-  // Bloqueo estricto 4G: La cámara de Ocós (FF9363270) NUNCA debe solicitar flujo HD ('1')
-  const effectiveQuality: '1' | '2' = devSerial === 'FF9363270' ? '2' : quality;
+  // Bloqueo estricto 4G: Las cámaras celulares 4G (FF9*) NUNCA deben solicitar flujo HD ('1')
+  const effectiveQuality: '1' | '2' = is4gSerial(devSerial) ? '2' : quality;
   const cacheKey = `${devSerial}_${channel}_${effectiveQuality}`;
   const now = Date.now();
   if (ezvizHlsCache[cacheKey] && ezvizHlsCache[cacheKey].expires > now + 60000) {
@@ -124,8 +126,8 @@ export async function fetchEzvizLiveHls(
   explicitCode?: string
 ): Promise<{ url: string | null; isOffline: boolean; error?: string }> {
   const devSerial = serial || 'F31700438';
-  // Bloqueo estricto 4G: La cámara de Ocós (FF9363270) NUNCA debe solicitar flujo HD ('1')
-  const effectiveQuality: '1' | '2' = devSerial === 'FF9363270' ? '2' : quality;
+  // Bloqueo estricto 4G: Las cámaras celulares 4G (FF9*) NUNCA deben solicitar flujo HD ('1')
+  const effectiveQuality: '1' | '2' = is4gSerial(devSerial) ? '2' : quality;
   const cacheKey = `${devSerial}_${channel}_${effectiveQuality}`;
   const now = Date.now();
 
@@ -439,10 +441,12 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
   const hlsReloadHandled = useRef(0);
   const [autoplayBlocked, setAutoplayBlocked] = useState(false);
   const is4gCamera = Boolean(
-    camera.deviceSerial === 'FF9363270' ||
+    is4gSerial(camera.deviceSerial) ||
     camera.id?.includes('ocos') ||
     camera.notes?.includes('FF9363270') ||
-    camera.notes?.includes('4G')
+    camera.notes?.includes('4G') ||
+    camera.name?.toLowerCase().includes('4g') ||
+    camera.locationDesc?.includes('4G')
   );
 
   const isCementerioCamera = Boolean(

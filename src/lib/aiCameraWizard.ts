@@ -53,6 +53,10 @@ export interface ChannelProbeResult {
   codec: 'H.264' | 'H.265';
   fps: number;
   bitrateKbps: number;
+  detectedDeviceName?: string;
+  detectedModel?: string;
+  is4gHardware?: boolean;
+  isEncrypted?: boolean;
 }
 
 export interface LiveDeviceDiagItem {
@@ -78,7 +82,7 @@ const KNOWN_SERIAL_BY_CODE: Record<string, string> = {
   LBNZYU: 'FF9363270',
 };
 
-import { getAccessToken } from './ezvizAuth';
+import { getAccessToken, hasEzvizCredentials, refreshEzvizToken } from './ezvizAuth';
 
 const KNOWN_CODE_BY_SERIAL: Record<string, string> = {
   F31700438: 'HELGDM',
@@ -86,6 +90,31 @@ const KNOWN_CODE_BY_SERIAL: Record<string, string> = {
 };
 
 const getEzvizAccessToken = () => getAccessToken();
+
+async function postEzvizOpenApi(
+  path: string,
+  params: Record<string, string>
+): Promise<any | null> {
+  const send = async (tokenOverride?: string) => {
+    const res = await fetch(`https://iusopen.ezvizlife.com${path}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        accessToken: tokenOverride || getEzvizAccessToken(),
+        ...params,
+      }),
+    });
+    return res.ok ? await res.json() : null;
+  };
+  let data = await send();
+  if (data?.code === '10002' && hasEzvizCredentials()) {
+    const renewed = await refreshEzvizToken();
+    if (renewed.success && renewed.accessToken) {
+      data = await send(renewed.accessToken);
+    }
+  }
+  return data;
+}
 
 export function getStoredGeminiApiKey(): string {
   try {
@@ -248,10 +277,14 @@ export function parseNaturalCameraPrompt(text: string): ParsedCameraSetupIntent 
   const isDahua = /\b(dahua|imou|xvr)\b/i.test(raw);
   const isHiLook = /\b(hilook|hilookvision)\b/i.test(raw);
   const isHikvision = /\b(hikvision|hik-connect|hik|ezviz|turbohd)\b/i.test(raw);
+  const hasExplicitDvr =
+    /\b(dvr|nvr|xvr)\b/i.test(raw) || /\b(\d+)\s*(?:canales|ch)\b/i.test(raw);
   const isIpCam =
-    /\b(c[aá]mara\s+ip|camara\s+4g|c[aá]mara\s+4g|ip\s+cam|bullet|domo|ptz\s+ip|1\s+canal)\b/i.test(
+    !hasExplicitDvr &&
+    (/\b(c[aá]mara\s+ip|camara\s+ip|c[aá]mara\s+4g|camara\s+4g|esta\s+c[aá]mara|una\s+c[aá]mara|c[aá]mara\s+hikvision|ip\s+cam|bullet|domo|ptz\s+ip|1\s+canal|ds-2cd)\b/i.test(
       raw
-    ) && !/\b(dvr|nvr)\b/i.test(raw);
+    ) ||
+      /\bFF9\d{6}\b/i.test(raw));
 
   if (isDahua) {
     brand = 'dahua_dvr';
@@ -344,7 +377,7 @@ export function parseNaturalCameraPrompt(text: string): ParsedCameraSetupIntent 
   }
 
   const codeMatch = raw.match(
-    /\b(?:c[oó]digo(?:\s+de\s+verificaci[oó]n)?|verificaci[oó]n|cifrado|encryption)\s*[:=]?\s*([A-Za-z0-9_-]{4,16})/i
+    /\b(?:c[oó]digo(?:\s+de\s+verificaci[oó]n)?|verification\s+code|verify\s+code|verificaci[oó]n|cifrado|encryption)\s*(?:es\s*)?[:=]?\s*([A-Za-z0-9_-]{4,16})/i
   );
   if (codeMatch) {
     verificationCode = codeMatch[1].trim().toUpperCase();
@@ -359,8 +392,8 @@ export function parseNaturalCameraPrompt(text: string): ParsedCameraSetupIntent 
 
   let deviceSerial: string | undefined;
   const serialMatch =
-    raw.match(/\b(?:serie|serial|sn)\s*[:=#]?\s*([A-Z0-9]{9})\b/i) ||
-    raw.match(/\b([A-Z]{1,2}\d{7,8})\b/);
+    raw.match(/\b(?:serie|serial|sn)\s*[:=#]?\s*([A-Za-z0-9]{9})\b/i) ||
+    raw.match(/\b([A-Za-z]{1,2}\d{7,8})\b/);
   if (serialMatch) {
     deviceSerial = serialMatch[1].toUpperCase();
   } else if (verificationCode && KNOWN_SERIAL_BY_CODE[verificationCode]) {
@@ -373,11 +406,20 @@ export function parseNaturalCameraPrompt(text: string): ParsedCameraSetupIntent 
   }
 
   if (!host && deviceSerial) {
-    host = deviceSerial === 'FF9363270' ? '192.168.1.120' : '192.168.1.115';
+    host =
+      deviceSerial === 'FF9363270'
+        ? '192.168.1.120'
+        : deviceSerial === 'F31700438'
+        ? '192.168.1.115'
+        : 'open.ezviz.com';
   }
 
   let codec: 'H.264' | 'H.265' = 'H.264';
-  if (/\bh\.?265\+?\b/i.test(raw) || deviceSerial === 'FF9363270' || /\b4g\b/i.test(raw)) {
+  if (
+    /\bh\.?265\+?\b/i.test(raw) ||
+    /^FF9/i.test(deviceSerial || '') ||
+    /\b4g\b/i.test(raw)
+  ) {
     codec = 'H.265';
   }
 
@@ -392,14 +434,16 @@ export function parseNaturalCameraPrompt(text: string): ParsedCameraSetupIntent 
   let cameraNamePrefix = brandLabel;
   if (/\bcementerio\b/i.test(raw)) {
     cameraNamePrefix = 'Calle del Cementerio';
-  } else if (/\boc[oó]s\b/i.test(raw)) {
-    cameraNamePrefix = 'Proyecto Ocós';
   } else {
     const namedMatch = raw.match(
-      /\b(?:llamad[oa]|nombre|proyecto|ubicaci[oó]n)\s+["']?([A-Za-zÁÉÍÓÚáéíóúÑñ0-9\s-]{3,30})["']?/i
+      /\b(?:llamad[oa]|nombre|proyecto|ubicaci[oó]n|para(?:\s+el\s+proyecto)?)\s+["']?([A-Za-zÁÉÍÓÚáéíóúÑñ0-9\s-]{3,40}?)["']?(?=\s*(?:$|,|;|\bcon\b|\bserie\b|\bsn\b|\bc[oó]digo\b|\bverification\b|\bclave\b|\busuario\b|\bip\b))/i
     );
-    if (namedMatch) {
+    if (namedMatch && namedMatch[1].trim().length >= 3) {
       cameraNamePrefix = namedMatch[1].trim();
+    } else if (/\boc[oó]s\b/i.test(raw)) {
+      cameraNamePrefix = 'Proyecto Ocós';
+    } else if (isIpCam) {
+      cameraNamePrefix = isHiLook ? 'Cámara HiLook 4G' : 'Cámara Hikvision Remota';
     } else if (isHiLook) {
       cameraNamePrefix = 'DVR HiLook';
     } else if (isDahua) {
@@ -629,7 +673,13 @@ Tu tarea es analizar el mensaje del usuario y devolver SIEMPRE un objeto JSON v�
           const resolvedHost =
             ext.host ||
             localFallbackIntent.host ||
-            (serial ? (serial === 'FF9363270' ? '192.168.1.120' : '192.168.1.115') : null);
+            (serial
+              ? serial === 'FF9363270'
+                ? '192.168.1.120'
+                : serial === 'F31700438'
+                ? '192.168.1.115'
+                : 'open.ezviz.com'
+              : null);
 
           const mergedIntent: ParsedCameraSetupIntent = {
             ...localFallbackIntent,
@@ -746,7 +796,7 @@ Tu tarea es analizar el mensaje del usuario y devolver SIEMPRE un objeto JSON v�
 export async function probeAndDiscoverChannels(
   intent: ParsedCameraSetupIntent
 ): Promise<ChannelProbeResult[]> {
-  const host = intent.host || '192.168.1.115';
+  const host = intent.host || 'open.ezviz.com';
   const presetBrand: 'hikvision' | 'dahua' | 'generic' =
     intent.brand === 'dahua_dvr'
       ? 'dahua'
@@ -754,10 +804,56 @@ export async function probeAndDiscoverChannels(
       ? 'generic'
       : 'hikvision';
 
+  let detectedDeviceName: string | undefined;
+  let detectedModel: string | undefined;
+  let is4gHardware = /^FF9/i.test(intent.deviceSerial || '') || /4g/i.test(intent.brandLabel);
+  let isEncrypted = false;
+  let cloudOnline: boolean | undefined;
+  let realChannelCount = intent.channelsCount;
+
+  // Consultar ficha técnica real y capacidad de canales si trae Número de Serie P2P
+  if (intent.deviceSerial) {
+    try {
+      const [infoRes, capRes] = await Promise.all([
+        postEzvizOpenApi('/api/lapp/device/info', { deviceSerial: intent.deviceSerial }),
+        postEzvizOpenApi('/api/lapp/device/capacity', { deviceSerial: intent.deviceSerial }),
+      ]);
+
+      if (infoRes?.code === '200' && infoRes.data) {
+        const rawName = String(infoRes.data.deviceName || '').trim();
+        const cleanedName = rawName
+          .replace(new RegExp(`\\s*\\(${intent.deviceSerial}\\)\\s*$`, 'i'), '')
+          .trim();
+        if (cleanedName) detectedDeviceName = cleanedName;
+        if (infoRes.data.model) detectedModel = String(infoRes.data.model);
+        cloudOnline = Number(infoRes.data.status) === 1;
+        isEncrypted = Number(infoRes.data.isEncrypt) === 1;
+        if (detectedModel && /4g|solar|lte/i.test(detectedModel)) {
+          is4gHardware = true;
+          intent.brand = 'hikvision_ip';
+          intent.brandLabel = 'Cámara 4G Hikvision';
+          intent.deviceType = 'hikvision_ip';
+          intent.codec = 'H.265';
+          intent.streamType = 'sub';
+        }
+      }
+
+      if (capRes?.code === '200' && capRes.data) {
+        const hwChannels = Number(capRes.data.support_channel_number || 0);
+        if (hwChannels >= 1 && (!intent.specificChannels || intent.specificChannels.length === 0)) {
+          realChannelCount = hwChannels === 1 ? 1 : Math.min(intent.channelsCount, hwChannels);
+          intent.channelsCount = realChannelCount;
+        }
+      }
+    } catch {
+      // Continuar con valores analizados localmente si no responde la consulta previa
+    }
+  }
+
   const channelsToTest =
     intent.specificChannels && intent.specificChannels.length > 0
       ? intent.specificChannels
-      : Array.from({ length: intent.channelsCount }, (_, idx) => idx + 1);
+      : Array.from({ length: realChannelCount }, (_, idx) => idx + 1);
 
   const results: ChannelProbeResult[] = [];
 
@@ -790,28 +886,41 @@ export async function probeAndDiscoverChannels(
 
     if (intent.deviceSerial) {
       try {
-        const res = await fetch('https://iusopen.ezvizlife.com/api/lapp/v2/live/address/get', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-          body: new URLSearchParams({
-            accessToken: getEzvizAccessToken(),
-            deviceSerial: intent.deviceSerial,
-            channelNo: String(ch),
-            protocol: '2',
-            quality: '2',
-            code: intent.verificationCode || intent.password || 'HELGDM',
-            supportH265: '1',
-          }),
+        const codeToUse = intent.verificationCode || intent.password || 'HELGDM';
+        const data = await postEzvizOpenApi('/api/lapp/v2/live/address/get', {
+          deviceSerial: intent.deviceSerial,
+          channelNo: String(ch),
+          protocol: '2',
+          quality: '2',
+          code: codeToUse,
+          supportH265: '1',
         });
-        if (res.ok) {
-          const data = await res.json();
+        if (data) {
           if (data.code === '200' && data.data?.url) {
             active = true;
             statusText = 'Nube P2P + RTSP verificados · Canal transmitiendo en vivo';
+          } else if (data.code === '60019') {
+            isEncrypted = true;
+            const ezData = await postEzvizOpenApi('/api/lapp/v2/live/address/get', {
+              deviceSerial: intent.deviceSerial,
+              channelNo: String(ch),
+              protocol: '1',
+              quality: '2',
+              code: codeToUse,
+            });
+            if (ezData?.code === '200' && ezData.data?.url) {
+              active = true;
+              statusText = cloudOnline === false
+                ? 'Cifrado EZopen configurado (cámara en reposo / sin enlace)'
+                : 'Nube P2P Cifrada (EZopen) · Cámara en línea';
+            } else {
+              active = ch === 1;
+              statusText = 'Cifrado de video activo · Configurado con código';
+            }
           } else if (data.code === '20007') {
-            active = ch <= 2 || intent.channelsCount <= 2;
+            active = ch <= 2 || realChannelCount <= 2;
             statusText = active
-              ? `Canal ${channelCodeMain}/${channelCodeSub} configurado (esperando enlace DVR)`
+              ? `Canal ${channelCodeMain}/${channelCodeSub} configurado (esperando enlace)`
               : 'Sin cámara conectada en este puerto BNC';
           } else if (data.code === '60017' || data.msg?.includes('not exist')) {
             active = false;
@@ -823,6 +932,7 @@ export async function probeAndDiscoverChannels(
       }
     }
 
+    const isSubOr4g = intent.streamType === 'sub' || is4gHardware;
     results.push({
       channel: ch,
       channelCodeMain,
@@ -831,10 +941,14 @@ export async function probeAndDiscoverChannels(
       rtspUrlSub,
       active,
       statusText,
-      resolution: '1920x1080 (1080p FHD)',
+      resolution: isSubOr4g ? '768x432 (Sub-Stream SD 512k)' : '1920x1080 (1080p FHD)',
       codec: intent.codec,
-      fps: 25,
-      bitrateKbps: intent.streamType === 'main' ? 1760 : 512,
+      fps: is4gHardware ? 15 : 25,
+      bitrateKbps: isSubOr4g ? 512 : 1760,
+      detectedDeviceName,
+      detectedModel,
+      is4gHardware,
+      isEncrypted,
     });
   }
 
@@ -857,28 +971,45 @@ export function buildCamerasFromWizard(
   const activeChannels = probedChannels.filter((c) => c.active);
   const targetChannels = activeChannels.length > 0 ? activeChannels : probedChannels;
 
-  let projectId = selectedProjectId || projects[0]?.id || 'proj-calle-cementerio';
-  if (intent.deviceSerial === 'FF9363270' || /oc[oó]s/i.test(intent.cameraNamePrefix)) {
-    const ocosProj = projects.find((p) => p.id.includes('ocos') || /oc[oó]s/i.test(p.name));
-    if (ocosProj) projectId = ocosProj.id;
-  } else if (intent.deviceSerial === 'F31700438' || /cementerio/i.test(intent.cameraNamePrefix)) {
-    const cemProj = projects.find((p) => p.id.includes('cementerio') || /cementerio/i.test(p.name));
-    if (cemProj) projectId = cemProj.id;
+  const cloudName = targetChannels[0]?.detectedDeviceName;
+  const isGenericPrefix =
+    !intent.cameraNamePrefix ||
+    intent.cameraNamePrefix === intent.brandLabel ||
+    /^C[aá]mara\s+(IP\s+|Hikvision\s+Remota|HiLook\s+4G)/i.test(intent.cameraNamePrefix) ||
+    /^DVR\s+(Hikvision|HiLook)/i.test(intent.cameraNamePrefix);
+  const displayPrefix = isGenericPrefix && cloudName ? cloudName : intent.cameraNamePrefix;
+
+  let projectId = selectedProjectId || '';
+  const projectMatchText = `${displayPrefix} ${intent.projectHint || ''} ${cloudName || ''}`;
+  if (!projectId) {
+    if (intent.deviceSerial === 'F31700438' || /cementerio/i.test(projectMatchText)) {
+      const cemProj = projects.find((p) => p.id.includes('cementerio') || /cementerio/i.test(p.name));
+      projectId = cemProj?.id || 'proj-calle-cementerio';
+    } else if (intent.deviceSerial === 'FF9363270' || /oc[oó]s/i.test(projectMatchText)) {
+      const ocosProj = projects.find((p) => p.id.includes('ocos') || /oc[oó]s/i.test(p.name));
+      projectId = ocosProj?.id || 'proj-ocos';
+    } else {
+      const serialSlug = (intent.deviceSerial || Date.now()).toString().toLowerCase().replace(/[^a-z0-9]/g, '');
+      projectId = `proj-cam-${serialSlug}`;
+    }
   }
 
   const now = Date.now();
-  const host = intent.host || '192.168.1.115';
+  const host = intent.host || 'open.ezviz.com';
 
   return targetChannels.map((chInfo) => {
     const isTotalOne = targetChannels.length === 1;
-    const name = isTotalOne
-      ? `${intent.cameraNamePrefix} (CH${chInfo.channel})`
-      : `Cámara ${chInfo.channel} · ${intent.cameraNamePrefix} (CH${chInfo.channel})`;
+    const baseName = isTotalOne
+      ? `${displayPrefix} (CH${chInfo.channel})`
+      : `Cámara ${chInfo.channel} · ${displayPrefix} (CH${chInfo.channel})`;
+    const modelTag = chInfo.detectedModel ? ` · ${chInfo.detectedModel}` : '';
+    const is4gTag = chInfo.is4gHardware ? ' | 4G LTE' : '';
+    const encryptTag = chInfo.isEncrypted ? ' | Cifrado EZopen' : '';
 
     return {
       id: `cam-ai-${now}-ch${chInfo.channel}`,
       projectId,
-      name,
+      name: baseName,
       deviceType: intent.deviceType,
       host,
       port: intent.port,
@@ -897,10 +1028,13 @@ export function buildCamerasFromWizard(
       resolution: chInfo.resolution,
       bitrateKbps: chInfo.bitrateKbps,
       codec: chInfo.codec,
-      locationDesc: `${intent.brandLabel} (${host}:${intent.port}) · Canal ${chInfo.channelCodeMain}`,
+      locationDesc:
+        chInfo.is4gHardware && intent.deviceSerial
+          ? `Cámara 4G P2P (${intent.deviceSerial})${modelTag} · Canal ${chInfo.channel}`
+          : `${intent.brandLabel} (${host}:${intent.port}) · Canal ${chInfo.channelCodeMain}`,
       ptzSupported: false,
       nightVision: true,
-      notes: `Configurada automáticamente por Asistente de Cámaras · Main: /Channels/${chInfo.channelCodeMain} · Sub: /Channels/${chInfo.channelCodeSub}`,
+      notes: `Configurada automáticamente por Asistente de Cámaras${is4gTag}${modelTag ? ` | Modelo:${modelTag.replace(' · ', ' ')}` : ''}${encryptTag} · Main: /Channels/${chInfo.channelCodeMain} · Sub: /Channels/${chInfo.channelCodeSub}`,
     };
   });
 }

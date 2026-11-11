@@ -288,6 +288,8 @@ function AppShell() {
   const latestLogIdRef = useRef<string | null>(null);
   /** Evita republicar cámaras en cada snapshot vacío de Firestore. */
   const cloudRepairAttemptedRef = useRef(false);
+  /** Evita que snapshots previos borren cámaras recién agregadas localmente antes de sincronizar. */
+  const pendingLocalCameraIdsRef = useRef<Set<string>>(new Set());
   /** Cámaras que hay en Firestore ahora mismo (0 si la colección está vacía). */
   const [cloudCameraCount, setCloudCameraCount] = useState<number | null>(null);
   const toastTimerRef = useRef<number | null>(null);
@@ -460,7 +462,14 @@ function AppShell() {
         }
 
         const cloudIds = new Set(onlyRealCams.map((c) => c.id));
-        const mergedCams = [...onlyRealCams, ...INITIAL_CAMERAS.filter((c) => !cloudIds.has(c.id))];
+        const pendingLocalCams = Array.from(localById.values()).filter(
+          (c) => pendingLocalCameraIdsRef.current.has(c.id) && !cloudIds.has(c.id)
+        );
+        const mergedCams = [
+          ...onlyRealCams,
+          ...pendingLocalCams,
+          ...INITIAL_CAMERAS.filter((c) => !cloudIds.has(c.id) && !pendingLocalCameraIdsRef.current.has(c.id)),
+        ];
         const enriched = (mergedCams.length > 0 ? mergedCams : INITIAL_CAMERAS).map((cam) => {
           const { hlsUrl, webrtcUrl } = resolveStreamUrls(cam, gatewayNow);
           const local = localById.get(cam.id);
@@ -556,14 +565,33 @@ function AppShell() {
       updated = [camera, ...cameras];
       showToast('Cámara registrada y sincronizada en la nube (Firestore)');
     }
+    pendingLocalCameraIdsRef.current.add(camera.id);
     setCameras(updated);
     storage.saveCameras(updated);
     upsertCloudCamera(camera).catch((err) => console.warn('Cloud camera sync error:', err));
   };
 
-  const handleClientAddCamerasBatch = (newCameras: Camera[], clientName: string) => {
+  const handleClientAddCamerasBatch = (newCameras: Camera[], _clientName: string) => {
     if (!newCameras.length) return;
-    const updated = [...newCameras, ...cameras];
+    const replaced = cameras.filter((existing) =>
+      newCameras.some(
+        (nc) =>
+          (nc.deviceSerial &&
+            existing.deviceSerial === nc.deviceSerial &&
+            existing.channel === nc.channel) ||
+          nc.id === existing.id
+      )
+    );
+    const remaining = cameras.filter((existing) => !replaced.some((r) => r.id === existing.id));
+    replaced.forEach((r) => {
+      pendingLocalCameraIdsRef.current.delete(r.id);
+      if (r.id !== newCameras.find((n) => n.deviceSerial === r.deviceSerial && n.channel === r.channel)?.id) {
+        deleteCloudCamera(r.id).catch(() => {});
+      }
+    });
+    newCameras.forEach((nc) => pendingLocalCameraIdsRef.current.add(nc.id));
+
+    const updated = [...newCameras, ...remaining];
     setCameras(updated);
     storage.saveCameras(updated);
     setSelectedCameraId(newCameras[0].id);
@@ -579,6 +607,7 @@ function AppShell() {
 
   const handleCloneNextChannel = (sourceCam: Camera) => {
     const nextCam = cloneNextDvrChannel(sourceCam, cameras);
+    pendingLocalCameraIdsRef.current.add(nextCam.id);
     const updated = [nextCam, ...cameras];
     setCameras(updated);
     storage.saveCameras(updated);
@@ -588,6 +617,7 @@ function AppShell() {
 
   const handleDeleteCamera = (id: string) => {
     if (confirm('¿Está seguro de eliminar esta cámara del sistema?')) {
+      pendingLocalCameraIdsRef.current.delete(id);
       const updated = cameras.filter((c) => c.id !== id);
       setCameras(updated);
       storage.saveCameras(updated);

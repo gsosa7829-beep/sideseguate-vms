@@ -187,7 +187,7 @@ export function isLegacyDemoCamera(cam: Partial<Camera> | null | undefined): boo
   const serial = String(cam.deviceSerial || '');
   if (/^cam-0[1-9]$|^cam-demo/i.test(id)) return true;
   if (serial === 'K26339151') return true;
-  if (/c[aá]mara\s+ip\s+hikvision\s*\(ch1\)/i.test(name)) return true;
+  if (!serial && /c[aá]mara\s+ip\s+hikvision\s*\(ch1\)/i.test(name)) return true;
   return false;
 }
 

@@ -79,7 +79,6 @@ export const AiCameraSetupAssistant: React.FC<AiCameraSetupAssistantProps> = ({
   onAddCamerasBatch,
   onSelectCameraAndGoToWall,
 }) => {
-  const defaultProjectId = projects[0]?.id || 'proj-calle-cementerio';
   const [inputText, setInputText] = useState<string>('');
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
   const [copiedUrlId, setCopiedUrlId] = useState<string | null>(null);
@@ -171,27 +170,26 @@ export const AiCameraSetupAssistant: React.FC<AiCameraSetupAssistantProps> = ({
           m.id === thinkingMsgId
             ? {
                 ...m,
-                text: `Analizando **${intent.brandLabel}** en \`${intent.host}:${intent.port}\`...`,
-                probeStepText: `Escaneando ${intent.channelsCount} ${
-                  intent.channelsCount === 1 ? 'canal' : 'canales'
-                } en puerto ${intent.port}...`,
+                text: `Analizando **${intent.brandLabel}** (${
+                  intent.deviceSerial ? `Serie ${intent.deviceSerial}` : `${intent.host}:${intent.port}`
+                })...`,
+                probeStepText: intent.deviceSerial
+                  ? `Consultando nube P2P para serie ${intent.deviceSerial}...`
+                  : `Escaneando ${intent.channelsCount} ${
+                      intent.channelsCount === 1 ? 'canal' : 'canales'
+                    } en puerto ${intent.port}...`,
               }
             : m
         )
       );
 
       const probed = await probeAndDiscoverChannels(intent);
-      const targetProj = projects.find((p) => p.id === defaultProjectId);
-      const generatedCameras = buildCamerasFromWizard(
-        intent,
-        probed,
-        projects,
-        defaultProjectId
-      );
+      const generatedCameras = buildCamerasFromWizard(intent, probed, projects);
+      const targetProj = projects.find((p) => p.id === generatedCameras[0]?.projectId);
 
       onAddCamerasBatch(
         generatedCameras,
-        targetProj?.clientName || intent.cameraNamePrefix || 'Asistente de Cámaras'
+        targetProj?.clientName || probed[0]?.detectedDeviceName || intent.cameraNamePrefix || 'Asistente de Cámaras'
       );
 
       const activeCount = probed.filter((c) => c.active).length;
@@ -204,9 +202,11 @@ export const AiCameraSetupAssistant: React.FC<AiCameraSetupAssistantProps> = ({
                 isProbing: false,
                 text:
                   aiTurn.replyText ||
-                  `¡Listo! Probé la conexión con **${intent.brandLabel}** (\`${intent.host}:${intent.port}\`), detecté **${activeCount} ${
+                  `¡Listo! Conecté **${generatedCameras[0]?.name || intent.brandLabel}** (${
+                    intent.deviceSerial ? `Serie ${intent.deviceSerial}` : `${intent.host}:${intent.port}`
+                  }), verifiqué **${activeCount} ${
                     activeCount === 1 ? 'canal activo' : 'canales activos'
-                  }** y los agregué al **Muro de Video**.`,
+                  }** y la agregué al **Muro de Video**.`,
                 intent,
                 probedChannels: probed,
                 addedCameras: generatedCameras,
@@ -378,9 +378,13 @@ export const AiCameraSetupAssistant: React.FC<AiCameraSetupAssistantProps> = ({
                           <span className="text-white font-medium">{msg.intent.brandLabel}</span>
                         </div>
                         <div className="bg-neutral-900/80 p-2 rounded-lg border border-neutral-800/80">
-                          <span className="text-neutral-400 block">IP / Host:</span>
-                          <span className="text-emerald-300 font-mono">
-                            {msg.intent.host}:{msg.intent.port}
+                          <span className="text-neutral-400 block">
+                            {msg.intent.deviceSerial ? 'Serie / Enlace:' : 'IP / Host:'}
+                          </span>
+                          <span className="text-emerald-300 font-mono truncate block">
+                            {msg.intent.deviceSerial
+                              ? `${msg.intent.deviceSerial} (P2P)`
+                              : `${msg.intent.host}:${msg.intent.port}`}
                           </span>
                         </div>
                         <div className="bg-neutral-900/80 p-2 rounded-lg border border-neutral-800/80">
@@ -412,13 +416,13 @@ export const AiCameraSetupAssistant: React.FC<AiCameraSetupAssistantProps> = ({
                               key={ch.channel}
                               className="p-2.5 rounded-xl bg-neutral-950 border border-neutral-800 text-xs space-y-1.5"
                             >
-                              <div className="flex items-center justify-between">
-                                <span className="font-bold text-white flex items-center gap-1.5">
-                                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                              <div className="flex items-center justify-between gap-2">
+                                <span className="font-bold text-white flex items-center gap-1.5 truncate">
+                                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shrink-0" />
                                   Canal {ch.channel} ({ch.channelCodeMain} / {ch.channelCodeSub})
                                 </span>
-                                <span className="text-[10px] text-emerald-400 bg-emerald-950/60 px-2 py-0.5 rounded border border-emerald-500/30">
-                                  Activo
+                                <span className="text-[10px] text-emerald-400 bg-emerald-950/60 px-2 py-0.5 rounded border border-emerald-500/30 shrink-0 truncate max-w-[180px]">
+                                  {ch.statusText || 'Activo'}
                                 </span>
                               </div>
 
