@@ -299,12 +299,12 @@ export const EzvizTokenRenewalModal: React.FC<EzvizTokenRenewalModalProps> = ({
                 <span className="text-[10px] text-neutral-500 mt-1 block">
                   Copia el token directamente desde la consola oficial de EZVIZ Cloud (
                   <a
-                    href="https://open.ezviz.com/console/device.html"
+                    href="https://iusopen.ezviz.com/console/home.html"
                     target="_blank"
                     rel="noreferrer"
                     className="text-sky-400 hover:underline inline-flex items-center gap-0.5"
                   >
-                    open.ezviz.com <ExternalLink className="w-2.5 h-2.5 inline" />
+                    iusopen.ezviz.com <ExternalLink className="w-2.5 h-2.5 inline" />
                   </a>
                   ) y pégalo aquí.
                 </span>
@@ -364,7 +364,16 @@ export const EzvizTokenRenewalModal: React.FC<EzvizTokenRenewalModalProps> = ({
                   <span>Automatización 100% Sin Intervención Humana</span>
                 </div>
                 <p className="text-[11px] text-neutral-400 leading-relaxed">
-                  Configura el AppKey y AppSecret de tu cuenta de EZVIZ Open Platform. El servidor renovará el token automáticamente cada 5 días en segundo plano para que nunca más tengas que pegarlo a mano.
+                  Configura el AppKey y AppSecret de tu cuenta en{' '}
+                  <a
+                    href="https://iusopen.ezviz.com/console/home.html"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-sky-400 hover:underline inline-flex items-center gap-0.5"
+                  >
+                    iusopen.ezviz.com <ExternalLink className="w-2.5 h-2.5 inline" />
+                  </a>
+                  . El sistema renovará el token automáticamente antes de vencer para que nunca más tengas que pegarlo a mano.
                 </p>
               </div>
 
