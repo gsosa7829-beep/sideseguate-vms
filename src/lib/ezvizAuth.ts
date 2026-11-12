@@ -1,12 +1,15 @@
 /**
- * SIDESEGUATE VMS - Gestor de Autenticación y Token EZVIZ Cloud (Cámara 4G Ocós)
+ * SIDESEGUATE VMS - Gestor de Autenticación y Token EZVIZ Cloud (Cámaras 4G / P2P)
  * 
- * Gestiona el ciclo de vida del AccessToken para cámaras 4G remotas (FF9363270).
+ * Gestiona el ciclo de vida del AccessToken compartido para todas las cámaras 4G/EZVIZ de la cuenta.
  * - Renovación 100% automatizada (Auto-Refresh 24/7) usando AppKey y AppSecret de EZVIZ Open Platform.
- * - Soporte para actualización manual en 1 clic.
+ * - Soporte para actualización manual o por variables VITE_EZVIZ_APP_KEY / VITE_EZVIZ_APP_SECRET.
  * - Alerta temprana (🟢 Activo, 🟡 Próximo a vencer < 24h, 🔴 Vencido).
- * - Persistencia segura en localStorage con sincronización entre pestañas.
+ * - Persistencia segura en localStorage y sincronización multi-cámara vía Cloud Firestore.
  */
+
+import type { Camera } from './types';
+import { isCamera4gDevice } from './ocos4gMonitor';
 
 export interface EzvizAuthConfig {
   appKey: string;
@@ -32,10 +35,27 @@ export interface TokenHealthInfo {
 export const EZVIZ_AUTH_STORAGE_KEY = 'sideseguate_ezviz_auth_v2';
 export const DEFAULT_FALLBACK_TOKEN = 'at.1pzo6ehydxokb80xcx3rdhk7ah6z025w-8z7cnhbby8-1kgt1vp-j2bvrfxms';
 
+function getEnvEzvizCredentials(): { appKey: string; appSecret: string } {
+  try {
+    const env =
+      (typeof import.meta !== 'undefined' &&
+        (import.meta as unknown as { env?: Record<string, string | undefined> }).env) ||
+      {};
+    return {
+      appKey: String(env.VITE_EZVIZ_APP_KEY || '').trim(),
+      appSecret: String(env.VITE_EZVIZ_APP_SECRET || '').trim(),
+    };
+  } catch {
+    return { appKey: '', appSecret: '' };
+  }
+}
+
+const ENV_CREDS = getEnvEzvizCredentials();
+
 // Configuración inicial por defecto con vigencia activa para no resetear sesiones limpias
 const INITIAL_CONFIG: EzvizAuthConfig = {
-  appKey: '',
-  appSecret: '',
+  appKey: ENV_CREDS.appKey,
+  appSecret: ENV_CREDS.appSecret,
   accessToken: DEFAULT_FALLBACK_TOKEN,
   expireTime: Date.now() + 7 * 86400 * 1000,
   lastRefreshAt: Date.now(),
@@ -49,6 +69,7 @@ const authSubscribers = new Set<() => void>();
 /** Carga la configuración guardada o la inicial */
 export function loadEzvizAuth(): EzvizAuthConfig {
   if (cachedConfig) return cachedConfig;
+  const envCreds = getEnvEzvizCredentials();
   try {
     if (typeof localStorage !== 'undefined') {
       const raw = localStorage.getItem(EZVIZ_AUTH_STORAGE_KEY);
@@ -59,13 +80,15 @@ export function loadEzvizAuth(): EzvizAuthConfig {
           activeToken = DEFAULT_FALLBACK_TOKEN;
         }
         const rawExpireTime = typeof parsed.expireTime === 'number' ? parsed.expireTime : 0;
-        cachedConfig = {
-          appKey: String(parsed.appKey || ''),
-          appSecret: String(parsed.appSecret || ''),
-          accessToken: activeToken,
-          expireTime: rawExpireTime > Date.now() && activeToken !== DEFAULT_FALLBACK_TOKEN
+        const resolvedExpire =
+          rawExpireTime > 0
             ? rawExpireTime
-            : Date.now() + 7 * 86400 * 1000,
+            : Date.now() + 7 * 86400 * 1000;
+        cachedConfig = {
+          appKey: String(parsed.appKey || envCreds.appKey || '').trim(),
+          appSecret: String(parsed.appSecret || envCreds.appSecret || '').trim(),
+          accessToken: activeToken,
+          expireTime: resolvedExpire,
           lastRefreshAt: parsed.lastRefreshAt || Date.now(),
           lastError: undefined,
           autoRefresh: parsed.autoRefresh !== false,
@@ -76,7 +99,11 @@ export function loadEzvizAuth(): EzvizAuthConfig {
   } catch (e) {
     console.warn('Error al leer EZVIZ auth de localStorage:', e);
   }
-  cachedConfig = { ...INITIAL_CONFIG };
+  cachedConfig = {
+    ...INITIAL_CONFIG,
+    appKey: envCreds.appKey,
+    appSecret: envCreds.appSecret,
+  };
   return cachedConfig;
 }
 
@@ -181,6 +208,40 @@ export function formatEzvizTokenNotes(notes: string | undefined, token: string, 
   return base ? `${base} ${tag}` : tag;
 }
 
+/**
+ * Selecciona las cámaras que funcionan como portadoras del AccessToken en Firestore
+ * (prioriza todas las cámaras 4G y hace fallback a cualquier cámara con serie P2P).
+ */
+export function pickTokenCarrierCameras(cameras: Camera[]): Camera[] {
+  const cams4g = cameras.filter((c) => isCamera4gDevice(c));
+  if (cams4g.length > 0) return cams4g;
+  return cameras.filter((c) => Boolean((c.deviceSerial || '').trim()));
+}
+
+/**
+ * Extrae el AccessToken más reciente entre todas las cámaras sincronizadas desde Firestore,
+ * evitando depender de una sola cámara fija (como `cam-ocos-ch1`).
+ */
+export function extractLatestEzvizTokenFromCameras(
+  cameras: Array<{ cloudId?: string; notes?: string }>
+): { accessToken: string; expireTime?: number } | null {
+  let best: { accessToken: string; expireTime?: number } | null = null;
+  for (const cam of cameras) {
+    const candidate = extractEzvizTokenFromCamera(cam);
+    if (!candidate) continue;
+    if (!best) {
+      best = candidate;
+      continue;
+    }
+    const candidateExp = candidate.expireTime || 0;
+    const bestExp = best.expireTime || 0;
+    if (candidateExp > bestExp) {
+      best = candidate;
+    }
+  }
+  return best;
+}
+
 /** Retorna el token activo en memoria */
 export function getAccessToken(): string {
   return loadEzvizAuth().accessToken || DEFAULT_FALLBACK_TOKEN;
@@ -256,17 +317,31 @@ export function getTokenHealth(nowMs: number = Date.now()): TokenHealthInfo {
   };
 }
 
+let inFlightRefreshPromise: Promise<{
+  success: boolean;
+  accessToken?: string;
+  expireTime?: number;
+  error?: string;
+}> | null = null;
+
 /**
  * Renueva el token automáticamente llamando a la API oficial de EZVIZ Open Platform.
+ * Deduplica llamadas concurrentes cuando múltiples cámaras detectan expiración al mismo tiempo.
  * Endpoint: POST https://iusopen.ezvizlife.com/api/lapp/token/get
  */
 export async function refreshEzvizToken(
   appKeyOverride?: string,
   appSecretOverride?: string
 ): Promise<{ success: boolean; accessToken?: string; expireTime?: number; error?: string }> {
+  const hasExplicitOverrides = Boolean(appKeyOverride?.trim() || appSecretOverride?.trim());
+  if (!hasExplicitOverrides && inFlightRefreshPromise) {
+    return inFlightRefreshPromise;
+  }
+
   const config = loadEzvizAuth();
-  const appKey = (appKeyOverride || config.appKey || '').trim();
-  const appSecret = (appSecretOverride || config.appSecret || '').trim();
+  const envCreds = getEnvEzvizCredentials();
+  const appKey = (appKeyOverride || config.appKey || envCreds.appKey || '').trim();
+  const appSecret = (appSecretOverride || config.appSecret || envCreds.appSecret || '').trim();
 
   if (!appKey || !appSecret) {
     const errorMsg = 'Faltan credenciales: Se requiere AppKey y AppSecret de EZVIZ Open Platform.';
@@ -274,66 +349,82 @@ export async function refreshEzvizToken(
     return { success: false, error: errorMsg };
   }
 
-  try {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 12_000);
+  const runRefresh = async (): Promise<{
+    success: boolean;
+    accessToken?: string;
+    expireTime?: number;
+    error?: string;
+  }> => {
+    try {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 12_000);
 
-    const res = await fetch('https://iusopen.ezvizlife.com/api/lapp/token/get', {
-      method: 'POST',
-      signal: controller.signal,
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({
-        appKey,
-        appSecret,
-      }),
-    });
-    clearTimeout(timer);
-
-    if (!res.ok) {
-      const errorMsg = `Error HTTP ${res.status} al renovar token`;
-      saveEzvizAuth({ lastError: errorMsg });
-      return { success: false, error: errorMsg };
-    }
-
-    const data = await res.json();
-    if (data.code === '200' && data.data?.accessToken) {
-      const rawExpireTime = data.data.expireTime;
-      // EZVIZ devuelve expireTime en ms (ej. 1731500000000), o si no viene, asignamos 7 días estándar
-      const expireTime = typeof rawExpireTime === 'number'
-        ? rawExpireTime
-        : (typeof rawExpireTime === 'string' && !isNaN(Number(rawExpireTime)) ? Number(rawExpireTime) : Date.now() + 7 * 86400 * 1000);
-
-      saveEzvizAuth({
-        appKey,
-        appSecret,
-        accessToken: data.data.accessToken,
-        expireTime,
-        lastRefreshAt: Date.now(),
-        lastError: undefined,
+      const res = await fetch('https://iusopen.ezvizlife.com/api/lapp/token/get', {
+        method: 'POST',
+        signal: controller.signal,
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+          appKey,
+          appSecret,
+        }),
       });
+      clearTimeout(timer);
 
-      // Disparar evento global para limpiar cachés HLS
-      if (typeof window !== 'undefined') {
-        window.dispatchEvent(new CustomEvent('sideseguate_ezviz_token_refreshed', {
-          detail: { accessToken: data.data.accessToken, expireTime }
-        }));
+      if (!res.ok) {
+        const errorMsg = `Error HTTP ${res.status} al renovar token`;
+        saveEzvizAuth({ lastError: errorMsg });
+        return { success: false, error: errorMsg };
       }
 
-      return {
-        success: true,
-        accessToken: data.data.accessToken,
-        expireTime,
-      };
-    }
+      const data = await res.json();
+      if (data.code === '200' && data.data?.accessToken) {
+        const rawExpireTime = data.data.expireTime;
+        // EZVIZ devuelve expireTime en ms (ej. 1731500000000), o si no viene, asignamos 7 días estándar
+        const expireTime = typeof rawExpireTime === 'number'
+          ? rawExpireTime
+          : (typeof rawExpireTime === 'string' && !isNaN(Number(rawExpireTime)) ? Number(rawExpireTime) : Date.now() + 7 * 86400 * 1000);
 
-    const errorMsg = data.msg || `Código de respuesta EZVIZ: ${data.code}`;
-    saveEzvizAuth({ lastError: errorMsg });
-    return { success: false, error: errorMsg };
-  } catch (err: any) {
-    const errorMsg = err?.name === 'AbortError' ? 'Tiempo de espera agotado al conectar con EZVIZ' : (err?.message || 'Error de red');
-    saveEzvizAuth({ lastError: errorMsg });
-    return { success: false, error: errorMsg };
+        saveEzvizAuth({
+          appKey,
+          appSecret,
+          accessToken: data.data.accessToken,
+          expireTime,
+          lastRefreshAt: Date.now(),
+          lastError: undefined,
+        });
+
+        // Disparar evento global para limpiar cachés HLS y sincronizar Firestore
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('sideseguate_ezviz_token_refreshed', {
+            detail: { accessToken: data.data.accessToken, expireTime }
+          }));
+        }
+
+        return {
+          success: true,
+          accessToken: data.data.accessToken,
+          expireTime,
+        };
+      }
+
+      const errorMsg = data.msg || `Código de respuesta EZVIZ: ${data.code}`;
+      saveEzvizAuth({ lastError: errorMsg });
+      return { success: false, error: errorMsg };
+    } catch (err: any) {
+      const errorMsg = err?.name === 'AbortError' ? 'Tiempo de espera agotado al conectar con EZVIZ' : (err?.message || 'Error de red');
+      saveEzvizAuth({ lastError: errorMsg });
+      return { success: false, error: errorMsg };
+    } finally {
+      inFlightRefreshPromise = null;
+    }
+  };
+
+  if (!hasExplicitOverrides) {
+    inFlightRefreshPromise = runRefresh();
+    return inFlightRefreshPromise;
   }
+
+  return runRefresh();
 }
 
 /** Permite ingresar o pegar un AccessToken manualmente en 1 clic */
@@ -421,7 +512,9 @@ function notifySubscribers() {
  * renueva automáticamente sin requerir intervención humana.
  */
 let watchdogInterval: any = null;
-export function initEzvizAutoRefreshWatchdog() {
+let startupVerifiedLive = false;
+
+export function initEzvizAutoRefreshWatchdog(probeSerial: string = 'FF9363270') {
   if (watchdogInterval || typeof window === 'undefined') return;
 
   const checkAndRenew = async () => {
@@ -429,16 +522,35 @@ export function initEzvizAutoRefreshWatchdog() {
     if (!config.autoRefresh || !hasEzvizCredentials()) return;
 
     const health = getTokenHealth();
-    // Renovar si está vencido o le quedan menos de 48 horas (2 días)
+    // Renovar automáticamente si está vencido o le quedan menos de 48 horas (2 días)
     if (health.status === 'expired' || health.hoursRemaining <= 48) {
-      console.log('Iniciando auto-renovación preventiva de Token EZVIZ...');
       await refreshEzvizToken();
+      startupVerifiedLive = true;
+      return;
+    }
+
+    // Verificar una vez en vivo contra EZVIZ al iniciar para detectar tokens revocados/expirados (10002)
+    if (!startupVerifiedLive) {
+      startupVerifiedLive = true;
+      const liveCheck = await verifyTokenLive(probeSerial);
+      if (liveCheck.code === '10002') {
+        await refreshEzvizToken();
+      }
     }
   };
 
-  // Revisar al iniciar tras 3 segundos
-  setTimeout(() => void checkAndRenew(), 3000);
+  // Revisar poco después de iniciar
+  setTimeout(() => void checkAndRenew(), 2000);
 
-  // Revisar cada 30 minutos
-  watchdogInterval = setInterval(() => void checkAndRenew(), 30 * 60 * 1000);
+  // Al volver a enfocar la pestaña en móvil/PC
+  if (typeof document !== 'undefined') {
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden) {
+        void checkAndRenew();
+      }
+    });
+  }
+
+  // Revisar cada 15 minutos
+  watchdogInterval = setInterval(() => void checkAndRenew(), 15 * 60 * 1000);
 }

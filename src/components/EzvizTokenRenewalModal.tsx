@@ -63,12 +63,8 @@ export const EzvizTokenRenewalModal: React.FC<EzvizTokenRenewalModalProps> = ({
       setSuccessMessage(null);
       setIsSubmitting(false);
 
-      // Si ya tiene credenciales configuradas, priorizar pestaña automática; si no, manual
-      if (hasEzvizCredentials()) {
-        setActiveTab('auto');
-      } else {
-        setActiveTab('manual');
-      }
+      // Priorizar la configuración automática 24/7 para renovar sin tocar botones
+      setActiveTab('auto');
     }
   }, [isOpen]);
 
@@ -100,7 +96,7 @@ export const EzvizTokenRenewalModal: React.FC<EzvizTokenRenewalModalProps> = ({
     try {
       setManualToken(clean, validDays);
       setTokenHealth(getTokenHealth());
-      setSuccessMessage('¡Token guardado y sincronizado con éxito! La cámara de Ocós transmitirá de inmediato.');
+      setSuccessMessage('¡Token guardado y sincronizado con éxito! Todas tus cámaras 4G transmitirán de inmediato.');
       if (onSuccess) {
         onSuccess('¡Token renovado con éxito! Válido por ' + validDays + ' días.');
       }
@@ -167,11 +163,11 @@ export const EzvizTokenRenewalModal: React.FC<EzvizTokenRenewalModalProps> = ({
               <h3 className="text-sm sm:text-base font-bold text-white flex items-center gap-2">
                 <span>Renovación de Token EZVIZ Cloud</span>
                 <span className="text-[10px] font-mono uppercase bg-sky-950 text-sky-400 border border-sky-800/80 px-2 py-0.5 rounded-full">
-                  Cámara 4G Ocós
+                  Cámaras 4G / Nube
                 </span>
               </h3>
               <p className="text-xs text-neutral-400">
-                Mantén la señal en vivo de la cámara 4G de Ocós sin interrupciones.
+                Un único token compartido mantiene activas todas tus cámaras 4G y P2P sin interrupciones.
               </p>
             </div>
           </div>

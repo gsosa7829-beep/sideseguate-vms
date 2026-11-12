@@ -230,19 +230,27 @@ const ezvizCaptureCache: Record<string, string> = loadPersistedCaptureCache();
 async function fetchEzvizLiveCapture(channel: number, serial: string): Promise<string | null> {
   const devSerial = serial || 'F31700438';
   const cacheKey = `${devSerial}_${channel}`;
-  try {
+  const queryCapture = async (overrideToken?: string) => {
     const res = await fetch('https://iusopen.ezvizlife.com/api/lapp/device/capture', {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: new URLSearchParams({
-        accessToken: getAccessToken(),
+        accessToken: overrideToken || getAccessToken(),
         deviceSerial: devSerial,
         channelNo: String(channel),
       }),
     });
-    if (!res.ok) return ezvizCaptureCache[cacheKey] || null;
-    const data = await res.json();
-    if (data.code === '200' && data.data?.picUrl) {
+    return res.ok ? await res.json() : null;
+  };
+  try {
+    let data = await queryCapture();
+    if (data?.code === '10002' && hasEzvizCredentials()) {
+      const renewed = await refreshEzvizToken();
+      if (renewed.success && renewed.accessToken) {
+        data = await queryCapture(renewed.accessToken);
+      }
+    }
+    if (data?.code === '200' && data.data?.picUrl) {
       ezvizCaptureCache[cacheKey] = data.data.picUrl;
       savePersistedCaptureCache(ezvizCaptureCache);
       return data.data.picUrl;
@@ -764,10 +772,29 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
     }
     let active = true;
     let startupTimer: ReturnType<typeof setTimeout> | undefined;
+    let tokenRetried = false;
     const fallbackToHls = () => {
       if (!active) return;
       clearTimeout(startupTimer);
       setUseHlsFallback(true);
+    };
+
+    const handleEzPlayerError = async () => {
+      if (!active) return;
+      if (!tokenRetried && hasEzvizCredentials()) {
+        tokenRetried = true;
+        try {
+          const renewed = await refreshEzvizToken();
+          if (active && renewed.success) {
+            clearTimeout(startupTimer);
+            setReconnectVersion((v) => v + 1);
+            return;
+          }
+        } catch {
+          // continuar al respaldo HLS si la renovación falla
+        }
+      }
+      fallbackToHls();
     };
 
     const initEzPlayer = async () => {
@@ -863,7 +890,9 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
               try { player.openSound(); } catch {}
             }
           },
-          handleError: fallbackToHls,
+          handleError: () => {
+            void handleEzPlayerError();
+          },
         });
 
         try {

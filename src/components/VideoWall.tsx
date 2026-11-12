@@ -355,6 +355,22 @@ export const VideoWall: React.FC<VideoWallProps> = ({
     });
   }, []);
 
+  const autoRenewAttemptedRef = React.useRef(false);
+  useEffect(() => {
+    if (tokenHealth.status === 'active') {
+      autoRenewAttemptedRef.current = false;
+      return;
+    }
+    if (tokenHealth.canAutoRefresh && !isRenewingToken && !autoRenewAttemptedRef.current) {
+      autoRenewAttemptedRef.current = true;
+      setIsRenewingToken(true);
+      refreshEzvizToken()
+        .then(() => setTokenHealth(getTokenHealth()))
+        .catch(() => {})
+        .finally(() => setIsRenewingToken(false));
+    }
+  }, [tokenHealth.status, tokenHealth.canAutoRefresh, isRenewingToken]);
+
   const handleQuickRenew = async () => {
     setIsRenewingToken(true);
     try {
@@ -631,18 +647,28 @@ export const VideoWall: React.FC<VideoWallProps> = ({
 
       {/* Alerta Preventiva de Salud del Token EZVIZ */}
       {tokenHealth.status !== 'active' && (
-        <div className="flex items-center justify-between gap-3 bg-neutral-900 border border-neutral-800 px-4 py-2.5 rounded-2xl text-xs shadow-sm">
+        <div className="flex flex-wrap items-center justify-between gap-3 bg-neutral-900 border border-neutral-800 px-4 py-2.5 rounded-2xl text-xs shadow-sm">
           <span className="text-amber-400 font-medium flex items-center gap-2">
             <Key className="w-4 h-4 shrink-0 text-amber-400" />
-            <span>Token EZVIZ: {tokenHealth.status === 'expiring' ? 'Próximo a renovar' : 'Requiere renovación'}</span>
+            <span>
+              {isRenewingToken
+                ? 'Token EZVIZ: Renovando automáticamente en segundo plano...'
+                : !tokenHealth.canAutoRefresh
+                ? `Token EZVIZ (${tokenHealth.status === 'expiring' ? 'próximo a vencer' : 'requiere renovación'}) · Configura AppKey/AppSecret una sola vez para auto-renovarlo sin botones`
+                : `Token EZVIZ: ${tokenHealth.status === 'expiring' ? 'Próximo a renovar' : 'Requiere renovación'}`}
+            </span>
           </span>
           <button
             type="button"
             onClick={handleQuickRenew}
             disabled={isRenewingToken}
-            className="min-h-[36px] px-3 py-1 bg-neutral-800 hover:bg-neutral-700 active:scale-95 text-white font-semibold text-[11px] rounded-xl border border-neutral-700 transition"
+            className="min-h-[36px] px-3 py-1 bg-neutral-800 hover:bg-neutral-700 active:scale-95 text-white font-semibold text-[11px] rounded-xl border border-neutral-700 transition shrink-0 cursor-pointer"
           >
-            {isRenewingToken ? 'Renovando…' : 'Renovar en 1 Clic'}
+            {isRenewingToken
+              ? 'Renovando…'
+              : tokenHealth.canAutoRefresh
+              ? 'Renovar en 1 Clic'
+              : 'Activar Auto-Renovación'}
           </button>
         </div>
       )}

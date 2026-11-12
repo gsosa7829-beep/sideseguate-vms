@@ -39,8 +39,10 @@ import { applyTunnelToCameras, formatBuyerAccessNotification } from './lib/pcLau
 import {
   initEzvizAutoRefreshWatchdog,
   syncEzvizAuthFromRemote,
-  extractEzvizTokenFromCamera,
+  extractLatestEzvizTokenFromCameras,
   formatEzvizTokenNotes,
+  loadEzvizAuth,
+  pickTokenCarrierCameras,
 } from './lib/ezvizAuth';
 import { LiveCameraPlayer } from './components/LiveCameraPlayer';
 const ClientLivePortal = lazy(() =>
@@ -185,35 +187,44 @@ function AppShell() {
   const isOnline = useOnlineStatus();
 
   useEffect(() => {
-    initEzvizAutoRefreshWatchdog();
+    const initialCarriers = pickTokenCarrierCameras(storage.getCameras());
+    initEzvizAutoRefreshWatchdog(initialCarriers[0]?.deviceSerial || 'FF9363270');
   }, []);
 
-  // Sincronizar en Firestore cualquier renovación de token para que todos los clientes/móviles lo reciban
+  // Sincronizar en Firestore cualquier renovación de token sobre TODAS las cámaras 4G/P2P portadoras
   useEffect(() => {
     const handleTokenRefreshed = (e: any) => {
       const detail = e.detail;
       if (!detail || !detail.accessToken) return;
       const currentCams = storage.getCameras();
-      const ocos = currentCams.find(
-        (c) => c.id === 'cam-ocos-ch1' || c.deviceSerial === 'FF9363270'
-      );
-      if (ocos) {
-        const expireMs = typeof detail.expireTime === 'number' && detail.expireTime > 0
-          ? detail.expireTime
-          : Date.now() + 7 * 86400 * 1000;
-        const updatedNotes = formatEzvizTokenNotes(ocos.notes, detail.accessToken, expireMs);
+      const carriers = pickTokenCarrierCameras(currentCams);
+      if (carriers.length === 0) return;
+
+      const carrierIds = new Set(carriers.map((c) => c.id));
+      const expireMs = typeof detail.expireTime === 'number' && detail.expireTime > 0
+        ? detail.expireTime
+        : Date.now() + 7 * 86400 * 1000;
+
+      const updatedCarriers: Camera[] = [];
+      const nextList = currentCams.map((cam) => {
+        if (!carrierIds.has(cam.id)) return cam;
+        const updatedNotes = formatEzvizTokenNotes(cam.notes, detail.accessToken, expireMs);
         const updatedCam: Camera = {
-          ...ocos,
+          ...cam,
           cloudId: detail.accessToken,
           notes: updatedNotes,
         };
-        const nextList = currentCams.map((c) => (c.id === ocos.id ? updatedCam : c));
-        storage.saveCameras(nextList);
-        setCameras(nextList);
+        updatedCarriers.push(updatedCam);
+        return updatedCam;
+      });
+
+      storage.saveCameras(nextList);
+      setCameras(nextList);
+      updatedCarriers.forEach((updatedCam) => {
         upsertCloudCamera(updatedCam).catch((err) =>
           console.warn('Error al sincronizar token de EZVIZ en Firestore:', err)
         );
-      }
+      });
     };
 
     window.addEventListener('sideseguate_ezviz_token_refreshed', handleTokenRefreshed);
@@ -475,15 +486,10 @@ function AppShell() {
           (c) => !isLegacyDemoCamera(c) && !deletedCamIds.has(c.id)
         );
 
-        // Sincronizar el token de EZVIZ recibido desde Firestore para la cámara de Ocós
-        const remoteOcosCam = cloudCameras.find(
-          (c) => c.id === 'cam-ocos-ch1' || c.deviceSerial === 'FF9363270'
-        );
-        if (remoteOcosCam) {
-          const extractedToken = extractEzvizTokenFromCamera(remoteOcosCam);
-          if (extractedToken) {
-            syncEzvizAuthFromRemote(extractedToken);
-          }
+        // Sincronizar el token EZVIZ más reciente recibido desde Firestore (desde cualquier cámara 4G/P2P)
+        const extractedToken = extractLatestEzvizTokenFromCameras(onlyRealCams);
+        if (extractedToken) {
+          syncEzvizAuthFromRemote(extractedToken);
         }
 
         const cloudIds = new Set(onlyRealCams.map((c) => c.id));
@@ -623,8 +629,20 @@ function AppShell() {
       });
     }
 
+    const activeAuth = loadEzvizAuth();
+    const carrierIds = new Set(pickTokenCarrierCameras(newCameras).map((c) => c.id));
+    const preparedNewCameras = newCameras.map((nc) => {
+      if (!carrierIds.has(nc.id) || !activeAuth.accessToken) return nc;
+      const expireMs = activeAuth.expireTime || Date.now() + 7 * 86400 * 1000;
+      return {
+        ...nc,
+        cloudId: activeAuth.accessToken,
+        notes: formatEzvizTokenNotes(nc.notes, activeAuth.accessToken, expireMs),
+      };
+    });
+
     const replaced = cameras.filter((existing) =>
-      newCameras.some(
+      preparedNewCameras.some(
         (nc) =>
           (nc.deviceSerial &&
             existing.deviceSerial === nc.deviceSerial &&
@@ -635,25 +653,25 @@ function AppShell() {
     const remaining = cameras.filter((existing) => !replaced.some((r) => r.id === existing.id));
     replaced.forEach((r) => {
       pendingLocalCameraIdsRef.current.delete(r.id);
-      const winner = newCameras.find((n) => n.deviceSerial === r.deviceSerial && n.channel === r.channel);
+      const winner = preparedNewCameras.find((n) => n.deviceSerial === r.deviceSerial && n.channel === r.channel);
       if (r.id !== winner?.id) {
         storage.markCameraDeleted(r.id);
         deleteCloudCamera(r.id).catch(() => {});
       }
     });
-    newCameras.forEach((nc) => pendingLocalCameraIdsRef.current.add(nc.id));
+    preparedNewCameras.forEach((nc) => pendingLocalCameraIdsRef.current.add(nc.id));
 
-    const updated = deduplicateCameras([...newCameras, ...remaining]);
+    const updated = deduplicateCameras([...preparedNewCameras, ...remaining]);
     setCameras(updated);
     storage.saveCameras(updated);
-    setSelectedCameraId(newCameras[0].id);
+    setSelectedCameraId(preparedNewCameras[0].id);
 
-    newCameras.forEach((cam) => {
+    preparedNewCameras.forEach((cam) => {
       upsertCloudCamera(cam).catch((err) => console.warn('Client camera batch cloud sync error:', err));
     });
 
     showToast(
-      `${newCameras.length} ${newCameras.length === 1 ? 'cámara agregada' : 'cámaras agregadas'} al servidor`
+      `${preparedNewCameras.length} ${preparedNewCameras.length === 1 ? 'cámara agregada' : 'cámaras agregadas'} al servidor`
     );
   };
 
