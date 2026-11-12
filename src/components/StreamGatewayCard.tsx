@@ -91,29 +91,36 @@ export const StreamGatewayCard: React.FC<StreamGatewayCardProps> = ({
         <div className="flex items-start gap-2.5 min-w-0">
           <RadioTower className="w-5 h-5 text-sky-400 shrink-0 mt-0.5" />
           <div className="min-w-0">
-            <h2 className="text-sm font-bold text-white">Dominio público y servidor de video</h2>
+            <h2 className="text-sm font-bold text-white">Dominio público de la plataforma</h2>
             <p className="text-xs text-neutral-400 mt-0.5 max-w-2xl leading-relaxed">
               Las cámaras transmiten directo por la nube Hikvision/EZVIZ sin necesidad de mantener
               una PC encendida 24/7. Aquí defines el dominio para los enlaces de tus clientes.
             </p>
           </div>
         </div>
-        <span
-          className={`shrink-0 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-mono font-semibold border ${
-            serverActive
-              ? 'bg-emerald-950/70 border-emerald-600/40 text-emerald-300'
-              : localOk
-                ? 'bg-amber-950/70 border-amber-600/40 text-amber-300'
-                : 'bg-neutral-950 border-neutral-700 text-neutral-400'
-          }`}
-        >
+        <div className="flex items-center gap-2 flex-wrap shrink-0">
+          {cameras.length > 0 && (
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-mono font-medium border border-neutral-800 bg-neutral-950 text-neutral-300">
+              {cameras.filter((c) => c.status === 'online').length}/{cameras.length} en línea
+            </span>
+          )}
           <span
-            className={`w-1.5 h-1.5 rounded-full ${
-              serverActive ? 'bg-emerald-400' : localOk ? 'bg-amber-400' : 'bg-neutral-500'
+            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-mono font-semibold border ${
+              serverActive
+                ? 'bg-emerald-950/70 border-emerald-600/40 text-emerald-300'
+                : localOk
+                  ? 'bg-amber-950/70 border-amber-600/40 text-amber-300'
+                  : 'bg-neutral-950 border-neutral-700 text-neutral-400'
             }`}
-          />
-          {badgeLabel}
-        </span>
+          >
+            <span
+              className={`w-1.5 h-1.5 rounded-full ${
+                serverActive ? 'bg-emerald-400' : localOk ? 'bg-amber-400' : 'bg-neutral-500'
+              }`}
+            />
+            {badgeLabel}
+          </span>
+        </div>
       </header>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
