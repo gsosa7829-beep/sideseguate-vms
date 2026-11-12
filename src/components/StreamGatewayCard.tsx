@@ -18,11 +18,10 @@ interface StreamGatewayCardProps {
 }
 
 /**
- * Configuración del **servidor de video (MediaMTX)**.
+ * Configuración del **dominio público de la plataforma** y servidor de video opcional (MediaMTX).
  *
- * Mientras no haya un dominio público aquí, los clientes en 4G solo verán el
- * "modo imagen". Con el dominio, las cámaras pasan a video continuo por HLS en
- * celular y PC.
+ * Hoy la plataforma opera directo contra la **Nube Hikvision / EZVIZ CDN**,
+ * por lo que no requiere MediaMTX local para mostrar las cámaras activas.
  */
 export const StreamGatewayCard: React.FC<StreamGatewayCardProps> = ({
   gateway,
@@ -39,16 +38,12 @@ export const StreamGatewayCard: React.FC<StreamGatewayCardProps> = ({
   );
   const [error, setError] = useState<string | null>(null);
 
-  const draft: StreamGateway = {
-    baseUrl,
-    webrtcBaseUrl: webrtcBaseUrl || undefined,
-    publicAppUrl: publicAppUrl || undefined,
-    updatedAt: gateway.updatedAt,
-  };
-
   const publicOk = isPublicGateway(baseUrl);
   const localOk = isLocalGateway(baseUrl);
+  const cloudCdnActive = !publicOk && !localOk && cameras.length > 0;
+  const serverActive = publicOk || cloudCdnActive;
   const normalized = normalizeGatewayUrl(baseUrl);
+  const hasCustomMediaMtx = Boolean(gateway.baseUrl?.trim() || gateway.webrtcBaseUrl?.trim());
 
   const handleSave = () => {
     setError(null);
@@ -69,7 +64,7 @@ export const StreamGatewayCard: React.FC<StreamGatewayCardProps> = ({
     onShowToast?.(
       normalized
         ? `Servidor de video configurado: ${maskGatewayForDisplay(normalized)}`
-        : 'Servidor de video desactivado: las cámaras usarán modo imagen'
+        : 'Dominio y configuración del servidor guardados'
     );
   };
 
@@ -82,22 +77,30 @@ export const StreamGatewayCard: React.FC<StreamGatewayCardProps> = ({
     }
   };
 
+  const badgeLabel = publicOk
+    ? 'MEDIAMTX PÚBLICO'
+    : cloudCdnActive
+      ? 'NUBE HIKVISION'
+      : localOk
+        ? 'SOLO LOCAL'
+        : 'EN ESPERA';
+
   return (
     <section className="bg-neutral-900 border border-neutral-800 rounded-xl p-4 sm:p-5 space-y-4">
       <header className="flex items-start justify-between gap-3 flex-wrap">
         <div className="flex items-start gap-2.5 min-w-0">
           <RadioTower className="w-5 h-5 text-sky-400 shrink-0 mt-0.5" />
           <div className="min-w-0">
-            <h2 className="text-sm font-bold text-white">Servidor de video (video continuo)</h2>
+            <h2 className="text-sm font-bold text-white">Dominio público y servidor de video</h2>
             <p className="text-xs text-neutral-400 mt-0.5 max-w-2xl leading-relaxed">
-              Dominio público del servidor MediaMTX. Con él, tus clientes ven las cámaras en
-              continuo desde el celular (4G) en lugar de imágenes cada segundo.
+              Las cámaras transmiten directo por la nube Hikvision/EZVIZ sin necesidad de mantener
+              una PC encendida 24/7. Aquí defines el dominio para los enlaces de tus clientes.
             </p>
           </div>
         </div>
         <span
           className={`shrink-0 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-mono font-semibold border ${
-            publicOk
+            serverActive
               ? 'bg-emerald-950/70 border-emerald-600/40 text-emerald-300'
               : localOk
                 ? 'bg-amber-950/70 border-amber-600/40 text-amber-300'
@@ -106,57 +109,18 @@ export const StreamGatewayCard: React.FC<StreamGatewayCardProps> = ({
         >
           <span
             className={`w-1.5 h-1.5 rounded-full ${
-              publicOk ? 'bg-emerald-400' : localOk ? 'bg-amber-400' : 'bg-neutral-500'
+              serverActive ? 'bg-emerald-400' : localOk ? 'bg-amber-400' : 'bg-neutral-500'
             }`}
           />
-          {publicOk ? 'PÚBLICO' : localOk ? 'SOLO LOCAL' : 'MODO IMAGEN'}
+          {badgeLabel}
         </span>
       </header>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <div className="space-y-3">
           <div>
-            <label htmlFor="gw-base" className="block text-[11px] font-semibold uppercase tracking-wide text-neutral-400 mb-1.5">
-              Dominio del servidor HLS *
-            </label>
-            <div className="relative">
-              <Globe className="w-4 h-4 text-neutral-500 absolute left-3 top-2.5" />
-              <input
-                id="gw-base"
-                type="text"
-                inputMode="url"
-                value={baseUrl}
-                onChange={(e) => setBaseUrl(e.target.value)}
-                placeholder="stream.proyectosdecamaras.com"
-                className="w-full bg-neutral-950 border border-neutral-800 rounded-lg pl-9 pr-3 py-2 text-xs font-mono text-white placeholder-neutral-600 focus:outline-none focus:border-sky-500"
-              />
-            </div>
-            <p className="text-[10.5px] text-neutral-500 mt-1">
-              Puerto 8888 de MediaMTX. Ej: <span className="font-mono">stream.tudominio.com</span>
-            </p>
-          </div>
-
-          <div>
-            <label htmlFor="gw-webrtc" className="block text-[11px] font-semibold uppercase tracking-wide text-neutral-400 mb-1.5">
-              Dominio WebRTC (opcional)
-            </label>
-            <div className="relative">
-              <Server className="w-4 h-4 text-neutral-500 absolute left-3 top-2.5" />
-              <input
-                id="gw-webrtc"
-                type="text"
-                inputMode="url"
-                value={webrtcBaseUrl}
-                onChange={(e) => setWebrtcBaseUrl(e.target.value)}
-                placeholder="Puerto 8889 (se deduce si usas un puerto explícito)"
-                className="w-full bg-neutral-950 border border-neutral-800 rounded-lg pl-9 pr-3 py-2 text-xs font-mono text-white placeholder-neutral-600 focus:outline-none focus:border-sky-500"
-              />
-            </div>
-          </div>
-
-          <div>
             <label htmlFor="gw-app" className="block text-[11px] font-semibold uppercase tracking-wide text-neutral-400 mb-1.5">
-              Dominio público de la plataforma (opcional)
+              Dominio público de la plataforma
             </label>
             <div className="relative">
               <ExternalLink className="w-4 h-4 text-neutral-500 absolute left-3 top-2.5" />
@@ -166,14 +130,13 @@ export const StreamGatewayCard: React.FC<StreamGatewayCardProps> = ({
                 inputMode="url"
                 value={publicAppUrl}
                 onChange={(e) => setPublicAppUrl(e.target.value)}
-                placeholder="proyectosdecamaras.com"
+                placeholder="https://proyectos-de-camaras.surge.sh"
                 className="w-full bg-neutral-950 border border-neutral-800 rounded-lg pl-9 pr-3 py-2 text-xs font-mono text-white placeholder-neutral-600 focus:outline-none focus:border-sky-500"
               />
             </div>
             <p className="text-[10.5px] text-neutral-500 mt-1">
               Dominio que llevarán los enlaces que recibe el cliente (WhatsApp, QR y
-              “copiar enlace”). Si lo dejas vacío se usa el dominio desde el que estás
-              abriendo el panel, que puede mostrar tu usuario personal.
+              “copiar enlace”). Si lo dejas vacío se usa el dominio actual desde el que abres el panel.
             </p>
             {(() => {
               const info = getPublicUrlInfo();
@@ -196,6 +159,56 @@ export const StreamGatewayCard: React.FC<StreamGatewayCardProps> = ({
             })()}
           </div>
 
+          <details
+            open={hasCustomMediaMtx}
+            className="bg-neutral-950/60 border border-neutral-800/80 rounded-xl p-3 space-y-3"
+          >
+            <summary className="cursor-pointer text-[11px] font-semibold text-neutral-300 select-none">
+              Avanzado: Servidor MediaMTX propio (opcional)
+            </summary>
+
+            <div className="space-y-3 pt-2">
+              <div>
+                <label htmlFor="gw-base" className="block text-[11px] font-semibold uppercase tracking-wide text-neutral-400 mb-1.5">
+                  Dominio del servidor HLS (MediaMTX)
+                </label>
+                <div className="relative">
+                  <Globe className="w-4 h-4 text-neutral-500 absolute left-3 top-2.5" />
+                  <input
+                    id="gw-base"
+                    type="text"
+                    inputMode="url"
+                    value={baseUrl}
+                    onChange={(e) => setBaseUrl(e.target.value)}
+                    placeholder="Opcional · solo si usas MediaMTX propio"
+                    className="w-full bg-neutral-950 border border-neutral-800 rounded-lg pl-9 pr-3 py-2 text-xs font-mono text-white placeholder-neutral-600 focus:outline-none focus:border-sky-500"
+                  />
+                </div>
+                <p className="text-[10.5px] text-neutral-500 mt-1">
+                  Puerto 8888 de MediaMTX si operas un servidor local/VPS propio. Ej: <span className="font-mono">stream.tudominio.com</span>
+                </p>
+              </div>
+
+              <div>
+                <label htmlFor="gw-webrtc" className="block text-[11px] font-semibold uppercase tracking-wide text-neutral-400 mb-1.5">
+                  Dominio WebRTC (opcional)
+                </label>
+                <div className="relative">
+                  <Server className="w-4 h-4 text-neutral-500 absolute left-3 top-2.5" />
+                  <input
+                    id="gw-webrtc"
+                    type="text"
+                    inputMode="url"
+                    value={webrtcBaseUrl}
+                    onChange={(e) => setWebrtcBaseUrl(e.target.value)}
+                    placeholder="Puerto 8889 (se deduce si usas un puerto explícito)"
+                    className="w-full bg-neutral-950 border border-neutral-800 rounded-lg pl-9 pr-3 py-2 text-xs font-mono text-white placeholder-neutral-600 focus:outline-none focus:border-sky-500"
+                  />
+                </div>
+              </div>
+            </div>
+          </details>
+
           {error && (
             <div className="text-[11px] text-red-300 bg-red-950/50 border border-red-800/60 rounded-lg p-2 flex items-start gap-1.5">
               <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
@@ -210,7 +223,7 @@ export const StreamGatewayCard: React.FC<StreamGatewayCardProps> = ({
               className="px-3.5 py-2 bg-sky-600 hover:bg-sky-500 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 transition"
             >
               <Save className="w-3.5 h-3.5" />
-              Guardar servidor de video
+              Guardar configuración
             </button>
             {normalized && (
               <button
@@ -225,42 +238,48 @@ export const StreamGatewayCard: React.FC<StreamGatewayCardProps> = ({
           </div>
         </div>
 
-        {/*
-          Antes aquí había una vista previa del servidor con la primera cámara,
-          más la URL del stream y la de WebRTC. Al operador no le dicen nada y
-          confunden: lo único que necesita saber es si el servidor está
-          activo. Los detalles técnicos quedan en el menú de Google Cloud.
-        */}
         <div
-          className={`rounded-xl border px-3.5 py-2.5 flex items-center gap-2.5 ${
-            publicOk
+          className={`rounded-xl border px-4 py-3 flex items-center gap-3 self-start ${
+            serverActive
               ? 'border-emerald-500/30 bg-emerald-500/[0.06]'
               : 'border-neutral-800 bg-neutral-950'
           }`}
           role="status"
         >
-          <span className="relative flex h-2 w-2 shrink-0" aria-hidden="true">
-            {publicOk && (
+          <span className="relative flex h-2.5 w-2.5 shrink-0" aria-hidden="true">
+            {serverActive && (
               <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-70" />
             )}
             <span
-              className={`relative inline-flex h-2 w-2 rounded-full ${
-                publicOk ? 'bg-emerald-400' : 'bg-neutral-600'
+              className={`relative inline-flex h-2.5 w-2.5 rounded-full ${
+                serverActive ? 'bg-emerald-400' : localOk ? 'bg-amber-400' : 'bg-neutral-600'
               }`}
             />
           </span>
-          <span
-            className={`text-sm font-semibold ${
-              publicOk ? 'text-emerald-300' : 'text-neutral-400'
-            }`}
-          >
-            {publicOk ? 'Servidor activo' : 'Servidor inactivo'}
-          </span>
-          <span className="text-xs text-neutral-500">
-            {publicOk
-              ? 'Las cámaras se ven en video continuo desde cualquier red.'
-              : 'Sin dominio público las cámaras se ven como imagen fija.'}
-          </span>
+          <div className="min-w-0 space-y-0.5">
+            <div
+              className={`text-sm font-semibold ${
+                serverActive ? 'text-emerald-300' : localOk ? 'text-amber-300' : 'text-neutral-400'
+              }`}
+            >
+              {publicOk
+                ? 'Servidor activo (MediaMTX)'
+                : cloudCdnActive
+                  ? 'Servidor activo'
+                  : localOk
+                    ? 'Solo red local'
+                    : 'Sin cámaras registradas'}
+            </div>
+            <p className="text-xs text-neutral-400 leading-relaxed">
+              {publicOk
+                ? 'Las cámaras transmiten en video continuo desde cualquier red usando tu servidor MediaMTX.'
+                : cloudCdnActive
+                  ? `Transmisión continua directa por Nube Hikvision CDN (${cameras.length} ${cameras.length === 1 ? 'cámara' : 'cámaras'}). Funciona 24/7 sin PC encendida.`
+                  : localOk
+                    ? 'La URL configurada apunta a red local; los clientes fuera de la red no podrán verla.'
+                    : 'Agrega al menos una cámara o configura un dominio MediaMTX para iniciar.'}
+            </p>
+          </div>
         </div>
       </div>
     </section>

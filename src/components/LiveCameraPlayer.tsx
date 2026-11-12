@@ -3,7 +3,7 @@ import Hls from 'hls.js';
 import { Camera } from '../lib/types';
 import { ivmsLiveBridge, computeIvmsChannelSourceRect } from '../lib/ivmsLiveBridge';
 import { cloudP2pClient } from '../lib/cloudP2pClient';
-import { getLiveResumePosition, getPlaybackEnvironment } from '../lib/livePlayback';
+import { clampCameraChannel, getLiveResumePosition, getPlaybackEnvironment } from '../lib/livePlayback';
 import { isPlaceholderStreamUrl, loadGateway, resolveStreamUrls, isPublicGateway } from '../lib/streamGateway';
 import { getAccessToken, refreshEzvizToken, subscribeEzvizAuth, hasEzvizCredentials } from '../lib/ezvizAuth';
 import {
@@ -324,15 +324,18 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
     ? { mobile: false, appleMobile: false }
     : getPlaybackEnvironment(navigator.userAgent, navigator.maxTouchPoints, window.innerWidth));
   const isAnyExpanded = isFullscreen || isTheaterMode || expandedHeight !== null;
-  const observeViewport = isMobile && isCompact && !isAnyExpanded && typeof IntersectionObserver !== 'undefined';
-  const [inViewport, setInViewport] = useState(false);
-  const canLoadInViewport = !observeViewport || inViewport || isAnyExpanded || isStreamPlaying;
+  const observeViewport = isCompact && !isAnyExpanded && typeof IntersectionObserver !== 'undefined';
+  const [inViewport, setInViewport] = useState(true);
+  const canLoadInViewport = !observeViewport || inViewport || isAnyExpanded;
 
   useEffect(() => {
     if (!observeViewport || !containerRef.current) return;
-    const observer = new IntersectionObserver(([entry]) => {
-      setInViewport(entry.isIntersecting && entry.intersectionRatio >= 0.15);
-    }, { threshold: 0.15 });
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        setInViewport(entry.isIntersecting);
+      },
+      { rootMargin: '200px 0px', threshold: 0.01 }
+    );
     observer.observe(containerRef.current);
     return () => observer.disconnect();
   }, [observeViewport]);
@@ -427,7 +430,7 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
   const animFrameRef = useRef<number | null>(null);
   const nativeP2pImgRef = useRef<HTMLImageElement | null>(null);
   const [nativeP2pReady, setNativeP2pReady] = useState<boolean>(() => {
-    const ch = Math.min(4, Math.max(1, camera.channel || 1));
+    const ch = clampCameraChannel(camera.channel);
     const devSerial = camera.deviceSerial || cloudP2pClient.resolveDevice(camera)?.serial || 'F31700438';
     const cached = ezvizCaptureCache[`${devSerial}_${ch}`];
     if (cached) {
@@ -504,7 +507,7 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
   const [ecoRemainingSec, setEcoRemainingSec] = useState<number>(() => getOcos4gState().ecoSleepSec || 60);
   const ecoDeadline = useRef(0);
   const canLoadVideo = canLoadInViewport && !is4gEcoPaused && isStreamPlaying;
-  const channel = Math.min(4, Math.max(1, camera.channel || 1));
+  const channel = clampCameraChannel(camera.channel);
   const deviceSerial = camera.deviceSerial || cloudP2pClient.resolveDevice(camera)?.serial || 'F31700438';
   const configuredHls = camera.hlsStreamUrl?.trim() || '';
   const localPlaceholder = isMobile ? isPlaceholderStreamUrl(configuredHls) : configuredHls.includes('localhost');
@@ -579,7 +582,7 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
         snapImg.src = dataUrl;
         nativeP2pImgRef.current = snapImg;
         setNativeP2pReady(true);
-        const ch = Math.min(4, Math.max(1, camera.channel || 1));
+        const ch = clampCameraChannel(camera.channel);
         const devSerial = camera.deviceSerial || 'FF9363270';
         ezvizCaptureCache[`${devSerial}_${ch}`] = dataUrl;
         savePersistedCaptureCache(ezvizCaptureCache);
@@ -976,7 +979,7 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
     if (!canLoadVideo) return;
     let active = true;
     let timer: ReturnType<typeof setTimeout> | null = null;
-    const ch = Math.min(4, Math.max(1, camera.channel || 1));
+    const ch = clampCameraChannel(camera.channel);
     const deviceSerial =
       camera.deviceSerial || cloudP2pClient.resolveDevice(camera)?.serial || '';
 

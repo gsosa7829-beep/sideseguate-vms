@@ -141,7 +141,7 @@ export function buildClientSubmittedCameras(input: ClientCameraSubmissionInput):
   const safeOnvifPort = Math.max(1, Math.min(65535, Math.floor(Number(input.onvifPort) || 8000)));
   const safeUser = input.username.trim() || 'admin';
   const safePass = (input.password || '').trim();
-  const count = Math.max(1, Math.min(32, Math.floor(Number(input.channelsCount) || 1)));
+  const count = Math.max(1, Math.min(128, Math.floor(Number(input.channelsCount) || 1)));
   const startCh = Math.max(1, Math.min(128, Math.floor(Number(input.startChannel) || 1)));
   const streamType = input.streamType === 'sub' ? 'sub' : 'main';
   const clientLabel = (input.clientName || 'Cliente').trim();

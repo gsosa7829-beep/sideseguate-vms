@@ -36,7 +36,7 @@ export interface RunnerReport {
   multiDevice: boolean;
 }
 
-export const MAX_DEVICES = 32;
+export const MAX_DEVICES = 128;
 
 /** Serie canónica: mayúsculas, sin espacios ni guiones. */
 export function normalizeSerial(raw: string | null | undefined): string {

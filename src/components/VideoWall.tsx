@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Camera, Project } from '../lib/types';
 import { LiveCameraPlayer, prewarmHikvisionCameras } from './LiveCameraPlayer';
 import { cloudP2pClient } from '../lib/cloudP2pClient';
+import { formatChannelBadge } from '../lib/livePlayback';
 import { getTokenHealth, subscribeEzvizAuth, refreshEzvizToken, TokenHealthInfo } from '../lib/ezvizAuth';
 import {
   ECO_SLEEP_OPTIONS,
@@ -249,7 +250,7 @@ const CameraFeedCard: React.FC<CameraFeedCardProps> = ({
             }`}
           />
           <span className={`font-mono text-xs font-bold shrink-0 ${is4g ? 'text-emerald-400' : 'text-sky-400'}`}>
-            CH0{camera.channel}
+            {formatChannelBadge(camera.channel)}
           </span>
           <span className="text-neutral-600 shrink-0" aria-hidden="true">·</span>
           <TitleTag className="font-semibold text-white truncate text-xs sm:text-sm">

@@ -1743,3 +1743,40 @@ test('asistente soporta NVRs de 32, 64 y 128 canales sin tope previo de 16/32', 
   });
   assert.equal(guided128.channelsCount, 128);
 });
+
+test('clampCameraChannel, formatChannelBadge y dispositivos soportan hasta 128 canales sin tope de 4', async () => {
+  const { clampCameraChannel, formatChannelBadge, MAX_PLAYBACK_CHANNEL } = await import('./livePlayback.ts');
+  const { MAX_DEVICES } = await import('./deviceRegistry.ts');
+  const { buildClientSubmittedCameras } = await import('./rtspHelper.ts');
+
+  assert.equal(MAX_PLAYBACK_CHANNEL, 128);
+  assert.equal(MAX_DEVICES, 128);
+  assert.equal(clampCameraChannel(undefined), 1);
+  assert.equal(clampCameraChannel(0), 1);
+  assert.equal(clampCameraChannel(5), 5);
+  assert.equal(clampCameraChannel(64), 64);
+  assert.equal(clampCameraChannel(128), 128);
+  assert.equal(clampCameraChannel(200), 128);
+
+  assert.equal(formatChannelBadge(1), 'CH01');
+  assert.equal(formatChannelBadge(9), 'CH09');
+  assert.equal(formatChannelBadge(10), 'CH10');
+  assert.equal(formatChannelBadge(64), 'CH64');
+  assert.equal(formatChannelBadge(128), 'CH128');
+
+  const bulkCams = buildClientSubmittedCameras({
+    projectId: 'proj-nvr',
+    clientName: 'Cliente NVR',
+    brand: 'hikvision_dvr',
+    host: '192.168.1.250',
+    port: 554,
+    username: 'admin',
+    password: 'Password123',
+    channelsCount: 64,
+    streamType: 'sub',
+    cameraNamePrefix: 'NVR Bodega',
+    locationDesc: 'Bodega Central',
+  });
+  assert.equal(bulkCams.length, 64);
+  assert.equal(bulkCams[63].channel, 64);
+});
