@@ -60,6 +60,8 @@ export interface ChannelProbeResult {
   detectedModel?: string;
   is4gHardware?: boolean;
   isEncrypted?: boolean;
+  autoUnlockedEncryption?: boolean;
+  requiresManualDecrypt?: boolean;
 }
 
 export interface LiveDeviceDiagItem {
@@ -85,7 +87,13 @@ const KNOWN_SERIAL_BY_CODE: Record<string, string> = {
   LBNZYU: 'FF9363270',
 };
 
-import { getAccessToken, hasEzvizCredentials, refreshEzvizToken } from './ezvizAuth';
+import {
+  disableEzvizEncryption,
+  getAccessToken,
+  hasEzvizCredentials,
+  refreshEzvizToken,
+  saveDeviceVerificationCode,
+} from './ezvizAuth';
 
 const KNOWN_CODE_BY_SERIAL: Record<string, string> = {
   F31700438: 'HELGDM',
@@ -817,11 +825,16 @@ export async function probeAndDiscoverChannels(
   let detectedModel: string | undefined;
   let is4gHardware = /^FF9/i.test(intent.deviceSerial || '') || /4g/i.test(intent.brandLabel);
   let isEncrypted = false;
+  let autoUnlockedEncryption = false;
+  let requiresManualDecrypt = false;
   let cloudOnline: boolean | undefined;
   let realChannelCount = intent.channelsCount;
 
   // Consultar ficha técnica real y capacidad de canales si trae Número de Serie P2P
   if (intent.deviceSerial) {
+    if (intent.verificationCode) {
+      saveDeviceVerificationCode(intent.deviceSerial, intent.verificationCode);
+    }
     try {
       const [infoRes, capRes] = await Promise.all([
         postEzvizOpenApi('/api/lapp/device/info', { deviceSerial: intent.deviceSerial }),
@@ -844,6 +857,19 @@ export async function probeAndDiscoverChannels(
           intent.deviceType = 'hikvision_ip';
           intent.codec = 'H.265';
           intent.streamType = 'sub';
+        }
+        // Intentar desactivar cifrado automáticamente usando el código recién ingresado
+        if (isEncrypted && intent.verificationCode) {
+          const decryptRes = await disableEzvizEncryption(
+            intent.deviceSerial,
+            intent.verificationCode
+          );
+          if (decryptRes.success) {
+            isEncrypted = false;
+            autoUnlockedEncryption = true;
+          } else if (decryptRes.requiresAppKey) {
+            requiresManualDecrypt = true;
+          }
         }
       }
 
@@ -979,6 +1005,8 @@ export async function probeAndDiscoverChannels(
       detectedModel,
       is4gHardware,
       isEncrypted,
+      autoUnlockedEncryption,
+      requiresManualDecrypt,
     };
   };
 

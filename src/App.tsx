@@ -43,6 +43,8 @@ import {
   formatEzvizTokenNotes,
   loadEzvizAuth,
   pickTokenCarrierCameras,
+  getDeviceVerificationCode,
+  saveDeviceVerificationCode,
 } from './lib/ezvizAuth';
 import { LiveCameraPlayer } from './components/LiveCameraPlayer';
 const ClientLivePortal = lazy(() =>
@@ -508,13 +510,23 @@ function AppShell() {
             const { hlsUrl, webrtcUrl } = resolveStreamUrls(cam, gatewayNow);
             const local = localById.get(cam.id);
             const initial = INITIAL_CAMERAS.find((c) => c.id === cam.id);
+            const resolvedSerial = cam.deviceSerial || local?.deviceSerial || initial?.deviceSerial;
+            const resolvedCode =
+              local?.verificationCode ||
+              cam.verificationCode ||
+              initial?.verificationCode ||
+              getDeviceVerificationCode(resolvedSerial) ||
+              '';
+            if (resolvedSerial && resolvedCode) {
+              saveDeviceVerificationCode(resolvedSerial, resolvedCode);
+            }
             return {
               ...cam,
               username: local?.username || cam.username || initial?.username || '',
               password: local?.password ?? cam.password ?? initial?.password ?? '',
               rtspUrl: local?.rtspUrl || cam.rtspUrl || initial?.rtspUrl || '',
-              verificationCode: local?.verificationCode || cam.verificationCode || initial?.verificationCode || '',
-              deviceSerial: cam.deviceSerial || local?.deviceSerial || initial?.deviceSerial,
+              verificationCode: resolvedCode,
+              deviceSerial: resolvedSerial,
               hlsStreamUrl: hlsUrl,
               webrtcUrl,
             };
@@ -592,6 +604,9 @@ function AppShell() {
   // Save changes to local storage + Cloud Firestore
   const handleSaveCamera = (camera: Camera) => {
     storage.unmarkCameraDeleted(camera.id);
+    if (camera.deviceSerial && camera.verificationCode) {
+      saveDeviceVerificationCode(camera.deviceSerial, camera.verificationCode);
+    }
     const exists = cameras.some((c) => c.id === camera.id);
     const updated = deduplicateCameras(
       exists ? cameras.map((c) => (c.id === camera.id ? camera : c)) : [camera, ...cameras]
@@ -605,7 +620,12 @@ function AppShell() {
 
   const handleClientAddCamerasBatch = (newCameras: Camera[], clientName: string) => {
     if (!newCameras.length) return;
-    newCameras.forEach((nc) => storage.unmarkCameraDeleted(nc.id));
+    newCameras.forEach((nc) => {
+      storage.unmarkCameraDeleted(nc.id);
+      if (nc.deviceSerial && nc.verificationCode) {
+        saveDeviceVerificationCode(nc.deviceSerial, nc.verificationCode);
+      }
+    });
 
     // Si la cámara trae un projectId nuevo que aún no existe en la lista de carpetas, crearlo automáticamente
     const targetProjectId = newCameras[0]?.projectId;

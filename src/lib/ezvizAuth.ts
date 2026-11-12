@@ -34,6 +34,7 @@ export interface TokenHealthInfo {
 }
 
 export const EZVIZ_AUTH_STORAGE_KEY = 'sideseguate_ezviz_auth_v2';
+export const EZVIZ_DEVICE_CODES_KEY = 'sideseguate_device_codes_v1';
 export const DEFAULT_FALLBACK_TOKEN = 'at.1pzo6ehydxokb80xcx3rdhk7ah6z025w-8z7cnhbby8-1kgt1vp-j2bvrfxms';
 // Vigencia estimada del token actual (7 días desde su emisión del 06 nov 2026)
 export const DEFAULT_FALLBACK_EXPIRE_MS = Date.parse('2026-11-14T05:51:00.000Z');
@@ -504,6 +505,134 @@ export async function verifyTokenLive(serial: string = 'FF9363270'): Promise<{
     return { valid: false, code: data.code, msg: data.msg || 'Respuesta no exitosa' };
   } catch (err: any) {
     return { valid: false, msg: err?.message || 'Error de red' };
+  }
+}
+
+let cachedDeviceCodes: Record<string, string> | null = null;
+
+function readDeviceCodesMap(): Record<string, string> {
+  if (cachedDeviceCodes) return cachedDeviceCodes;
+  try {
+    if (typeof localStorage !== 'undefined') {
+      const raw = localStorage.getItem(EZVIZ_DEVICE_CODES_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed && typeof parsed === 'object') {
+          const loaded: Record<string, string> = { ...parsed };
+          cachedDeviceCodes = loaded;
+          return loaded;
+        }
+      }
+    }
+  } catch {
+    // fallback en memoria
+  }
+  cachedDeviceCodes = {};
+  return cachedDeviceCodes;
+}
+
+/** Obtiene el código de verificación persistido localmente para un número de serie */
+export function getDeviceVerificationCode(serial: string | null | undefined): string {
+  const cleanSerial = String(serial || '').trim().toUpperCase();
+  if (!cleanSerial) return '';
+  return String(readDeviceCodesMap()[cleanSerial] || '').trim().toUpperCase();
+}
+
+/** Guarda el código de verificación por número de serie en localStorage y memoria */
+export function saveDeviceVerificationCode(
+  serial: string | null | undefined,
+  code: string | null | undefined
+): void {
+  const cleanSerial = String(serial || '').trim().toUpperCase();
+  const cleanCode = String(code || '').trim().toUpperCase();
+  if (!cleanSerial || cleanCode.length < 4) return;
+  const map = readDeviceCodesMap();
+  if (map[cleanSerial] === cleanCode) return;
+  cachedDeviceCodes = { ...map, [cleanSerial]: cleanCode };
+  try {
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem(EZVIZ_DEVICE_CODES_KEY, JSON.stringify(cachedDeviceCodes));
+    }
+  } catch {
+    // fallback en memoria
+  }
+}
+
+export interface DisableEncryptionResult {
+  success: boolean;
+  alreadyDisabled?: boolean;
+  requiresAppKey?: boolean;
+  code?: string;
+  error?: string;
+}
+
+/**
+ * Intenta desactivar el cifrado de video en la nube EZVIZ mediante /api/lapp/device/encrypt/off.
+ * Si el token vigente proviene de sesión cliente sin AppKey Open Platform, EZVIZ responde 10017.
+ */
+export async function disableEzvizEncryption(
+  deviceSerial: string,
+  validateCode: string
+): Promise<DisableEncryptionResult> {
+  const cleanSerial = String(deviceSerial || '').trim().toUpperCase();
+  const cleanCode = String(validateCode || '').trim().toUpperCase();
+  if (!cleanSerial || !cleanCode) {
+    return { success: false, error: 'Se requiere serie y código de verificación.' };
+  }
+
+  saveDeviceVerificationCode(cleanSerial, cleanCode);
+
+  const sendRequest = async (tokenOverride?: string) => {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 10_000);
+    try {
+      const res = await fetch('https://iusopen.ezvizlife.com/api/lapp/device/encrypt/off', {
+        method: 'POST',
+        signal: controller.signal,
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+          accessToken: tokenOverride || getAccessToken(),
+          deviceSerial: cleanSerial,
+          validateCode: cleanCode,
+        }),
+      });
+      return res.ok ? await res.json() : { code: String(res.status), msg: `HTTP ${res.status}` };
+    } finally {
+      clearTimeout(timer);
+    }
+  };
+
+  try {
+    let data = await sendRequest();
+    if (String(data?.code) === '10002' && hasEzvizCredentials()) {
+      const renewed = await refreshEzvizToken();
+      if (renewed.success && renewed.accessToken) {
+        data = await sendRequest(renewed.accessToken);
+      }
+    }
+
+    const code = String(data?.code ?? data?.meta?.code ?? '');
+    if (code === '200') {
+      return { success: true, code };
+    }
+    if (code === '60016') {
+      return { success: true, alreadyDisabled: true, code };
+    }
+    if (code === '10017') {
+      return {
+        success: false,
+        requiresAppKey: true,
+        code,
+        error: 'El token actual no incluye AppKey Open Platform; apaga "Cifrado de video" desde HiLookVision.',
+      };
+    }
+    return {
+      success: false,
+      code,
+      error: data?.msg || data?.meta?.message || `Código EZVIZ ${code || 'desconocido'}`,
+    };
+  } catch (err: any) {
+    return { success: false, error: err?.message || 'Error de red al desactivar cifrado' };
   }
 }
 

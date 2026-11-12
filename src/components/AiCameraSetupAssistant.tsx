@@ -942,6 +942,17 @@ export const AiCameraSetupAssistant: React.FC<AiCameraSetupAssistantProps> = ({
                           </span>
                         </div>
                       </div>
+
+                      {msg.probedChannels.some((c) => c.autoUnlockedEncryption) && (
+                        <div className="text-[11px] text-emerald-300 bg-emerald-950/40 border border-emerald-500/30 rounded-lg px-2.5 py-1.5">
+                          Cifrado de video desactivado automáticamente en la nube: se abrirá directo en cualquier celular o enlace.
+                        </div>
+                      )}
+                      {msg.probedChannels.some((c) => c.requiresManualDecrypt) && (
+                        <div className="text-[11px] text-amber-300 bg-amber-950/40 border border-amber-500/30 rounded-lg px-2.5 py-1.5 leading-relaxed">
+                          Código guardado en este navegador. Si deseas verla también desde otros celulares sin ingresar código, desactiva &ldquo;Cifrado de video&rdquo; en HiLookVision (Ajustes ⚙ de la cámara).
+                        </div>
+                      )}
                     </div>
 
                     <div className="space-y-2">

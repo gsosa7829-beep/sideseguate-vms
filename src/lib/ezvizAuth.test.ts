@@ -10,6 +10,9 @@ import {
   pickTokenCarrierCameras,
   extractLatestEzvizTokenFromCameras,
   formatEzvizTokenNotes,
+  getDeviceVerificationCode,
+  saveDeviceVerificationCode,
+  disableEzvizEncryption,
 } from './ezvizAuth';
 import type { Camera } from './types';
 
@@ -125,4 +128,37 @@ test('pickTokenCarrierCameras y extractLatestEzvizTokenFromCameras operan sobre 
   const latest = extractLatestEzvizTokenFromCameras([wiredCam, older4gCam, newer4gCam]);
   assert.equal(latest?.accessToken, 'at.newesttoken456');
   assert.equal(latest?.expireTime, 1_800_000_000_000);
+});
+
+test('saveDeviceVerificationCode y getDeviceVerificationCode persisten códigos normalizados por serie', () => {
+  saveDeviceVerificationCode('ff9363192', ' wzriko ');
+  saveDeviceVerificationCode('FF9363285', 'ufyqqq');
+  assert.equal(getDeviceVerificationCode('FF9363192'), 'WZRIKO');
+  assert.equal(getDeviceVerificationCode('ff9363285'), 'UFYQQQ');
+  assert.equal(getDeviceVerificationCode('NOEXISTE'), '');
+});
+
+test('disableEzvizEncryption interpreta respuestas 200, 60016 y 10017 correctamente', async () => {
+  const originalFetch = globalThis.fetch;
+  try {
+    globalThis.fetch = (async () =>
+      new Response(JSON.stringify({ code: '200', msg: 'Operation succeeded' }), { status: 200 })) as typeof fetch;
+    const okRes = await disableEzvizEncryption('FF9363192', 'WZRIKO');
+    assert.equal(okRes.success, true);
+
+    globalThis.fetch = (async () =>
+      new Response(JSON.stringify({ code: '60016', msg: 'Device not encrypted' }), { status: 200 })) as typeof fetch;
+    const offRes = await disableEzvizEncryption('FF9363270', 'LBNZYU');
+    assert.equal(offRes.success, true);
+    assert.equal(offRes.alreadyDisabled, true);
+
+    globalThis.fetch = (async () =>
+      new Response(JSON.stringify({ meta: { code: 10017, message: "AppKey doesn't exist" } }), { status: 200 })) as typeof fetch;
+    const appKeyRes = await disableEzvizEncryption('FF9363285', 'UFYQQQ');
+    assert.equal(appKeyRes.success, false);
+    assert.equal(appKeyRes.requiresAppKey, true);
+    assert.equal(appKeyRes.code, '10017');
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
 });

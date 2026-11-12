@@ -5,7 +5,15 @@ import { ivmsLiveBridge, computeIvmsChannelSourceRect } from '../lib/ivmsLiveBri
 import { cloudP2pClient } from '../lib/cloudP2pClient';
 import { clampCameraChannel, getLiveResumePosition, getPlaybackEnvironment } from '../lib/livePlayback';
 import { isPlaceholderStreamUrl, loadGateway, resolveStreamUrls, isPublicGateway } from '../lib/streamGateway';
-import { getAccessToken, refreshEzvizToken, subscribeEzvizAuth, hasEzvizCredentials } from '../lib/ezvizAuth';
+import {
+  disableEzvizEncryption,
+  getAccessToken,
+  getDeviceVerificationCode,
+  hasEzvizCredentials,
+  refreshEzvizToken,
+  saveDeviceVerificationCode,
+  subscribeEzvizAuth,
+} from '../lib/ezvizAuth';
 import {
   ECO_SLEEP_OPTIONS,
   Ocos4gTelemetryState,
@@ -44,6 +52,7 @@ import {
   Info,
   Play,
   Pause,
+  Key,
   X
 } from 'lucide-react';
 
@@ -127,7 +136,7 @@ export async function fetchEzvizLiveHls(
   quality: '1' | '2' = '2',
   forceRefresh: boolean = false,
   explicitCode?: string
-): Promise<{ url: string | null; isOffline: boolean; error?: string }> {
+): Promise<{ url: string | null; isOffline: boolean; errorCode?: string; error?: string }> {
   const devSerial = serial || 'F31700438';
   // Bloqueo estricto 4G: Las cámaras celulares 4G (FF9*) NUNCA deben solicitar flujo HD ('1')
   const effectiveQuality: '1' | '2' = is4gSerial(devSerial) ? '2' : quality;
@@ -144,11 +153,11 @@ export async function fetchEzvizLiveHls(
     savePersistedHlsCache(ezvizHlsCache);
   }
 
-  const requestPromise = (async (): Promise<{ url: string | null; isOffline: boolean; error?: string }> => {
+  const requestPromise = (async (): Promise<{ url: string | null; isOffline: boolean; errorCode?: string; error?: string }> => {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 12_000);
     try {
-      const validateCode = explicitCode || (devSerial === 'FF9363270' ? 'LBNZYU' : 'HELGDM');
+      const validateCode = explicitCode || getDeviceVerificationCode(devSerial) || (devSerial === 'FF9363270' ? 'LBNZYU' : 'HELGDM');
       const queryStream = async (overrideToken?: string) => {
         const activeToken = overrideToken || getAccessToken();
         const res = await fetch('https://iusopen.ezvizlife.com/api/lapp/v2/live/address/get', {
@@ -189,8 +198,9 @@ export async function fetchEzvizLiveHls(
       savePersistedHlsCache(ezvizHlsCache);
 
       const isOffline = data?.code === '20007' || data?.msg?.includes('offline') || false;
-      const errorDetail = data?.code === '10002' ? 'Token EZVIZ Cloud vencido' : (data?.msg || 'Error al obtener flujo');
-      return { url: null, isOffline, error: errorDetail };
+      const rawCode = data?.code ? String(data.code) : undefined;
+      const errorDetail = rawCode === '10002' ? 'Token EZVIZ Cloud vencido' : (data?.msg || 'Error al obtener flujo');
+      return { url: null, isOffline, errorCode: rawCode, error: errorDetail };
     } catch (err) {
       console.warn('Error al obtener stream HLS de Ezviz:', err);
       delete ezvizHlsCache[cacheKey];
@@ -716,6 +726,46 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
   }, [is4gCamera, streamQuality]);
 
   const [isOffline, setIsOffline] = useState(false);
+  const [inlineUnlockedCode, setInlineUnlockedCode] = useState<string>(() =>
+    getDeviceVerificationCode(deviceSerial)
+  );
+  const [needsEncryptionCode, setNeedsEncryptionCode] = useState(false);
+  const [codeInput, setCodeInput] = useState('');
+  const [unlockFeedback, setUnlockFeedback] = useState<string | null>(null);
+  const [isUnlocking, setIsUnlocking] = useState(false);
+
+  const effectiveVerificationCode =
+    inlineUnlockedCode ||
+    camera.verificationCode ||
+    getDeviceVerificationCode(deviceSerial) ||
+    (deviceSerial === 'FF9363270' ? 'LBNZYU' : deviceSerial === 'F31700438' ? 'HELGDM' : '');
+
+  const handleUnlockWithCode = useCallback(
+    async (e?: React.FormEvent) => {
+      if (e) e.preventDefault();
+      const clean = codeInput.trim().toUpperCase();
+      if (clean.length < 4) {
+        setUnlockFeedback('Ingresa el código de verificación completo (ej. WZRIKO).');
+        return;
+      }
+      setIsUnlocking(true);
+      setUnlockFeedback(null);
+      saveDeviceVerificationCode(deviceSerial, clean);
+      setInlineUnlockedCode(clean);
+      try {
+        await disableEzvizEncryption(deviceSerial, clean);
+      } catch {
+        // Incluso si 10017 impide apagarlo remoto, el código ya quedó guardado para EZopen en este navegador
+      } finally {
+        setIsUnlocking(false);
+        setNeedsEncryptionCode(false);
+        setUseHlsFallback(false);
+        setIsOffline(false);
+        setReconnectVersion((v) => v + 1);
+      }
+    },
+    [codeInput, deviceSerial]
+  );
 
   const handleForceReconnect = useCallback((userInitiated = true) => {
     if (!canLoadInViewport) return;
@@ -737,12 +787,14 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
     }
     // Restaurar protocolos principales y reintentar conexión limpia
     setUseHlsFallback(false);
+    if (userInitiated) {
+      setNeedsEncryptionCode(false);
+      setUnlockFeedback(null);
+      setIsOffline(false);
+    }
     reconnectDelay.current = 2_000;
     stallCountRef.current = 0;
     setIsReconnecting(true);
-    if (userInitiated) {
-      setIsOffline(false);
-    }
     setReconnectVersion((version) => version + 1);
   }, [canLoadInViewport, is4gCamera, resume4gStream]);
 
@@ -782,8 +834,12 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
       setUseHlsFallback(true);
     };
 
-    const handleEzPlayerError = async () => {
+    const handleEzPlayerError = async (err?: unknown) => {
       if (!active) return;
+      const errText = err ? JSON.stringify(err) : '';
+      if (!effectiveVerificationCode || /60019|5402|encrypt|verify\s*code|password/i.test(errText)) {
+        setNeedsEncryptionCode(true);
+      }
       if (!tokenRetried && hasEzvizCredentials()) {
         tokenRetried = true;
         try {
@@ -845,7 +901,7 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
       if (!active) return;
 
       const devSerial = deviceSerial;
-      const code = camera.verificationCode || (devSerial === 'FF9363270' ? 'LBNZYU' : (devSerial === 'F31700438' ? 'HELGDM' : ''));
+      const code = effectiveVerificationCode;
       const codePrefix = code ? `${code}@` : '';
       const streamTypeStr = streamQuality === '1' ? '.hd.live' : '.live';
       const ezopenUrl = `ezopen://${codePrefix}open.ezviz.com/${devSerial}/${camera.channel || 1}${streamTypeStr}`;
@@ -879,6 +935,7 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
             ezuikitLiveReadyRef.current = true;
             setIsSwitchingQuality(false);
             setIsReconnecting(false);
+            setNeedsEncryptionCode(false);
             setIsOffline(false);
             stallCountRef.current = 0;
             if (isMutedRef.current) {
@@ -893,8 +950,8 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
               try { player.openSound(); } catch {}
             }
           },
-          handleError: () => {
-            void handleEzPlayerError();
+          handleError: (err: unknown) => {
+            void handleEzPlayerError(err);
           },
         });
 
@@ -924,7 +981,7 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
       setEzuikitLiveReady(false);
       ezuikitLiveReadyRef.current = false;
     };
-  }, [deviceSerial, camera.channel, camera.verificationCode, isEzopenDevice, streamQuality, canLoadVideo, isMobile, reconnectVersion, ezuikitContainerId]);
+  }, [deviceSerial, camera.channel, effectiveVerificationCode, isEzopenDevice, streamQuality, canLoadVideo, isMobile, reconnectVersion, ezuikitContainerId]);
 
   useEffect(() => {
     if (!canLoadVideo || isEzopenDevice || directHlsUrl) {
@@ -942,15 +999,24 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
         retryTimer = setTimeout(() => void resolve(refresh), delay);
         return;
       }
-      const result = await fetchEzvizLiveHls(channel, deviceSerial, streamQuality, refresh, camera.verificationCode);
+      const result = await fetchEzvizLiveHls(channel, deviceSerial, streamQuality, refresh, effectiveVerificationCode);
       if (cancelled) return;
 
       if (result.url) {
         setResolvedHls({ key: hlsSourceKey, url: result.url });
+        setNeedsEncryptionCode(false);
         setIsOffline(false);
         return;
       }
       if (tryMobileEzFallback()) return;
+
+      if (result.errorCode === '60019' || /encrypt/i.test(result.error || '')) {
+        setNeedsEncryptionCode(true);
+        setIsOffline(true);
+        setIsReconnecting(false);
+        setIsSwitchingQuality(false);
+        return;
+      }
 
       setIsOffline(true);
       setIsReconnecting(false);
@@ -967,7 +1033,7 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
       clearTimeout(retryTimer);
     };
   }, [canLoadVideo, isEzopenDevice, directHlsUrl, channel, deviceSerial, streamQuality,
-    camera.verificationCode, hlsSourceKey, reconnectVersion, tryMobileEzFallback]);
+    effectiveVerificationCode, hlsSourceKey, reconnectVersion, tryMobileEzFallback]);
 
   useEffect(() => ivmsLiveBridge.subscribe(() => {
     setIvmsBridgeActive(ivmsLiveBridge.isActive());
@@ -1786,10 +1852,56 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
           <div className="absolute bottom-0 right-0 w-3 h-3 border-b border-r border-sky-400/70" />
         </div>
 
-        {/* Indicador ligero de sintonización inicial (0.4s) o Reconexión cuando está offline */}
+        {/* Indicador ligero de sintonización inicial (0.4s), desbloqueo por cifrado o Reconexión cuando está offline */}
         {canLoadVideo && !autoplayBlocked && (!hasImage || isOffline) && (
-          <div className="absolute inset-0 z-30 flex flex-col items-center justify-center p-5 bg-neutral-950/75 backdrop-blur-xs text-center select-none">
-            {isOffline ? (
+          <div className="absolute inset-0 z-30 flex flex-col items-center justify-center p-4 sm:p-5 bg-neutral-950/80 backdrop-blur-xs text-center select-none">
+            {isOffline && needsEncryptionCode ? (
+              <form
+                onSubmit={handleUnlockWithCode}
+                className="w-full max-w-xs space-y-2.5 bg-neutral-900/95 border border-amber-500/35 rounded-2xl p-4 shadow-xl"
+              >
+                <div className="w-9 h-9 rounded-xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center mx-auto">
+                  <Key className="w-4 h-4 text-amber-400" />
+                </div>
+                <div>
+                  <h4 className="text-xs sm:text-sm font-bold text-white">
+                    Cifrado Activo ({camera.deviceSerial || 'EZVIZ'})
+                  </h4>
+                  <p className="text-[11px] text-neutral-400 mt-1 leading-snug">
+                    Ingresa el código de 6 letras de la etiqueta para ver en este navegador (o apaga «Cifrado de video» en HiLookVision).
+                  </p>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <input
+                    type="text"
+                    value={codeInput}
+                    onChange={(e) => setCodeInput(e.target.value.toUpperCase())}
+                    placeholder="Ej. WZRIKO"
+                    maxLength={12}
+                    className="flex-1 min-w-0 bg-neutral-950 border border-neutral-700 focus:border-sky-500 rounded-lg px-2.5 py-1.5 text-xs font-mono text-white uppercase tracking-wider outline-none"
+                  />
+                  <button
+                    type="submit"
+                    disabled={isUnlocking}
+                    className="px-3 py-1.5 bg-sky-600 hover:bg-sky-500 disabled:opacity-50 text-white text-xs font-semibold rounded-lg transition shrink-0 cursor-pointer"
+                  >
+                    {isUnlocking ? '...' : 'Desbloquear'}
+                  </button>
+                </div>
+                {unlockFeedback && (
+                  <p className="text-[10.5px] text-amber-300">{unlockFeedback}</p>
+                )}
+                <button
+                  type="button"
+                  disabled={isReconnecting}
+                  onClick={() => handleForceReconnect(true)}
+                  className="w-full py-1.5 bg-neutral-800 hover:bg-neutral-750 text-neutral-300 text-[11px] font-medium rounded-lg border border-neutral-700 flex items-center justify-center gap-1.5 transition cursor-pointer"
+                >
+                  <RefreshCw className={`w-3 h-3 ${isReconnecting ? 'animate-spin' : ''}`} />
+                  <span>Reintentar conexión</span>
+                </button>
+              </form>
+            ) : isOffline ? (
               <>
                 <div className="w-12 h-12 rounded-2xl bg-amber-500/15 border border-amber-500/35 flex items-center justify-center mb-3 shadow-lg shadow-amber-500/10">
                   <Radio className={`w-6 h-6 text-amber-400 ${isReconnecting ? 'animate-spin' : 'animate-pulse'}`} />
