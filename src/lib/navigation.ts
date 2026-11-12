@@ -90,7 +90,7 @@ export const NAV_SECTIONS: NavSection[] = [
       {
         id: 'windows_server',
         label: 'Servidor de video',
-        hint: 'Estado y renovación del token de autorización del servidor.',
+        hint: 'Configuración de dominio, enlace público y estado del servidor.',
       },
       {
         id: 'zero_storage',

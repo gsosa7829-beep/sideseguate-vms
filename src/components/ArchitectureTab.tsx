@@ -1,458 +1,60 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
+import { Server, Radio } from 'lucide-react';
 import { Camera } from '../lib/types';
-import {
-  getTokenHealth,
-  loadEzvizAuth,
-  saveEzvizAuth,
-  refreshEzvizToken,
-  setManualToken,
-  verifyTokenLive,
-  subscribeEzvizAuth,
-  TokenHealthInfo,
-} from '../lib/ezvizAuth';
-import { EzvizTokenRenewalModal } from './EzvizTokenRenewalModal';
-import {
-  Server,
-  CheckCircle2,
-  RefreshCw,
-  Activity,
-  Key,
-  Sparkles,
-  AlertTriangle,
-  SlidersHorizontal,
-  ChevronDown,
-  ChevronUp,
-} from 'lucide-react';
+import { StreamGateway, loadGateway, saveGateway } from '../lib/streamGateway';
+import { StreamGatewayCard } from './StreamGatewayCard';
+import { SystemDiagnosticsCard } from './SystemDiagnosticsCard';
 
 interface ArchitectureTabProps {
   cameras?: Camera[];
+  gateway?: StreamGateway;
+  onSaveGateway?: (gateway: StreamGateway) => void;
+  onShowToast?: (message: string) => void;
 }
 
-export const ArchitectureTab: React.FC<ArchitectureTabProps> = () => {
-  const [tokenHealth, setTokenHealth] = useState<TokenHealthInfo>(() => getTokenHealth());
-  const [authConfig, setAuthConfig] = useState(() => loadEzvizAuth());
-  const [isRefreshingToken, setIsRefreshingToken] = useState(false);
-  const [isVerifyingToken, setIsVerifyingToken] = useState(false);
-  const [verifyMessage, setVerifyMessage] = useState<{ type: 'success' | 'error' | 'warn'; text: string } | null>(null);
-  const [showConfigModal, setShowConfigModal] = useState(false);
-  const [isTokenRenewalModalOpen, setIsTokenRenewalModalOpen] = useState(false);
-  const [toastMessage, setToastMessage] = useState<string | null>(null);
-
-  // Form states
-  const [inputAppKey, setInputAppKey] = useState(authConfig.appKey || '');
-  const [inputAppSecret, setInputAppSecret] = useState(authConfig.appSecret || '');
-  const [inputManualToken, setInputManualToken] = useState(authConfig.accessToken || '');
-  const [activeConfigTab, setActiveConfigTab] = useState<'auto' | 'manual'>('auto');
-
-  // Server check
-  const [isCheckingServer, setIsCheckingServer] = useState(false);
-
-  useEffect(() => {
-    return subscribeEzvizAuth(() => {
-      const cfg = loadEzvizAuth();
-      setAuthConfig(cfg);
-      setTokenHealth(getTokenHealth());
-    });
-  }, []);
-
-  const triggerToast = (msg: string) => {
-    setToastMessage(msg);
-    setTimeout(() => setToastMessage(null), 4000);
-  };
-
-  const handle1ClickRenew = async () => {
-    if (!tokenHealth.hasCredentials) {
-      setIsTokenRenewalModalOpen(true);
-      return;
-    }
-
-    setIsRefreshingToken(true);
-    setVerifyMessage(null);
-    try {
-      const res = await refreshEzvizToken();
-      if (res.success) {
-        setTokenHealth(getTokenHealth());
-        triggerToast('¡Token renovado con éxito! Válido por 7 días.');
-        setVerifyMessage({ type: 'success', text: 'Token renovado con éxito por la API oficial de EZVIZ.' });
-      } else {
-        setVerifyMessage({ type: 'error', text: res.error || 'Error al renovar token' });
-        setIsTokenRenewalModalOpen(true);
-      }
-    } catch (e: any) {
-      setVerifyMessage({ type: 'error', text: e?.message || 'Error de conexión con EZVIZ' });
-      setIsTokenRenewalModalOpen(true);
-    } finally {
-      setIsRefreshingToken(false);
-    }
-  };
-
-  const handleSaveCredentials = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsRefreshingToken(true);
-    setVerifyMessage(null);
-    try {
-      const res = await refreshEzvizToken(inputAppKey, inputAppSecret);
-      if (res.success) {
-        saveEzvizAuth({ appKey: inputAppKey.trim(), appSecret: inputAppSecret.trim(), autoRefresh: true });
-        setTokenHealth(getTokenHealth());
-        triggerToast('¡Credenciales guardadas y token auto-renovado!');
-        setVerifyMessage({ type: 'success', text: 'Conexión exitosa con EZVIZ. Auto-Refresh 24/7 activado.' });
-        setTimeout(() => setShowConfigModal(false), 1500);
-      } else {
-        setVerifyMessage({ type: 'error', text: res.error || 'Credenciales inválidas o no autorizadas.' });
-      }
-    } catch (err: any) {
-      setVerifyMessage({ type: 'error', text: err?.message || 'Error al conectar con la API' });
-    } finally {
-      setIsRefreshingToken(false);
-    }
-  };
-
-  const handleSaveManualToken = (e: React.FormEvent) => {
-    e.preventDefault();
-    const token = inputManualToken.trim();
-    if (!token) return;
-    setManualToken(token, 7);
-    setTokenHealth(getTokenHealth());
-    triggerToast('¡Token manual guardado correctamente!');
-    setVerifyMessage({ type: 'success', text: 'Token guardado. Válido por los próximos 7 días.' });
-    setTimeout(() => setShowConfigModal(false), 1200);
-  };
-
-  const handleVerifyTokenLive = async () => {
-    setIsVerifyingToken(true);
-    setVerifyMessage(null);
-    try {
-      const result = await verifyTokenLive('FF9363270');
-      if (result.valid) {
-        setVerifyMessage({
-          type: 'success',
-          text: `Token 100% válido en la API. Servidor en línea y autorizado.`,
-        });
-      } else {
-        setVerifyMessage({
-          type: 'error',
-          text: `Fallo de validación: ${result.msg || 'Código ' + result.code}`,
-        });
-      }
-    } catch (e: any) {
-      setVerifyMessage({ type: 'error', text: e?.message || 'Error de red al comprobar' });
-    } finally {
-      setIsVerifyingToken(false);
-    }
-  };
-
-  const checkOverallStatus = async () => {
-    setIsCheckingServer(true);
-    try {
-      setTokenHealth(getTokenHealth());
-    } finally {
-      setIsCheckingServer(false);
-    }
-  };
+export const ArchitectureTab: React.FC<ArchitectureTabProps> = ({
+  cameras = [],
+  gateway,
+  onSaveGateway,
+  onShowToast,
+}) => {
+  const [fallbackGateway, setFallbackGateway] = useState<StreamGateway>(() => loadGateway());
+  const activeGateway = gateway ?? fallbackGateway;
+  const handleSave = onSaveGateway ?? ((next: StreamGateway) => setFallbackGateway(saveGateway(next)));
+  const onlineCount = cameras.filter((cam) => cam.status === 'online').length;
 
   return (
-    <div className="space-y-5 max-w-5xl mx-auto">
-      {/* Toast flotante */}
-      {toastMessage && (
-        <div className="fixed top-5 right-5 z-50 bg-emerald-600 text-white text-xs font-bold px-4 py-2.5 rounded-xl shadow-2xl flex items-center gap-2 animate-in fade-in slide-in-from-top-3">
-          <CheckCircle2 className="w-4 h-4 shrink-0" />
-          <span>{toastMessage}</span>
-        </div>
-      )}
-
-      {/* Encabezado Principal */}
+    <div className="space-y-6 pb-8">
       <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2">
-            <Server className="w-5 h-5 text-sky-400" />
-            <h2 className="text-base font-bold text-white">Servidor de Video · Token de Acceso</h2>
+        <div className="flex items-start gap-3">
+          <div className="p-2.5 bg-sky-500/10 border border-sky-500/20 rounded-xl text-sky-400 shrink-0">
+            <Server className="w-6 h-6" />
           </div>
-          <p className="text-xs text-neutral-400 mt-0.5">
-            Estado de autorización y renovación de credenciales del servidor.
-          </p>
-        </div>
-
-        <button
-          type="button"
-          disabled={isCheckingServer}
-          onClick={checkOverallStatus}
-          className="px-4 py-2 bg-neutral-950 hover:bg-neutral-800 border border-neutral-800 text-white rounded-xl text-xs font-semibold flex items-center gap-2 transition active:scale-95 shadow-sm cursor-pointer"
-        >
-          <RefreshCw className={`w-3.5 h-3.5 text-sky-400 ${isCheckingServer ? 'animate-spin' : ''}`} />
-          <span>{isCheckingServer ? 'Comprobando…' : 'Comprobar Estado'}</span>
-        </button>
-      </div>
-
-      {/* =========================================================================
-          SECCIÓN: SALUD DEL TOKEN DE SERVIDOR
-         ========================================================================= */}
-      <div
-        className={`border-2 rounded-2xl p-5 sm:p-6 transition-all duration-300 shadow-xl ${
-          tokenHealth.status === 'expired'
-            ? 'bg-red-950/30 border-red-500/80 shadow-red-950/50'
-            : tokenHealth.status === 'expiring'
-            ? 'bg-amber-950/30 border-amber-500/80 shadow-amber-950/50'
-            : 'bg-neutral-900/90 border-emerald-500/60 shadow-emerald-950/30'
-        }`}
-      >
-        <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-5">
-          {/* Indicador Visual y Textos */}
-          <div className="flex items-start sm:items-center gap-4">
-            <div
-              className={`w-13 h-13 rounded-2xl border flex items-center justify-center shrink-0 ${
-                tokenHealth.status === 'expired'
-                  ? 'bg-red-500/20 border-red-500/60 text-red-400'
-                  : tokenHealth.status === 'expiring'
-                  ? 'bg-amber-500/20 border-amber-500/60 text-amber-400'
-                  : 'bg-emerald-500/20 border-emerald-500/60 text-emerald-400'
-              }`}
-            >
-              <Key className="w-6 h-6" />
-            </div>
-
-            <div>
-              <div className="flex items-center gap-2.5 flex-wrap">
-                <span className="text-xs uppercase font-extrabold tracking-wider text-neutral-400">
-                  Token de Transmisión
-                </span>
-                <span
-                  className={`px-2.5 py-0.5 rounded-full text-[11px] font-black uppercase tracking-wider shadow-xs ${
-                    tokenHealth.status === 'expired'
-                      ? 'bg-red-500 text-white'
-                      : tokenHealth.status === 'expiring'
-                      ? 'bg-amber-500 text-neutral-950 font-bold'
-                      : 'bg-emerald-500 text-neutral-950 font-bold'
-                  }`}
-                >
-                  {tokenHealth.status === 'expired'
-                    ? '🔴 Token Vencido'
-                    : tokenHealth.status === 'expiring'
-                    ? '🟡 Próximo a Expirar (<24h)'
-                    : '🟢 Token Activo 24/7'}
-                </span>
-              </div>
-
-              <h3 className="text-lg font-black text-white mt-1">
-                {tokenHealth.status === 'expired' && 'El Token del Servidor ha Expirado'}
-                {tokenHealth.status === 'expiring' && `Alerta: Expira en ${tokenHealth.hoursRemaining} horas`}
-                {tokenHealth.status === 'active' && `Token Válido por ${tokenHealth.daysRemaining} días`}
-              </h3>
-
-              <p className="text-xs text-neutral-300 mt-1 max-w-xl">
-                {tokenHealth.status === 'expired' && (
-                  <span className="text-red-300 font-medium">
-                    El token actual ha caducado. Haz clic en "Renovar Token" para reactivar las transmisiones en vivo.
-                  </span>
-                )}
-                {tokenHealth.status === 'expiring' && (
-                  <span className="text-amber-300 font-medium">
-                    Faltan menos de 24 horas para que el token caduque. Renuévalo ahora con 1 clic para mantener la continuidad.
-                  </span>
-                )}
-                {tokenHealth.status === 'active' && (
-                  <span className="text-neutral-400">
-                    Vigencia hasta: <strong className="text-emerald-400">{tokenHealth.expireDateStr}</strong>.
-                    {tokenHealth.hasCredentials
-                      ? ' Auto-Refresh 24/7 activo: Se renueva solo cada 5 días sin intervención.'
-                      : ' Configura AppKey y AppSecret para que se renueve automáticamente.'}
-                  </span>
-                )}
-              </p>
-            </div>
-          </div>
-
-          {/* Botones de Acción Inmediata */}
-          <div className="flex flex-wrap items-center gap-2.5 w-full lg:w-auto shrink-0">
-            <button
-              type="button"
-              disabled={isRefreshingToken}
-              onClick={handle1ClickRenew}
-              className={`flex-1 sm:flex-none px-4 py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition active:scale-95 shadow-md cursor-pointer ${
-                tokenHealth.status === 'expired'
-                  ? 'bg-red-600 hover:bg-red-500 text-white shadow-red-600/40'
-                  : tokenHealth.status === 'expiring'
-                  ? 'bg-amber-500 hover:bg-amber-400 text-neutral-950 shadow-amber-500/40 font-black'
-                  : 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-600/30'
-              }`}
-            >
-              <RefreshCw className={`w-3.5 h-3.5 ${isRefreshingToken ? 'animate-spin' : ''}`} />
-              <span>{isRefreshingToken ? 'Renovando…' : '⚡ Renovar Token en 1 Clic'}</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setIsTokenRenewalModalOpen(true)}
-              className="px-3.5 py-2.5 bg-neutral-950 hover:bg-neutral-800 border border-neutral-700 text-neutral-200 rounded-xl text-xs font-semibold flex items-center gap-2 transition cursor-pointer"
-            >
-              <Key className="w-3.5 h-3.5 text-sky-400" />
-              <span>Pegar / Actualizar Token</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setShowConfigModal(!showConfigModal)}
-              className="px-3.5 py-2.5 bg-neutral-950 hover:bg-neutral-800 border border-neutral-700 text-neutral-200 rounded-xl text-xs font-semibold flex items-center gap-2 transition cursor-pointer"
-            >
-              <SlidersHorizontal className="w-3.5 h-3.5 text-sky-400" />
-              <span>Configurar Credenciales</span>
-              {showConfigModal ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-            </button>
-
-            <button
-              type="button"
-              disabled={isVerifyingToken}
-              onClick={handleVerifyTokenLive}
-              className="px-3 py-2.5 bg-neutral-950 hover:bg-neutral-850 border border-neutral-800 text-neutral-400 hover:text-white rounded-xl text-xs font-medium flex items-center gap-1.5 transition cursor-pointer"
-              title="Probar token en vivo contra la API de autorización"
-            >
-              <Activity className={`w-3 h-3 text-sky-400 ${isVerifyingToken ? 'animate-spin' : ''}`} />
-              <span className="hidden sm:inline">Probar en Vivo</span>
-            </button>
+          <div>
+            <h1 className="text-lg font-bold text-white tracking-tight">Servidor de Video</h1>
+            <p className="text-xs text-neutral-400 mt-0.5 max-w-2xl leading-relaxed">
+              Configuración del dominio público para video continuo, enlace de la plataforma y
+              diagnóstico del sistema en tiempo real.
+            </p>
           </div>
         </div>
 
-        {/* Mensaje de respuesta del test de verificación */}
-        {verifyMessage && (
-          <div
-            className={`mt-4 p-3 rounded-xl border text-xs flex items-center gap-2 ${
-              verifyMessage.type === 'success'
-                ? 'bg-emerald-950/60 border-emerald-500/50 text-emerald-300'
-                : 'bg-red-950/60 border-red-500/50 text-red-300'
-            }`}
-          >
-            {verifyMessage.type === 'success' ? (
-              <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-400" />
-            ) : (
-              <AlertTriangle className="w-4 h-4 shrink-0 text-red-400" />
-            )}
-            <span>{verifyMessage.text}</span>
-          </div>
-        )}
-
-        {/* Panel Desplegable de Configuración de Credenciales */}
-        {showConfigModal && (
-          <div className="mt-5 pt-5 border-t border-neutral-800 animate-in fade-in duration-200">
-            <div className="flex items-center gap-2 mb-3">
-              <button
-                type="button"
-                onClick={() => setActiveConfigTab('auto')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
-                  activeConfigTab === 'auto'
-                    ? 'bg-sky-600 text-white'
-                    : 'bg-neutral-950 text-neutral-400 hover:text-white'
-                }`}
-              >
-                Opción A: Auto-Renovación 24/7 (AppKey + AppSecret)
-              </button>
-              <button
-                type="button"
-                onClick={() => setActiveConfigTab('manual')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
-                  activeConfigTab === 'manual'
-                    ? 'bg-sky-600 text-white'
-                    : 'bg-neutral-950 text-neutral-400 hover:text-white'
-                }`}
-              >
-                Opción B: Pegar Token Manualmente
-              </button>
-            </div>
-
-            {activeConfigTab === 'auto' ? (
-              <form onSubmit={handleSaveCredentials} className="bg-neutral-950 border border-neutral-800 rounded-xl p-4 space-y-3">
-                <div className="text-xs text-neutral-300">
-                  <p className="font-semibold text-white">
-                    Configuración de Auto-Refresh 24/7
-                  </p>
-                  <p className="text-[11px] text-neutral-400 mt-0.5">
-                    Con estas dos claves, el sistema renueva el token automáticamente cada 5 días sin intervención manual.
-                  </p>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-[11px] font-bold text-neutral-400 uppercase tracking-wider mb-1">
-                      AppKey
-                    </label>
-                    <input
-                      type="text"
-                      value={inputAppKey}
-                      onChange={(e) => setInputAppKey(e.target.value)}
-                      placeholder="Ej: 3b1234567890abcdef..."
-                      className="w-full px-3 py-2 bg-neutral-900 border border-neutral-800 rounded-lg text-white font-mono text-xs focus:outline-hidden focus:border-sky-500"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[11px] font-bold text-neutral-400 uppercase tracking-wider mb-1">
-                      AppSecret
-                    </label>
-                    <input
-                      type="password"
-                      value={inputAppSecret}
-                      onChange={(e) => setInputAppSecret(e.target.value)}
-                      placeholder="••••••••••••••••••••••••••••"
-                      className="w-full px-3 py-2 bg-neutral-900 border border-neutral-800 rounded-lg text-white font-mono text-xs focus:outline-hidden focus:border-sky-500"
-                    />
-                  </div>
-                </div>
-
-                <div className="flex items-center justify-between pt-2">
-                  <span className="text-[11px] text-neutral-500">
-                    {tokenHealth.hasCredentials ? '🟢 Credenciales actualmente configuradas' : '⚪ Sin credenciales guardadas'}
-                  </span>
-                  <button
-                    type="submit"
-                    disabled={isRefreshingToken || !inputAppKey || !inputAppSecret}
-                    className="px-4 py-2 bg-sky-600 hover:bg-sky-500 disabled:opacity-50 text-white rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer"
-                  >
-                    <Sparkles className="w-3.5 h-3.5 text-amber-300" />
-                    <span>Guardar y Activar Auto-Refresh</span>
-                  </button>
-                </div>
-              </form>
-            ) : (
-              <form onSubmit={handleSaveManualToken} className="bg-neutral-950 border border-neutral-800 rounded-xl p-4 space-y-3">
-                <div className="text-xs text-neutral-300">
-                  <p className="font-semibold text-white">Actualización Directa de AccessToken</p>
-                  <p className="text-[11px] text-neutral-400 mt-0.5">
-                    Pega el token aquí para aplicarlo de inmediato al servidor.
-                  </p>
-                </div>
-
-                <div>
-                  <label className="block text-[11px] font-bold text-neutral-400 uppercase tracking-wider mb-1">
-                    AccessToken
-                  </label>
-                  <textarea
-                    rows={2}
-                    value={inputManualToken}
-                    onChange={(e) => setInputManualToken(e.target.value)}
-                    placeholder="at.xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx-xxxxxxxxxx-xxxxxxx-xxxxxxxxxx"
-                    className="w-full px-3 py-2 bg-neutral-900 border border-neutral-800 rounded-lg text-white font-mono text-xs focus:outline-hidden focus:border-sky-500"
-                  />
-                </div>
-
-                <div className="flex items-center justify-end pt-1">
-                  <button
-                    type="submit"
-                    disabled={!inputManualToken.trim()}
-                    className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer"
-                  >
-                    <CheckCircle2 className="w-3.5 h-3.5" />
-                    <span>Guardar Token (7 Días)</span>
-                  </button>
-                </div>
-              </form>
-            )}
-          </div>
-        )}
+        <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-neutral-950 border border-neutral-800 text-xs font-medium text-neutral-300 shrink-0">
+          <Radio className={`w-3.5 h-3.5 ${onlineCount > 0 ? 'text-emerald-400' : 'text-neutral-500'}`} />
+          <span>
+            {onlineCount}/{cameras.length} cámaras en línea
+          </span>
+        </div>
       </div>
 
-      <EzvizTokenRenewalModal
-        isOpen={isTokenRenewalModalOpen}
-        onClose={() => setIsTokenRenewalModalOpen(false)}
-        onSuccess={(msg) => triggerToast(msg)}
+      <StreamGatewayCard
+        gateway={activeGateway}
+        cameras={cameras}
+        onSave={handleSave}
+        onShowToast={onShowToast}
       />
+
+      <SystemDiagnosticsCard />
     </div>
   );
 };

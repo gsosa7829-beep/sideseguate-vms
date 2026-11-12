@@ -3,7 +3,6 @@ import { cloudP2pClient } from '../lib/cloudP2pClient';
 import { currentTenantId, ownerIdForTenant } from '../lib/tenant';
 import { loadGateway, isPublicGateway, isLocalGateway } from '../lib/streamGateway';
 import { deviceLabel } from '../lib/deviceRegistry';
-import { getTokenHealth } from '../lib/ezvizAuth';
 import { GOOGLE_CLOUD_PROJECT_ID, FIRESTORE_DATABASE_ID, FIREBASE_API_KEY } from '../lib/firebase';
 import {
   Activity,
@@ -81,24 +80,7 @@ export const SystemDiagnosticsCard: React.FC = () => {
       });
     }
 
-    // 3. Token EZVIZ Cloud (Cámara 4G Ocós - FF9363270)
-    const tokenHealth = getTokenHealth();
-    next.push({
-      id: 'ezviz-token',
-      label: 'Token Nube 4G (Ocós)',
-      status: tokenHealth.status === 'active' ? 'ok' : tokenHealth.status === 'expiring' ? 'warn' : 'fail',
-      detail:
-        tokenHealth.status === 'active'
-          ? `Activo (${tokenHealth.daysRemaining} días restantes)`
-          : tokenHealth.status === 'expiring'
-          ? `Alerta: Expira en ${tokenHealth.hoursRemaining}h`
-          : 'Token vencido (Requiere renovación)',
-      hint: tokenHealth.hasCredentials
-        ? 'Auto-Refresh 24/7 activo: Se renueva cada 5 días sin interrupción.'
-        : 'Configura AppKey y AppSecret en Ajustes > Servidor de video para auto-renovación.',
-    });
-
-    // 4. Concentrador de cámaras / Equipos reportados
+    // 3. Concentrador de cámaras / Equipos reportados
     const devices = cloudP2pClient.getDevices();
     const state = cloudP2pClient.getState();
     if (!state.online) {

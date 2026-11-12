@@ -81,12 +81,6 @@ const ArchitectureTab = lazy(() =>
 import { ClientHandoverCardModal } from './components/ClientHandoverCardModal';
 import { DesktopProgramModal } from './components/DesktopProgramModal';
 import { AdminLoginScreen } from './components/AdminLoginScreen';
-const SystemDiagnosticsCard = lazy(() =>
-  import('./components/SystemDiagnosticsCard').then((m) => ({ default: m.SystemDiagnosticsCard }))
-);
-const StreamGatewayCard = lazy(() =>
-  import('./components/StreamGatewayCard').then((m) => ({ default: m.StreamGatewayCard }))
-);
 import { AdminAccountModal } from './components/AdminAccountModal';
 import { AiCameraSetupAssistant } from './components/AiCameraSetupAssistant';
 import { AdminAccount, adminAuthStorage } from './lib/adminAuth';
@@ -1822,9 +1816,14 @@ function AppShell() {
             </div>
           )}
 
-          {/* VIEW 9: Servidor Windows 24/7 */}
+          {/* VIEW 9: Servidor de video */}
           {activeTab === 'windows_server' && (
-            <ArchitectureTab cameras={cameras} />
+            <ArchitectureTab
+              cameras={cameras}
+              gateway={streamGateway}
+              onSaveGateway={handleSaveStreamGateway}
+              onShowToast={showToast}
+            />
           )}
 
           {/* VIEW 10: Cero Almacenamiento en Nube */}
