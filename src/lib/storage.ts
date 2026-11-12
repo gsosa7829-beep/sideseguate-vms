@@ -4,22 +4,134 @@ import { INITIAL_PROJECTS, INITIAL_CAMERAS, INITIAL_SHARE_LINKS, INITIAL_ACCESS_
 const STORAGE_KEYS = {
   PROJECTS: 'sideseguate_projects_v11_ocos',
   CAMERAS: 'sideseguate_cameras_v11_ocos',
+  DELETED_CAMERAS: 'sideseguate_deleted_cameras_v1',
+  DELETED_PROJECTS: 'sideseguate_deleted_projects_v1',
   SHARE_LINKS: 'sideseguate_share_links_v12_revoked',
   DELETED_SHARE_LINKS: 'sideseguate_deleted_share_links_v1',
   ACCESS_LOGS: 'sideseguate_access_logs_v6',
 };
 
+function readIdSet(storageKey: string): Set<string> {
+  try {
+    const raw = localStorage.getItem(storageKey);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) {
+        return new Set(parsed.filter((v): v is string => typeof v === 'string' && v.length > 0));
+      }
+    }
+  } catch {
+    // fallback
+  }
+  return new Set();
+}
+
+function addIdsToSet(storageKey: string, ids: Array<string | undefined>): void {
+  try {
+    const set = readIdSet(storageKey);
+    ids.forEach((id) => {
+      if (id && id.trim()) set.add(id.trim());
+    });
+    localStorage.setItem(storageKey, JSON.stringify(Array.from(set)));
+  } catch {
+    // fallback
+  }
+}
+
+function removeIdsFromSet(storageKey: string, ids: Array<string | undefined>): void {
+  try {
+    const set = readIdSet(storageKey);
+    ids.forEach((id) => {
+      if (id && id.trim()) set.delete(id.trim());
+    });
+    localStorage.setItem(storageKey, JSON.stringify(Array.from(set)));
+  } catch {
+    // fallback
+  }
+}
+
+export function getCameraCanonicalKey(camera: Partial<Camera>): string {
+  const serial = (camera.deviceSerial || '').trim().toUpperCase();
+  const channel = camera.channel || 1;
+  if (serial) {
+    return `serial:${serial}:ch${channel}`;
+  }
+  const host = (camera.host || '').trim().toLowerCase();
+  if (host && host !== '127.0.0.1' && host !== 'localhost') {
+    return `host:${host}:${camera.port || 554}:ch${channel}`;
+  }
+  return `id:${camera.id || `${camera.name || 'cam'}:ch${channel}`}`;
+}
+
+export function deduplicateCameras(cameras: Camera[]): Camera[] {
+  const byKey = new Map<string, Camera>();
+  const seenIds = new Set<string>();
+
+  for (const cam of cameras) {
+    if (!cam || !cam.id || isLegacyDemoCamera(cam)) continue;
+    if (seenIds.has(cam.id)) continue;
+    seenIds.add(cam.id);
+
+    const key = getCameraCanonicalKey(cam);
+    const existing = byKey.get(key);
+    if (!existing) {
+      byKey.set(key, cam);
+      continue;
+    }
+
+    byKey.set(key, {
+      ...existing,
+      deviceSerial: existing.deviceSerial || cam.deviceSerial,
+      verificationCode: existing.verificationCode || cam.verificationCode,
+      rtspUrl: existing.rtspUrl || cam.rtspUrl,
+      hlsStreamUrl: existing.hlsStreamUrl || cam.hlsStreamUrl,
+      locationDesc: existing.locationDesc || cam.locationDesc,
+      notes: existing.notes || cam.notes,
+      bitrateKbps: existing.bitrateKbps || cam.bitrateKbps,
+    });
+  }
+
+  return Array.from(byKey.values());
+}
+
 export const storage = {
+  getDeletedProjectIds(): Set<string> {
+    return readIdSet(STORAGE_KEYS.DELETED_PROJECTS);
+  },
+
+  markProjectDeleted(id?: string): void {
+    addIdsToSet(STORAGE_KEYS.DELETED_PROJECTS, [id]);
+  },
+
+  unmarkProjectDeleted(id?: string): void {
+    removeIdsFromSet(STORAGE_KEYS.DELETED_PROJECTS, [id]);
+  },
+
+  getDeletedCameraIds(): Set<string> {
+    return readIdSet(STORAGE_KEYS.DELETED_CAMERAS);
+  },
+
+  markCameraDeleted(id?: string): void {
+    addIdsToSet(STORAGE_KEYS.DELETED_CAMERAS, [id]);
+  },
+
+  unmarkCameraDeleted(id?: string): void {
+    removeIdsFromSet(STORAGE_KEYS.DELETED_CAMERAS, [id]);
+  },
+
   getProjects(): Project[] {
+    const deleted = this.getDeletedProjectIds();
     try {
       const data = localStorage.getItem(STORAGE_KEYS.PROJECTS);
       if (data) {
         const parsed = JSON.parse(data);
         const map = new Map<string, Project>();
-        INITIAL_PROJECTS.forEach((p) => map.set(p.id, p));
+        INITIAL_PROJECTS.forEach((p) => {
+          if (!deleted.has(p.id)) map.set(p.id, p);
+        });
         if (Array.isArray(parsed)) {
           parsed.forEach((p: any) => {
-            if (p && p.id) {
+            if (p && p.id && !deleted.has(p.id)) {
               const base = map.get(p.id);
               map.set(p.id, base ? { ...base, ...p } : p);
             }
@@ -30,7 +142,7 @@ export const storage = {
     } catch {
       // fallback
     }
-    return INITIAL_PROJECTS;
+    return INITIAL_PROJECTS.filter((p) => !deleted.has(p.id));
   },
 
   saveProjects(projects: Project[]): void {
@@ -42,89 +154,75 @@ export const storage = {
   },
 
   getCameras(): Camera[] {
+    const deleted = this.getDeletedCameraIds();
+    const initialById = new Map<string, Camera>();
+    INITIAL_CAMERAS.forEach((c) => initialById.set(c.id, c));
+
     try {
       const data = localStorage.getItem(STORAGE_KEYS.CAMERAS);
-      if (data) {
+      if (data !== null) {
         const parsed = JSON.parse(data);
-        const map = new Map<string, Camera>();
-        INITIAL_CAMERAS.forEach((c) => map.set(c.id, c));
+        const list: Camera[] = [];
+        const seenSavedIds = new Set<string>();
+
         if (Array.isArray(parsed)) {
           parsed.forEach((c: any) => {
-            if (c && c.id) {
-              const base = map.get(c.id);
-              map.set(c.id, base ? { ...base, ...c } : c);
-            }
+            if (!c || !c.id || deleted.has(c.id) || isLegacyDemoCamera(c)) return;
+            const base = initialById.get(c.id);
+            seenSavedIds.add(c.id);
+            list.push(base ? { ...base, ...c } : c);
           });
         }
-        const filtered = Array.from(map.values())
-          .filter((c: any) => !isLegacyDemoCamera(c))
-          .map((c: any) => {
-            if (c.id === 'cam-ocos-ch1' || c.deviceSerial === 'FF9363270') {
-              return {
-                ...c,
-                username: '5nctiv',
-                verificationCode: 'LBNZYU',
-                streamType: 'sub',
-                codec: 'H.265',
-                fps: 15,
-                bitrateKbps: 512,
-                resolution: '768x432 (Sub-Stream SD 512k)',
-                locationDesc: 'Canal 1 HiLookVision (5nctiv) · PROYECTO OCOS 4G (FF9363270)',
-              };
-            }
-            return c;
-          });
-        if (filtered.length > 0) return filtered;
+
+        INITIAL_CAMERAS.forEach((c) => {
+          if (!deleted.has(c.id) && !seenSavedIds.has(c.id)) {
+            list.push(c);
+          }
+        });
+
+        const normalized = list.map((c) => {
+          if (c.id === 'cam-ocos-ch1' || c.deviceSerial === 'FF9363270') {
+            return {
+              ...c,
+              username: c.username || '5nctiv',
+              verificationCode: c.verificationCode || 'LBNZYU',
+              streamType: 'sub' as const,
+              codec: 'H.265' as const,
+              fps: c.fps || 15,
+              bitrateKbps: c.bitrateKbps || 512,
+              resolution: c.resolution || '768x432 (Sub-Stream SD 512k)',
+              locationDesc: c.locationDesc || 'Canal 1 HiLookVision (5nctiv) · PROYECTO OCOS 4G (FF9363270)',
+            };
+          }
+          return c;
+        });
+
+        return deduplicateCameras(normalized);
       }
     } catch {
       // fallback
     }
-    return INITIAL_CAMERAS;
+    return deduplicateCameras(INITIAL_CAMERAS.filter((c) => !deleted.has(c.id)));
   },
 
   saveCameras(cameras: Camera[]): void {
     try {
-      localStorage.setItem(STORAGE_KEYS.CAMERAS, JSON.stringify(cameras));
+      localStorage.setItem(STORAGE_KEYS.CAMERAS, JSON.stringify(deduplicateCameras(cameras)));
     } catch {
       // fallback
     }
   },
 
   getDeletedShareTokens(): Set<string> {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEYS.DELETED_SHARE_LINKS);
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        if (Array.isArray(parsed)) {
-          return new Set(parsed.filter((v): v is string => typeof v === 'string' && v.length > 0));
-        }
-      }
-    } catch {
-      // fallback
-    }
-    return new Set();
+    return readIdSet(STORAGE_KEYS.DELETED_SHARE_LINKS);
   },
 
   markShareLinkDeleted(token?: string, id?: string): void {
-    try {
-      const set = this.getDeletedShareTokens();
-      if (token) set.add(token);
-      if (id) set.add(id);
-      localStorage.setItem(STORAGE_KEYS.DELETED_SHARE_LINKS, JSON.stringify(Array.from(set)));
-    } catch {
-      // fallback
-    }
+    addIdsToSet(STORAGE_KEYS.DELETED_SHARE_LINKS, [token, id]);
   },
 
   unmarkShareLinkDeleted(token?: string, id?: string): void {
-    try {
-      const set = this.getDeletedShareTokens();
-      if (token) set.delete(token);
-      if (id) set.delete(id);
-      localStorage.setItem(STORAGE_KEYS.DELETED_SHARE_LINKS, JSON.stringify(Array.from(set)));
-    } catch {
-      // fallback
-    }
+    removeIdsFromSet(STORAGE_KEYS.DELETED_SHARE_LINKS, [token, id]);
   },
 
   getShareLinks(): ShareLink[] {

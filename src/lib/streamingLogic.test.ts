@@ -1548,3 +1548,152 @@ test('asistente guiado valida e interpreta los 3 modos (Local, Lejos 4G e Híbri
   assert.equal(naturalRemote.channelsCount, 1);
   assert.equal(naturalRemote.codec, 'H.265');
 });
+
+test('deduplicateCameras elimina clones por serie/canal y conserva canales distintos', async () => {
+  const { deduplicateCameras } = await import('./storage.ts');
+
+  const baseCam = {
+    id: 'cam-new-1',
+    projectId: 'proj-ocos',
+    name: 'Entrada Finca',
+    deviceType: 'hikvision_ip' as const,
+    host: 'open.ezviz.com',
+    port: 554,
+    username: 'admin',
+    channel: 1,
+    streamType: 'sub' as const,
+    rtspUrl: '',
+    status: 'online' as const,
+    fps: 15,
+    resolution: '768x432 (Sub-Stream SD 512k)',
+    bitrateKbps: 512,
+    codec: 'H.265' as const,
+    locationDesc: 'Finca',
+    ptzSupported: false,
+    nightVision: true,
+    deviceSerial: 'FF9363192',
+    verificationCode: '',
+  };
+
+  const duplicateWithCode = {
+    ...baseCam,
+    id: 'cam-old-clone',
+    name: 'Duplicada',
+    verificationCode: 'WZRIKO',
+  };
+
+  const secondChannel = {
+    ...baseCam,
+    id: 'cam-ch2',
+    name: 'Portón Sur',
+    channel: 2,
+  };
+
+  const result = deduplicateCameras([baseCam, duplicateWithCode, secondChannel]);
+  assert.equal(result.length, 2, 'debe colapsar duplicados de mismo serial+canal y mantener CH2');
+  assert.equal(result[0].id, 'cam-new-1');
+  assert.equal(result[0].verificationCode, 'WZRIKO', 'debe rescatar código faltante del duplicado');
+  assert.equal(result[1].channel, 2);
+});
+
+test('ocos4gMonitor identifica cualquier cámara 4G y contabiliza datos por cámara y proyecto', async () => {
+  const {
+    isCamera4gDevice,
+    recordCamera4gStreamSecond,
+    setCamera4gStreamingStatus,
+    getOcos4gState,
+    getCamera4gSessionBytes,
+    getProject4gMetrics,
+    resetOcosDataUsage,
+  } = await import('./ocos4gMonitor.ts');
+
+  assert.equal(isCamera4gDevice({ id: 'cam-1', deviceSerial: 'FF9363192' }), true);
+  assert.equal(isCamera4gDevice({ id: 'cam-2', deviceSerial: 'FF9363276' }), true);
+  assert.equal(isCamera4gDevice({ id: 'cam-3', name: 'Portón 4G Solar' }), true);
+  assert.equal(isCamera4gDevice({ id: 'cam-hilook-ch1', deviceSerial: 'F31700438' }), false);
+
+  resetOcosDataUsage();
+  setCamera4gStreamingStatus('cam-4g-a', true, 512);
+  recordCamera4gStreamSecond('cam-4g-a', 512);
+  recordCamera4gStreamSecond('cam-4g-a', 512);
+  recordCamera4gStreamSecond('cam-4g-b', 256);
+
+  const state = getOcos4gState();
+  const bytesA = getCamera4gSessionBytes(state, 'cam-4g-a');
+  const bytesB = getCamera4gSessionBytes(state, 'cam-4g-b');
+  assert.equal(bytesA, 2 * 64_000);
+  assert.equal(bytesB, 32_000);
+
+  const projMetrics = getProject4gMetrics(state, [
+    { id: 'cam-4g-a', deviceSerial: 'FF9363192' },
+    { id: 'cam-4g-b', deviceSerial: 'FF9363276' },
+  ]);
+  assert.equal(projMetrics.sessionBytes, bytesA + bytesB);
+  assert.equal(projMetrics.isStreaming, true);
+
+  resetOcosDataUsage(['cam-4g-a']);
+  const afterScopedReset = getOcos4gState();
+  assert.equal(getCamera4gSessionBytes(afterScopedReset, 'cam-4g-a'), 0);
+  assert.equal(getCamera4gSessionBytes(afterScopedReset, 'cam-4g-b'), 32_000);
+
+  setCamera4gStreamingStatus('cam-4g-a', false, 0);
+  resetOcosDataUsage();
+});
+
+test('buildCamerasFromWizard respeta proyecto seleccionado y aplica ahorro 4G automático', async () => {
+  const { buildIntentFromGuidedForm, buildCamerasFromWizard } = await import('./aiCameraWizard.ts');
+
+  const projects = [
+    {
+      id: 'proj-finca-sur',
+      name: 'FINCA SUR',
+      clientName: 'Finca Sur',
+      clientPhone: '',
+      location: 'San Marcos',
+      status: 'activo' as const,
+      equipmentNotes: '',
+      createdAt: '2026-11-11T00:00:00Z',
+    },
+  ];
+
+  const intent = buildIntentFromGuidedForm({
+    mode: 'remote',
+    brand: 'hikvision_ip',
+    selectedProjectId: 'proj-finca-sur',
+    cameraName: 'Portón Bodega',
+    host: '',
+    username: 'admin',
+    password: '',
+    deviceSerial: 'FF9363276',
+    verificationCode: 'PZHQVT',
+    channelsCount: 1,
+  });
+
+  const built = buildCamerasFromWizard(
+    intent,
+    [
+      {
+        channel: 1,
+        channelCodeMain: '101',
+        channelCodeSub: '102',
+        rtspUrlMain: 'rtsp://open.ezviz.com:554/h265/ch1/main/av_stream',
+        rtspUrlSub: 'rtsp://open.ezviz.com:554/h265/ch1/sub/av_stream',
+        active: true,
+        statusText: 'En línea',
+        resolution: '768x432 (Sub-Stream SD 512k)',
+        codec: 'H.265',
+        fps: 15,
+        bitrateKbps: 512,
+        is4gHardware: true,
+      },
+    ],
+    projects,
+    'proj-finca-sur'
+  );
+
+  assert.equal(built.length, 1);
+  assert.equal(built[0].projectId, 'proj-finca-sur');
+  assert.equal(built[0].streamType, 'sub');
+  assert.equal(built[0].codec, 'H.265');
+  assert.ok(built[0].notes?.includes('4G LTE'));
+});

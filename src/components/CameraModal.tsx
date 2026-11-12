@@ -21,6 +21,7 @@ interface CameraModalProps {
   onSave: (camera: Camera) => void;
   projects: Project[];
   initialCamera?: Camera | null;
+  defaultProjectId?: string | null;
 }
 
 export const CameraModal: React.FC<CameraModalProps> = ({
@@ -28,10 +29,11 @@ export const CameraModal: React.FC<CameraModalProps> = ({
   onClose,
   onSave,
   projects,
-  initialCamera
+  initialCamera,
+  defaultProjectId,
 }) => {
   const [projectId, setProjectId] = useState(
-    initialCamera?.projectId || projects[0]?.id || ''
+    initialCamera?.projectId || defaultProjectId || projects[0]?.id || ''
   );
   const [deviceType, setDeviceType] = useState<DeviceType>(
     initialCamera?.deviceType || 'hikvision_dvr'
@@ -89,7 +91,7 @@ export const CameraModal: React.FC<CameraModalProps> = ({
           ? 'hikvision'
           : 'generic';
 
-      setProjectId(initialCamera?.projectId || projects[0]?.id || '');
+      setProjectId(initialCamera?.projectId || defaultProjectId || projects[0]?.id || '');
       setDeviceType(initType);
       setName(initialCamera?.name || '');
       setHost(initHost);
@@ -116,7 +118,7 @@ export const CameraModal: React.FC<CameraModalProps> = ({
       setTestStatus('idle');
       setTestMessage(null);
     }
-  }, [isOpen, initialCamera, projects]);
+  }, [isOpen, initialCamera, defaultProjectId, projects]);
 
   // Auto-generate RTSP URL if not manual
   useEffect(() => {

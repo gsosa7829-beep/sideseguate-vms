@@ -933,6 +933,29 @@ export async function probeAndDiscoverChannels(
     }
 
     const isSubOr4g = intent.streamType === 'sub' || is4gHardware;
+    let detectedBitrateKbps = isSubOr4g ? 512 : 1760;
+
+    if (host && host !== 'open.ezviz.com' && !is4gHardware && presetBrand === 'hikvision') {
+      try {
+        const isapiRes = await fetch(`/api/hikvision/ISAPI/Streaming/channels/${channelCodeSub}`, {
+          signal: AbortSignal.timeout(1500),
+        });
+        if (isapiRes.ok) {
+          const contentType = isapiRes.headers.get('content-type') || '';
+          if (contentType.includes('xml') || contentType.includes('text/plain')) {
+            const xmlText = await isapiRes.text();
+            const match = xmlText.match(/<constantBitRate>(\d+)<\/constantBitRate>/i);
+            const parsedKbps = match ? Number(match[1]) : 0;
+            if (parsedKbps >= 64 && parsedKbps <= 2048) {
+              detectedBitrateKbps = parsedKbps;
+            }
+          }
+        }
+      } catch {
+        // Usar bitrate optimizado por defecto si ISAPI local no responde
+      }
+    }
+
     results.push({
       channel: ch,
       channelCodeMain,
@@ -941,10 +964,10 @@ export async function probeAndDiscoverChannels(
       rtspUrlSub,
       active,
       statusText,
-      resolution: isSubOr4g ? '768x432 (Sub-Stream SD 512k)' : '1920x1080 (1080p FHD)',
-      codec: intent.codec,
+      resolution: isSubOr4g ? `768x432 (Sub-Stream SD ${detectedBitrateKbps}k)` : '1920x1080 (1080p FHD)',
+      codec: is4gHardware ? 'H.265' : intent.codec,
       fps: is4gHardware ? 15 : 25,
-      bitrateKbps: isSubOr4g ? 512 : 1760,
+      bitrateKbps: detectedBitrateKbps,
       detectedDeviceName,
       detectedModel,
       is4gHardware,
@@ -979,8 +1002,17 @@ export function buildCamerasFromWizard(
     /^DVR\s+(Hikvision|HiLook)/i.test(intent.cameraNamePrefix);
   const displayPrefix = isGenericPrefix && cloudName ? cloudName : intent.cameraNamePrefix;
 
-  let projectId = selectedProjectId || '';
+  let projectId = (selectedProjectId || '').trim();
   const projectMatchText = `${displayPrefix} ${intent.projectHint || ''} ${cloudName || ''}`;
+  if (!projectId && intent.projectHint) {
+    const cleanHint = intent.projectHint.trim().toLowerCase();
+    const matchedProj = projects.find(
+      (p) => p.id.toLowerCase() === cleanHint || p.name.toLowerCase() === cleanHint
+    );
+    if (matchedProj) {
+      projectId = matchedProj.id;
+    }
+  }
   if (!projectId) {
     if (intent.deviceSerial === 'F31700438' || /cementerio/i.test(projectMatchText)) {
       const cemProj = projects.find((p) => p.id.includes('cementerio') || /cementerio/i.test(p.name));
@@ -1002,9 +1034,17 @@ export function buildCamerasFromWizard(
     const baseName = isTotalOne
       ? `${displayPrefix} (CH${chInfo.channel})`
       : `Cámara ${chInfo.channel} · ${displayPrefix} (CH${chInfo.channel})`;
+    const is4gCamera = Boolean(
+      chInfo.is4gHardware ||
+      /^FF9/i.test(intent.deviceSerial || '') ||
+      /4g/i.test(`${baseName} ${intent.brandLabel} ${chInfo.detectedModel || ''}`)
+    );
     const modelTag = chInfo.detectedModel ? ` · ${chInfo.detectedModel}` : '';
-    const is4gTag = chInfo.is4gHardware ? ' | 4G LTE' : '';
+    const is4gTag = is4gCamera ? ' | 4G LTE | Ahorro Inteligente 4G' : '';
     const encryptTag = chInfo.isEncrypted ? ' | Cifrado EZopen' : '';
+    const effectiveStreamType = is4gCamera ? 'sub' : intent.streamType;
+    const effectiveCodec = is4gCamera ? 'H.265' : chInfo.codec;
+    const effectiveBitrate = is4gCamera ? (chInfo.bitrateKbps || 512) : chInfo.bitrateKbps;
 
     return {
       id: `cam-ai-${now}-ch${chInfo.channel}`,
@@ -1019,17 +1059,17 @@ export function buildCamerasFromWizard(
       verificationCode: intent.verificationCode || undefined,
       deviceSerial: intent.deviceSerial,
       channel: chInfo.channel,
-      streamType: intent.streamType,
-      rtspUrl: intent.streamType === 'main' ? chInfo.rtspUrlMain : chInfo.rtspUrlSub,
+      streamType: effectiveStreamType,
+      rtspUrl: effectiveStreamType === 'main' ? chInfo.rtspUrlMain : chInfo.rtspUrlSub,
       hlsStreamUrl: '',
       webrtcUrl: '',
       status: 'online',
-      fps: chInfo.fps,
-      resolution: chInfo.resolution,
-      bitrateKbps: chInfo.bitrateKbps,
-      codec: chInfo.codec,
+      fps: is4gCamera ? 15 : chInfo.fps,
+      resolution: is4gCamera ? `768x432 (Sub-Stream SD ${effectiveBitrate}k)` : chInfo.resolution,
+      bitrateKbps: effectiveBitrate,
+      codec: effectiveCodec,
       locationDesc:
-        chInfo.is4gHardware && intent.deviceSerial
+        is4gCamera && intent.deviceSerial
           ? `Cámara 4G P2P (${intent.deviceSerial})${modelTag} · Canal ${chInfo.channel}`
           : `${intent.brandLabel} (${host}:${intent.port}) · Canal ${chInfo.channelCodeMain}`,
       ptzSupported: false,
@@ -1044,6 +1084,7 @@ export type GuidedConnectionMode = 'local' | 'remote' | 'hybrid';
 export interface GuidedCameraSetupInput {
   mode: GuidedConnectionMode;
   brand: ParsedCameraSetupIntent['brand'];
+  selectedProjectId?: string;
   cameraName: string;
   host: string;
   port?: number;
@@ -1146,7 +1187,7 @@ export function buildIntentFromGuidedForm(
     streamType,
     codec,
     cameraNamePrefix: cleanName || (is4gSerial ? 'Cámara 4G Hikvision' : brandMeta.brandLabel),
-    projectHint: cleanName || undefined,
+    projectHint: input.selectedProjectId?.trim() || cleanName || undefined,
     isComplete: true,
     missingFields: [],
   };

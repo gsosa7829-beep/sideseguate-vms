@@ -1,7 +1,9 @@
 // ============================================================================
 // MONITOR DE CONSUMO DE DATOS MÓVILES (MB/GB) Y TIEMPO DE REPOSO INTELIGENTE
-// Proyecto Ocós · Cámara 4G LTE (FF9363270)
+// Soporta múltiples cámaras 4G LTE (Ocós y futuras cámaras celulares)
 // ============================================================================
+
+import type { Camera } from './types';
 
 export type EcoSleepOption = 60 | 180 | 300 | 0;
 
@@ -39,25 +41,59 @@ export const ECO_SLEEP_OPTIONS: EcoSleepOptionMeta[] = [
   },
 ];
 
+export interface Camera4gMetrics {
+  isStreaming: boolean;
+  currentRateKBs: number;
+  sessionBytes: number;
+  accumulatedBytes: number;
+}
+
 export interface Ocos4gTelemetryState {
   /** Segundos configurados para el auto-reposo (60, 180, 300, o 0 para Continuo) */
   ecoSleepSec: EcoSleepOption;
   /** Segundos restantes antes de entrar en reposo (0 si está en modo Continuo) */
   remainingSec: number;
-  /** Indica si la cámara 4G está transmitiendo paquetes de video activamente */
+  /** Indica si alguna cámara 4G está transmitiendo paquetes de video activamente */
   isStreaming: boolean;
-  /** Tasa de transferencia actual en KB/s (0 en reposo, ~32 KB/s en Sub-Stream H.265) */
+  /** Tasa de transferencia total actual en KB/s */
   currentRateKBs: number;
-  /** Bytes consumidos en la sesión actual desde que se abrió la plataforma */
+  /** Bytes totales consumidos en la sesión actual */
   sessionBytes: number;
-  /** Bytes acumulados guardados en el navegador desde el último reinicio manual */
+  /** Bytes acumulados totales guardados en el navegador */
   accumulatedBytes: number;
+  /** Desglose por cada cámara 4G (key = camera.id) */
+  perCamera: Record<string, Camera4gMetrics>;
   /** Fecha ISO del último reinicio del contador acumulado */
   lastResetAt: string;
 }
 
 const STORAGE_KEY_USAGE = 'sideseguate_ocos_4g_usage_v1';
 const STORAGE_KEY_SLEEP = 'sideseguate_ocos_4g_sleep_sec_v1';
+
+/**
+ * Fuente única de verdad para identificar cualquier cámara celular 4G
+ * (por serie FF9*, etiqueta 4G, proyecto Ocós o modelo celular).
+ */
+export function isCamera4gDevice(camera: Partial<Camera> | null | undefined): boolean {
+  if (!camera) return false;
+  const serial = String(camera.deviceSerial || '').toUpperCase();
+  const id = String(camera.id || '').toLowerCase();
+  const name = String(camera.name || '').toLowerCase();
+  const notes = String(camera.notes || '').toLowerCase();
+  const locationDesc = String(camera.locationDesc || '').toLowerCase();
+
+  return Boolean(
+    serial === 'FF9363270' ||
+      serial === 'FF9363192' ||
+      serial === 'FF9363276' ||
+      serial.startsWith('FF9') ||
+      id.includes('ocos') ||
+      notes.includes('4g') ||
+      notes.includes('ff9363270') ||
+      name.includes('4g') ||
+      locationDesc.includes('4g')
+  );
+}
 
 function normalizeEcoSleepOption(raw: unknown): EcoSleepOption {
   const num = Number(raw);
@@ -71,6 +107,7 @@ function loadInitialState(): Ocos4gTelemetryState {
   let ecoSleepSec: EcoSleepOption = 60;
   let accumulatedBytes = 0;
   let lastResetAt = new Date().toISOString();
+  const perCamera: Record<string, Camera4gMetrics> = {};
 
   if (typeof window !== 'undefined' && window.localStorage) {
     try {
@@ -87,6 +124,19 @@ function loadInitialState(): Ocos4gTelemetryState {
         if (typeof parsed.lastResetAt === 'string') {
           lastResetAt = parsed.lastResetAt;
         }
+        if (parsed.perCamera && typeof parsed.perCamera === 'object') {
+          Object.entries(parsed.perCamera).forEach(([camId, rawMetrics]) => {
+            const m = rawMetrics as Partial<Camera4gMetrics>;
+            if (typeof m?.accumulatedBytes === 'number') {
+              perCamera[camId] = {
+                isStreaming: false,
+                currentRateKBs: 0,
+                sessionBytes: 0,
+                accumulatedBytes: Math.max(0, m.accumulatedBytes),
+              };
+            }
+          });
+        }
       }
     } catch {
       // Ignorar errores de acceso a localStorage en modo privado
@@ -100,6 +150,7 @@ function loadInitialState(): Ocos4gTelemetryState {
     currentRateKBs: 0,
     sessionBytes: 0,
     accumulatedBytes,
+    perCamera,
     lastResetAt,
   };
 }
@@ -111,11 +162,16 @@ function persistState() {
   if (typeof window === 'undefined' || !window.localStorage) return;
   try {
     window.localStorage.setItem(STORAGE_KEY_SLEEP, JSON.stringify(state.ecoSleepSec));
+    const perCameraSaved: Record<string, { accumulatedBytes: number }> = {};
+    Object.entries(state.perCamera).forEach(([k, v]) => {
+      perCameraSaved[k] = { accumulatedBytes: v.accumulatedBytes };
+    });
     window.localStorage.setItem(
       STORAGE_KEY_USAGE,
       JSON.stringify({
         accumulatedBytes: state.accumulatedBytes,
         lastResetAt: state.lastResetAt,
+        perCamera: perCameraSaved,
       })
     );
   } catch {
@@ -124,17 +180,20 @@ function persistState() {
 }
 
 function emitChange() {
-  const snapshot = { ...state };
+  const snapshot: Ocos4gTelemetryState = {
+    ...state,
+    perCamera: { ...state.perCamera },
+  };
   listeners.forEach((listener) => listener(snapshot));
 }
 
 export function getOcos4gState(): Ocos4gTelemetryState {
-  return { ...state };
+  return { ...state, perCamera: { ...state.perCamera } };
 }
 
 export function subscribeOcos4gState(listener: (snapshot: Ocos4gTelemetryState) => void): () => void {
   listeners.add(listener);
-  listener({ ...state });
+  listener(getOcos4gState());
   return () => {
     listeners.delete(listener);
   };
@@ -161,46 +220,167 @@ export function updateOcosRemainingSec(remainingSec: number): void {
   emitChange();
 }
 
-export function setOcosStreamingStatus(isStreaming: boolean, bitrateKbps = 256): void {
+function recomputeAggregates(perCamera: Record<string, Camera4gMetrics>) {
+  const values = Object.values(perCamera);
+  const anyStreaming = values.some((v) => v.isStreaming);
+  const totalRateKBs = values.reduce((sum, v) => sum + (v.isStreaming ? v.currentRateKBs : 0), 0);
+  return { anyStreaming, totalRateKBs };
+}
+
+export function setCamera4gStreamingStatus(
+  cameraId: string,
+  isStreaming: boolean,
+  bitrateKbps = 512
+): void {
   const currentRateKBs = isStreaming ? Math.max(16, Math.round(bitrateKbps / 8)) : 0;
-  if (state.isStreaming === isStreaming && state.currentRateKBs === currentRateKBs) return;
+  const existing = state.perCamera[cameraId] || {
+    isStreaming: false,
+    currentRateKBs: 0,
+    sessionBytes: 0,
+    accumulatedBytes: 0,
+  };
+  if (existing.isStreaming === isStreaming && existing.currentRateKBs === currentRateKBs) return;
+
+  const nextPerCamera: Record<string, Camera4gMetrics> = {
+    ...state.perCamera,
+    [cameraId]: {
+      ...existing,
+      isStreaming,
+      currentRateKBs,
+    },
+  };
+  const { anyStreaming, totalRateKBs } = recomputeAggregates(nextPerCamera);
+
   state = {
     ...state,
-    isStreaming,
-    currentRateKBs,
+    isStreaming: anyStreaming,
+    currentRateKBs: totalRateKBs,
+    perCamera: nextPerCamera,
   };
   emitChange();
 }
 
-/**
- * Registra 1 segundo de consumo de transmisión 4G activa.
- * Por defecto en H.265 Sub-Stream (~256 kbps) equivale a ~32 KB por segundo (~1.88 MB/min).
- */
-export function recordOcosStreamSecond(bitrateKbps = 256): void {
-  const safeKbps = Math.max(64, Math.min(2048, bitrateKbps || 256));
+export function recordCamera4gStreamSecond(cameraId: string, bitrateKbps = 512): void {
+  const safeKbps = Math.max(64, Math.min(2048, bitrateKbps || 512));
   const bytesPerSec = Math.round((safeKbps * 1000) / 8);
   const currentRateKBs = Math.round(bytesPerSec / 1024);
+
+  const existing = state.perCamera[cameraId] || {
+    isStreaming: false,
+    currentRateKBs: 0,
+    sessionBytes: 0,
+    accumulatedBytes: 0,
+  };
+
+  const nextPerCamera: Record<string, Camera4gMetrics> = {
+    ...state.perCamera,
+    [cameraId]: {
+      isStreaming: true,
+      currentRateKBs,
+      sessionBytes: existing.sessionBytes + bytesPerSec,
+      accumulatedBytes: existing.accumulatedBytes + bytesPerSec,
+    },
+  };
+  const { totalRateKBs } = recomputeAggregates(nextPerCamera);
 
   state = {
     ...state,
     isStreaming: true,
-    currentRateKBs,
+    currentRateKBs: totalRateKBs,
     sessionBytes: state.sessionBytes + bytesPerSec,
     accumulatedBytes: state.accumulatedBytes + bytesPerSec,
+    perCamera: nextPerCamera,
   };
   persistState();
   emitChange();
 }
 
-export function resetOcosDataUsage(): void {
-  state = {
-    ...state,
-    sessionBytes: 0,
-    accumulatedBytes: 0,
-    lastResetAt: new Date().toISOString(),
-  };
+export function setOcosStreamingStatus(isStreaming: boolean, bitrateKbps = 512): void {
+  setCamera4gStreamingStatus('cam-ocos-ch1', isStreaming, bitrateKbps);
+}
+
+/**
+ * Registra 1 segundo de consumo de transmisión 4G activa.
+ */
+export function recordOcosStreamSecond(bitrateKbps = 512): void {
+  recordCamera4gStreamSecond('cam-ocos-ch1', bitrateKbps);
+}
+
+export function resetOcosDataUsage(cameraIds?: string[]): void {
+  if (!cameraIds || cameraIds.length === 0) {
+    state = {
+      ...state,
+      sessionBytes: 0,
+      accumulatedBytes: 0,
+      perCamera: {},
+      lastResetAt: new Date().toISOString(),
+    };
+  } else {
+    const nextPerCamera = { ...state.perCamera };
+    let subtractedSession = 0;
+    let subtractedAccum = 0;
+    cameraIds.forEach((id) => {
+      const m = nextPerCamera[id];
+      if (m) {
+        subtractedSession += m.sessionBytes;
+        subtractedAccum += m.accumulatedBytes;
+        nextPerCamera[id] = { ...m, sessionBytes: 0, accumulatedBytes: 0 };
+      }
+    });
+    state = {
+      ...state,
+      sessionBytes: Math.max(0, state.sessionBytes - subtractedSession),
+      accumulatedBytes: Math.max(0, state.accumulatedBytes - subtractedAccum),
+      perCamera: nextPerCamera,
+      lastResetAt: new Date().toISOString(),
+    };
+  }
   persistState();
   emitChange();
+}
+
+export function getCamera4gSessionBytes(
+  telemetry: Ocos4gTelemetryState,
+  cameraId: string
+): number {
+  return telemetry.perCamera[cameraId]?.sessionBytes || 0;
+}
+
+export function getCamera4gAccumulatedBytes(
+  telemetry: Ocos4gTelemetryState,
+  cameraId: string
+): number {
+  return telemetry.perCamera[cameraId]?.accumulatedBytes || 0;
+}
+
+export function getProject4gMetrics(
+  telemetry: Ocos4gTelemetryState,
+  cameras: Partial<Camera>[]
+): {
+  sessionBytes: number;
+  accumulatedBytes: number;
+  isStreaming: boolean;
+  currentRateKBs: number;
+} {
+  let sessionBytes = 0;
+  let accumulatedBytes = 0;
+  let isStreaming = false;
+  let currentRateKBs = 0;
+
+  cameras.forEach((c) => {
+    if (!c.id) return;
+    const m = telemetry.perCamera[c.id];
+    if (m) {
+      sessionBytes += m.sessionBytes;
+      accumulatedBytes += m.accumulatedBytes;
+      if (m.isStreaming) {
+        isStreaming = true;
+        currentRateKBs += m.currentRateKBs;
+      }
+    }
+  });
+
+  return { sessionBytes, accumulatedBytes, isStreaming, currentRateKBs };
 }
 
 /**

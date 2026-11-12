@@ -31,6 +31,7 @@ import {
   Wifi,
   Signal,
   AlertCircle,
+  FolderOpen,
 } from 'lucide-react';
 
 interface ChatMessage {
@@ -55,6 +56,7 @@ interface AiCameraSetupAssistantProps {
   projects: Project[];
   cameras: Camera[];
   onAddCamerasBatch: (newCameras: Camera[], clientName: string) => void;
+  onCreateProject?: (project: Project) => void;
   onSelectCameraAndGoToWall: (cameraId: string) => void;
 }
 
@@ -113,8 +115,9 @@ function ModeIcon({ mode, className = 'w-4 h-4' }: { mode: GuidedConnectionMode;
 
 interface GuidedCameraSetupCardProps {
   initialMode: GuidedConnectionMode;
+  projects: Project[];
   disabled: boolean;
-  onSubmit: (input: GuidedCameraSetupInput) => void;
+  onSubmit: (input: GuidedCameraSetupInput & { newProjectName?: string }) => void;
 }
 
 /**
@@ -123,12 +126,14 @@ interface GuidedCameraSetupCardProps {
  */
 const GuidedCameraSetupCard: React.FC<GuidedCameraSetupCardProps> = ({
   initialMode,
+  projects,
   disabled,
   onSubmit,
 }) => {
   const [form, setForm] = useState<GuidedCameraSetupInput>({
     mode: initialMode,
     brand: initialMode === 'remote' ? 'hikvision_ip' : 'hikvision_dvr',
+    selectedProjectId: projects[0]?.id || '',
     cameraName: '',
     host: '',
     port: 554,
@@ -138,6 +143,7 @@ const GuidedCameraSetupCard: React.FC<GuidedCameraSetupCardProps> = ({
     verificationCode: '',
     channelsCount: initialMode === 'remote' ? 1 : 4,
   });
+  const [newProjectName, setNewProjectName] = useState('');
   const [validationError, setValidationError] = useState<string | null>(null);
 
   const meta = GUIDED_MODE_META[form.mode];
@@ -154,13 +160,20 @@ const GuidedCameraSetupCard: React.FC<GuidedCameraSetupCardProps> = ({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (form.selectedProjectId === '__NEW__' && newProjectName.trim().length < 2) {
+      setValidationError('Escribe el nombre de la nueva carpeta de proyecto (ej. Finca San Marcos).');
+      return;
+    }
     const err = validateGuidedCameraInput(form);
     if (err) {
       setValidationError(err);
       return;
     }
     setValidationError(null);
-    onSubmit(form);
+    onSubmit({
+      ...form,
+      newProjectName: form.selectedProjectId === '__NEW__' ? newProjectName.trim() : undefined,
+    });
   };
 
   const inputBaseClass =
@@ -328,24 +341,63 @@ const GuidedCameraSetupCard: React.FC<GuidedCameraSetupCardProps> = ({
         </div>
       )}
 
-      {/* Nombre / Proyecto (común a los 3 modos, opcional en remoto) */}
-      <div>
-        <label className="block text-[11px] font-semibold text-neutral-300 mb-1">
-          Nombre o Proyecto {form.mode === 'remote' ? '(Opcional: lo toma de la nube si se deja vacío)' : '(Opcional)'}
-        </label>
-        <input
-          type="text"
-          disabled={disabled}
-          value={form.cameraName}
-          onChange={(e) => setForm((prev) => ({ ...prev, cameraName: e.target.value }))}
-          placeholder={
-            form.mode === 'remote'
-              ? 'Ej. Calle Iglesia Tabernáculo (o déjalo vacío)'
-              : 'Ej. Bodega Central o Portón Norte'
-          }
-          className={inputBaseClass}
-        />
+      {/* Nombre y Carpeta / Proyecto de Destino */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+        <div>
+          <label className="block text-[11px] font-semibold text-sky-300 mb-1 flex items-center gap-1">
+            <FolderOpen className="w-3 h-3 shrink-0" />
+            Carpeta / Proyecto de Destino
+          </label>
+          <select
+            value={form.selectedProjectId || ''}
+            disabled={disabled}
+            onChange={(e) => setForm((prev) => ({ ...prev, selectedProjectId: e.target.value }))}
+            className={inputBaseClass}
+          >
+            {projects.map((p) => (
+              <option key={p.id} value={p.id}>
+                📁 {p.name}
+              </option>
+            ))}
+            <option value="__NEW__">➕ Crear nueva carpeta de proyecto...</option>
+            <option value="">✨ Automático según equipo/nombre</option>
+          </select>
+        </div>
+
+        <div>
+          <label className="block text-[11px] font-semibold text-neutral-300 mb-1">
+            Nombre de la Cámara (Opcional)
+          </label>
+          <input
+            type="text"
+            disabled={disabled}
+            value={form.cameraName}
+            onChange={(e) => setForm((prev) => ({ ...prev, cameraName: e.target.value }))}
+            placeholder={
+              form.mode === 'remote'
+                ? 'Ej. Portón Finca o Calle Central'
+                : 'Ej. Bodega Central o Portón Norte'
+            }
+            className={inputBaseClass}
+          />
+        </div>
       </div>
+
+      {form.selectedProjectId === '__NEW__' && (
+        <div>
+          <label className="block text-[11px] font-semibold text-emerald-300 mb-1">
+            Nombre de la Nueva Carpeta / Proyecto *
+          </label>
+          <input
+            type="text"
+            disabled={disabled}
+            value={newProjectName}
+            onChange={(e) => setNewProjectName(e.target.value)}
+            placeholder="Ej. Proyecto Finca La Esmeralda"
+            className={inputBaseClass}
+          />
+        </div>
+      )}
 
       {validationError && (
         <div className="flex items-center gap-2 text-[11px] text-amber-300 bg-amber-950/50 border border-amber-500/30 rounded-lg px-3 py-2">
@@ -372,6 +424,7 @@ export const AiCameraSetupAssistant: React.FC<AiCameraSetupAssistantProps> = ({
   projects,
   cameras,
   onAddCamerasBatch,
+  onCreateProject,
   onSelectCameraAndGoToWall,
 }) => {
   const [inputText, setInputText] = useState<string>('');
@@ -414,7 +467,9 @@ export const AiCameraSetupAssistant: React.FC<AiCameraSetupAssistantProps> = ({
   const executeSetupIntent = async (
     intent: ParsedCameraSetupIntent,
     thinkingMsgId: string,
-    customReplyText?: string
+    customReplyText?: string,
+    overrideProjectId?: string,
+    overrideProjects?: Project[]
   ) => {
     setMessages((prev) =>
       prev.map((m) =>
@@ -435,8 +490,9 @@ export const AiCameraSetupAssistant: React.FC<AiCameraSetupAssistantProps> = ({
     );
 
     const probed = await probeAndDiscoverChannels(intent);
-    const generatedCameras = buildCamerasFromWizard(intent, probed, projects);
-    const targetProj = projects.find((p) => p.id === generatedCameras[0]?.projectId);
+    const effectiveProjects = overrideProjects || projects;
+    const generatedCameras = buildCamerasFromWizard(intent, probed, effectiveProjects, overrideProjectId);
+    const targetProj = effectiveProjects.find((p) => p.id === generatedCameras[0]?.projectId);
 
     onAddCamerasBatch(
       generatedCameras,
@@ -457,7 +513,7 @@ export const AiCameraSetupAssistant: React.FC<AiCameraSetupAssistantProps> = ({
                   intent.deviceSerial ? `Serie ${intent.deviceSerial}` : `${intent.host}:${intent.port}`
                 }), verifiqué **${activeCount} ${
                   activeCount === 1 ? 'canal activo' : 'canales activos'
-                }** y la agregué al **Muro de Video**.`,
+                }** y la guardé en **${targetProj?.name || 'Muro de Video'}**.`,
               intent,
               probedChannels: probed,
               addedCameras: generatedCameras,
@@ -491,20 +547,51 @@ export const AiCameraSetupAssistant: React.FC<AiCameraSetupAssistantProps> = ({
     ]);
   };
 
-  const handleGuidedCardSubmit = async (formMessageId: string, input: GuidedCameraSetupInput) => {
+  const handleGuidedCardSubmit = async (
+    formMessageId: string,
+    input: GuidedCameraSetupInput & { newProjectName?: string }
+  ) => {
     if (isProcessing) return;
     const nowTime = new Date().toLocaleTimeString('es-GT', { hour: '2-digit', minute: '2-digit' });
-    const intent = buildIntentFromGuidedForm(input);
+
+    let resolvedProjects = projects;
+    let resolvedProjectId = input.selectedProjectId || '';
+
+    if (resolvedProjectId === '__NEW__' && input.newProjectName?.trim()) {
+      const cleanFolderName = input.newProjectName.trim();
+      const slug = cleanFolderName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+      const newProj: Project = {
+        id: `proj-${slug || 'custom'}-${Date.now().toString().slice(-4)}`,
+        name: cleanFolderName.toUpperCase(),
+        clientName: cleanFolderName,
+        clientPhone: '',
+        location: cleanFolderName,
+        status: 'activo',
+        equipmentNotes: 'Carpeta de proyecto creada desde Asistente de Cámaras',
+        createdAt: new Date().toISOString(),
+      };
+      onCreateProject?.(newProj);
+      resolvedProjectId = newProj.id;
+      resolvedProjects = [...projects, newProj];
+    } else if (resolvedProjectId === '__NEW__') {
+      resolvedProjectId = '';
+    }
+
+    const selectedProject = resolvedProjects.find((p) => p.id === resolvedProjectId);
+    const intent = buildIntentFromGuidedForm({
+      ...input,
+      selectedProjectId: resolvedProjectId || undefined,
+    });
     const thinkingMsgId = `bot-think-${Date.now()}`;
 
     const summaryUserText =
-      input.mode === 'remote'
+      (input.mode === 'remote'
         ? `Serie: ${intent.deviceSerial} · Código: ${intent.verificationCode}${
             input.cameraName.trim() ? ` · Nombre: ${input.cameraName.trim()}` : ''
           }`
         : `IP: ${intent.host} · Usuario: ${intent.username} · Canales: ${intent.channelsCount}${
             intent.deviceSerial ? ` · Serie: ${intent.deviceSerial}` : ''
-          }`;
+          }`) + (selectedProject ? ` · Proyecto: ${selectedProject.name}` : '');
 
     setIsProcessing(true);
     setMessages((prev) => [
@@ -528,7 +615,13 @@ export const AiCameraSetupAssistant: React.FC<AiCameraSetupAssistantProps> = ({
     ]);
 
     try {
-      await executeSetupIntent(intent, thinkingMsgId);
+      await executeSetupIntent(
+        intent,
+        thinkingMsgId,
+        undefined,
+        resolvedProjectId || undefined,
+        resolvedProjects
+      );
     } finally {
       setIsProcessing(false);
     }
@@ -713,6 +806,7 @@ export const AiCameraSetupAssistant: React.FC<AiCameraSetupAssistantProps> = ({
                 {msg.guidedMode && !msg.guidedCompleted && (
                   <GuidedCameraSetupCard
                     initialMode={msg.guidedMode}
+                    projects={projects}
                     disabled={isProcessing}
                     onSubmit={(input) => handleGuidedCardSubmit(msg.id, input)}
                   />

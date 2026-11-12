@@ -11,11 +11,14 @@ import {
   Ocos4gTelemetryState,
   formatEcoCountdown,
   formatMobileDataUsage,
+  getCamera4gAccumulatedBytes,
+  getCamera4gSessionBytes,
   getOcos4gState,
-  recordOcosStreamSecond,
+  isCamera4gDevice,
+  recordCamera4gStreamSecond,
   resetOcosDataUsage,
+  setCamera4gStreamingStatus,
   setOcosEcoSleepOption,
-  setOcosStreamingStatus,
   subscribeOcos4gState,
   updateOcosRemainingSec,
 } from '../lib/ocos4gMonitor';
@@ -440,14 +443,7 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
   const [reconnectVersion, setReconnectVersion] = useState(0);
   const hlsReloadHandled = useRef(0);
   const [autoplayBlocked, setAutoplayBlocked] = useState(false);
-  const is4gCamera = Boolean(
-    is4gSerial(camera.deviceSerial) ||
-    camera.id?.includes('ocos') ||
-    camera.notes?.includes('FF9363270') ||
-    camera.notes?.includes('4G') ||
-    camera.name?.toLowerCase().includes('4g') ||
-    camera.locationDesc?.includes('4G')
-  );
+  const is4gCamera = isCamera4gDevice(camera);
 
   const isCementerioCamera = Boolean(
     camera.deviceSerial === 'F31700438' ||
@@ -494,6 +490,9 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
     return subscribeOcos4gState(setOcosTelemetry);
   }, [is4gCamera]);
   const ecoSleepSec = ocosTelemetry.ecoSleepSec;
+  const camSessionBytes = is4gCamera ? getCamera4gSessionBytes(ocosTelemetry, camera.id) : 0;
+  const camAccumulatedBytes = is4gCamera ? getCamera4gAccumulatedBytes(ocosTelemetry, camera.id) : 0;
+  const camRateKBs = Math.max(8, Math.round(((camera.bitrateKbps || 512) * 1000) / 8 / 1024));
   const [ecoRemainingSec, setEcoRemainingSec] = useState<number>(() => getOcos4gState().ecoSleepSec || 60);
   const ecoDeadline = useRef(0);
   const canLoadVideo = canLoadInViewport && !is4gEcoPaused && isStreamPlaying;
@@ -596,8 +595,8 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
     hlsLiveReadyRef.current = false;
     setIs4gEcoPaused(true);
     is4gEcoPausedRef.current = true;
-    setOcosStreamingStatus(false, 0);
-  }, [camera.channel, camera.deviceSerial, ezuikitContainerId]);
+    setCamera4gStreamingStatus(camera.id, false, 0);
+  }, [camera.id, camera.channel, camera.deviceSerial, ezuikitContainerId]);
 
   const resume4gStream = useCallback(() => {
     const targetSec = getOcos4gState().ecoSleepSec;
@@ -613,8 +612,8 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
     setStreamQuality('2'); // Siempre iniciar en Sub-Stream H.265 (~512 kbps) optimizado
     setIs4gEcoPaused(false);
     is4gEcoPausedRef.current = false;
-    setOcosStreamingStatus(true, camera.bitrateKbps || 512);
-  }, [camera.bitrateKbps]);
+    setCamera4gStreamingStatus(camera.id, true, camera.bitrateKbps || 512);
+  }, [camera.id, camera.bitrateKbps]);
 
   const handleToggleStream = useCallback((play: boolean) => {
     setInternalPlaying(play);
@@ -661,7 +660,7 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
     if (!is4gCamera) return;
     const activelyStreaming = isStreamPlaying && !is4gEcoPaused;
     if (!activelyStreaming) {
-      setOcosStreamingStatus(false, 0);
+      setCamera4gStreamingStatus(camera.id, false, 0);
       return;
     }
 
@@ -674,11 +673,11 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
       setEcoRemainingSec(0);
       updateOcosRemainingSec(0);
     }
-    setOcosStreamingStatus(true, camera.bitrateKbps || 512);
+    setCamera4gStreamingStatus(camera.id, true, camera.bitrateKbps || 512);
 
     const timer = setInterval(() => {
-      // Contabilizar consumo real en transmisión (~512 kbps H.265 Sub-Stream optimizado)
-      recordOcosStreamSecond(camera.bitrateKbps || 512);
+      // Contabilizar consumo real por cámara en transmisión (H.265 Sub-Stream optimizado)
+      recordCamera4gStreamSecond(camera.id, camera.bitrateKbps || 512);
 
       if (ecoSleepSec > 0 && ecoDeadline.current > 0) {
         const remaining = Math.max(0, Math.ceil((ecoDeadline.current - Date.now()) / 1000));
@@ -692,8 +691,11 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
         }
       }
     }, 1000);
-    return () => clearInterval(timer);
-  }, [is4gCamera, isStreamPlaying, is4gEcoPaused, ecoSleepSec, camera.bitrateKbps, pause4gStreamForDataSaving, onPlayStateChange]);
+    return () => {
+      clearInterval(timer);
+      setCamera4gStreamingStatus(camera.id, false, 0);
+    };
+  }, [is4gCamera, camera.id, isStreamPlaying, is4gEcoPaused, ecoSleepSec, camera.bitrateKbps, pause4gStreamForDataSaving, onPlayStateChange]);
 
   // Bloqueo definitivo 4G (Ocós): Eliminar HD y forzar 100% en SD Fluido ('2') para proteger datos
   useEffect(() => {
@@ -1647,7 +1649,7 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
                 ⏸ {formatEcoCountdown(ecoRemainingSec, ecoSleepSec)}
               </span>
               <span className="hidden sm:inline">
-                ⏸ Ahorro 4G ({formatEcoCountdown(ecoRemainingSec, ecoSleepSec)}) · {formatMobileDataUsage(ocosTelemetry.sessionBytes)}
+                ⏸ Ahorro 4G ({formatEcoCountdown(ecoRemainingSec, ecoSleepSec)}) · {formatMobileDataUsage(camSessionBytes)}
               </span>
             </button>
           )}
@@ -1711,9 +1713,9 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
                   ? `Transmisión 4G bajo demanda · Auto-pausa: ${ecoSleepSec === 0 ? 'Continuo' : `${ecoSleepSec / 60} min`}`
                   : 'Transmisión bajo demanda · Cero lag'}
               </p>
-              {is4gCamera && ocosTelemetry.sessionBytes > 0 && (
+              {is4gCamera && camSessionBytes > 0 && (
                 <span className="mt-1.5 px-2.5 py-0.5 rounded-full bg-emerald-950/80 border border-emerald-500/30 text-[10px] font-mono text-emerald-300">
-                  Consumo estimado: {formatMobileDataUsage(ocosTelemetry.sessionBytes)} (0 KB/s en reposo)
+                  Consumo estimado: {formatMobileDataUsage(camSessionBytes)} (0 KB/s en reposo)
                 </span>
               )}
             </div>
@@ -2152,10 +2154,10 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
               <div className="flex items-center justify-between gap-2">
                 <span className="font-bold text-sky-300 flex items-center gap-1.5">
                   <Sparkles className="w-3.5 h-3.5 text-sky-400 shrink-0" />
-                  <span className="truncate">Control SIM 4G · HiLookVision (5nctiv)</span>
+                  <span className="truncate">Control SIM 4G · {camera.deviceSerial || camera.name}</span>
                 </span>
                 <span className="font-mono text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-2 py-0.5 rounded-full font-bold shrink-0">
-                  {isStreamPlaying && !is4gEcoPaused ? `~${ocosTelemetry.currentRateKBs || 32} KB/s` : '0 KB/s en Reposo'}
+                  {isStreamPlaying && !is4gEcoPaused ? `~${camRateKBs} KB/s` : '0 KB/s en Reposo'}
                 </span>
               </div>
 
@@ -2164,20 +2166,20 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
                 <div className="bg-black/60 p-2 rounded-lg border border-neutral-800 flex flex-col justify-between">
                   <span className="text-neutral-400 block">Consumo en sesión:</span>
                   <span className="text-emerald-400 font-bold text-xs mt-0.5">
-                    {formatMobileDataUsage(ocosTelemetry.sessionBytes)}
+                    {formatMobileDataUsage(camSessionBytes)}
                   </span>
                 </div>
                 <div className="bg-black/60 p-2 rounded-lg border border-neutral-800 flex items-center justify-between gap-1">
                   <div>
                     <span className="text-neutral-400 block">Acumulado SIM:</span>
                     <span className="text-sky-300 font-bold text-xs mt-0.5 block">
-                      {formatMobileDataUsage(ocosTelemetry.accumulatedBytes)}
+                      {formatMobileDataUsage(camAccumulatedBytes)}
                     </span>
                   </div>
-                  {ocosTelemetry.accumulatedBytes > 0 && (
+                  {camAccumulatedBytes > 0 && (
                     <button
                       type="button"
-                      onClick={() => resetOcosDataUsage()}
+                      onClick={() => resetOcosDataUsage([camera.id])}
                       className="px-2 py-1 rounded bg-neutral-900 hover:bg-neutral-800 text-neutral-300 hover:text-white border border-neutral-700 text-[10px] transition cursor-pointer shrink-0"
                       title="Reiniciar contador acumulado de datos móviles (ej. tras recargar SIM)"
                     >

@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useRef, lazy, Suspense } from 'react';
 import { Camera, Project, ShareLink, AccessLog, NavigationTab } from './lib/types';
-import { storage } from './lib/storage';
+import { storage, deduplicateCameras } from './lib/storage';
 import { INITIAL_PROJECTS, INITIAL_SHARE_LINKS, INITIAL_CAMERAS, isLegacyDemoCamera } from './lib/initialData';
 import {
   upsertCloudProject,
+  deleteCloudProject,
   upsertCloudCamera,
   deleteCloudCamera,
   upsertCloudShareLink,
@@ -14,7 +15,15 @@ import {
   syncFullCatalogToCloud,
   recordCloudShareLinkAccess,
 } from './lib/firebase';
-import { maskRtspUrl, cloneNextDvrChannel } from './lib/rtspHelper';
+import {
+  Ocos4gTelemetryState,
+  formatMobileDataUsage,
+  getCamera4gSessionBytes,
+  getOcos4gState,
+  getProject4gMetrics,
+  isCamera4gDevice,
+  subscribeOcos4gState,
+} from './lib/ocos4gMonitor';
 import { mergeCloudShareLinks, shareLinkListsDiffer } from './lib/shareLinkMerge';
 import { buildPublicShareUrl, getPublicUrlInfo, describeShareUrlWarning, extractTokenFromUrl } from './lib/publicUrl';
 import {
@@ -121,7 +130,9 @@ import {
   Play,
   RotateCw,
   Cloud,
-  Bot
+  Bot,
+  FolderOpen,
+  FolderPlus
 } from 'lucide-react';
 
 function AppLoadingFallback() {
@@ -263,6 +274,8 @@ function AppShell() {
 
   const [isCameraModalOpen, setIsCameraModalOpen] = useState(false);
   const [editingCamera, setEditingCamera] = useState<Camera | null>(null);
+  const [cameraModalDefaultProjectId, setCameraModalDefaultProjectId] = useState<string | null>(null);
+  const [ocosTelemetry, setOcosTelemetry] = useState<Ocos4gTelemetryState>(() => getOcos4gState());
 
   const [isProjectModalOpen, setIsProjectModalOpen] = useState(false);
   const [editingProject, setEditingProject] = useState<Project | null>(null);
@@ -326,11 +339,20 @@ function AppShell() {
     }
   };
 
+  useEffect(() => {
+    return subscribeOcos4gState(setOcosTelemetry);
+  }, []);
+
   // Load data from persistent storage + subscribe to Cloud Firestore in real time
   useEffect(() => {
+    const deletedCamIds = storage.getDeletedCameraIds();
     const loadedProjects = storage.getProjects();
-    let loadedCameras = storage.getCameras().filter((c) => !isLegacyDemoCamera(c));
-    if (loadedCameras.length === 0) loadedCameras = INITIAL_CAMERAS;
+    let loadedCameras = deduplicateCameras(
+      storage.getCameras().filter((c) => !isLegacyDemoCamera(c) && !deletedCamIds.has(c.id))
+    );
+    if (loadedCameras.length === 0 && deletedCamIds.size === 0) {
+      loadedCameras = deduplicateCameras(INITIAL_CAMERAS);
+    }
     const loadedLinks = storage.getShareLinks();
     const loadedLogs = storage.getAccessLogs();
 
@@ -408,17 +430,21 @@ function AppShell() {
     // Subscribe to real-time Cloud Firestore collections
     const unsubCloud = subscribeToCloudState({
       onProjects: (cloudProjects) => {
-        setProjects(cloudProjects);
-        storage.saveProjects(cloudProjects);
+        const deletedProjIds = storage.getDeletedProjectIds();
+        const filteredProjects = cloudProjects.filter((p) => !deletedProjIds.has(p.id));
+        if (cloudProjects.length === 0 && storage.getProjects().length > 0) {
+          return;
+        }
+        setProjects(filteredProjects);
+        storage.saveProjects(filteredProjects);
       },
       onCameras: (cloudCameras) => {
         setCloudCameraCount(cloudCameras.length);
-        // Una nube vacía NO debe vaciar el equipo. Antes, si `cloud_cameras`
-        // llegaba vacía, se hacía setCameras([]) y saveCameras([]): el panel se
-        // quedaba sin cámaras y se perdían también los datos locales.
-        // Ahora se conservan las locales y se vuelven a publicar (autorreparación).
+        const deletedCamIds = storage.getDeletedCameraIds();
         if (cloudCameras.length === 0) {
-          const locales = storage.getCameras();
+          const locales = deduplicateCameras(
+            storage.getCameras().filter((c) => !deletedCamIds.has(c.id))
+          );
           if (locales.length > 0 && !cloudRepairAttemptedRef.current && !isVisitorClientRoute) {
             cloudRepairAttemptedRef.current = true;
             console.warn(
@@ -436,19 +462,18 @@ function AppShell() {
         }
 
         const gatewayNow = loadGateway();
-        // Los secretos (usuario, contraseña, RTSP, código de verificación) NO
-        // viajan a la nube. Al recibir cámaras desde Firestore hay que
-        // re-aplicar los locales para no dejarlas sin credenciales.
         const localById = new Map(storage.getCameras().map((c) => [c.id, c]));
-        // Purgar automáticamente de Firestore únicamente cámaras demo heredadas o eliminadas (ej. "Cámara IP Hikvision (CH1)")
+        // Purgar de Firestore cámaras demo heredadas o eliminadas intencionalmente
         if (!isVisitorClientRoute) {
           cloudCameras.forEach((c) => {
-            if (isLegacyDemoCamera(c)) {
+            if (isLegacyDemoCamera(c) || deletedCamIds.has(c.id)) {
               deleteCloudCamera(c.id).catch(() => {});
             }
           });
         }
-        const onlyRealCams = cloudCameras.filter((c) => !isLegacyDemoCamera(c));
+        const onlyRealCams = cloudCameras.filter(
+          (c) => !isLegacyDemoCamera(c) && !deletedCamIds.has(c.id)
+        );
 
         // Sincronizar el token de EZVIZ recibido desde Firestore para la cámara de Ocós
         const remoteOcosCam = cloudCameras.find(
@@ -463,28 +488,38 @@ function AppShell() {
 
         const cloudIds = new Set(onlyRealCams.map((c) => c.id));
         const pendingLocalCams = Array.from(localById.values()).filter(
-          (c) => pendingLocalCameraIdsRef.current.has(c.id) && !cloudIds.has(c.id)
+          (c) =>
+            pendingLocalCameraIdsRef.current.has(c.id) &&
+            !cloudIds.has(c.id) &&
+            !deletedCamIds.has(c.id)
         );
         const mergedCams = [
           ...onlyRealCams,
           ...pendingLocalCams,
-          ...INITIAL_CAMERAS.filter((c) => !cloudIds.has(c.id) && !pendingLocalCameraIdsRef.current.has(c.id)),
+          ...INITIAL_CAMERAS.filter(
+            (c) =>
+              !cloudIds.has(c.id) &&
+              !pendingLocalCameraIdsRef.current.has(c.id) &&
+              !deletedCamIds.has(c.id)
+          ),
         ];
-        const enriched = (mergedCams.length > 0 ? mergedCams : INITIAL_CAMERAS).map((cam) => {
-          const { hlsUrl, webrtcUrl } = resolveStreamUrls(cam, gatewayNow);
-          const local = localById.get(cam.id);
-          const initial = INITIAL_CAMERAS.find((c) => c.id === cam.id);
-          return {
-            ...cam,
-            username: local?.username || cam.username || initial?.username || '',
-            password: local?.password ?? cam.password ?? initial?.password ?? '',
-            rtspUrl: local?.rtspUrl || cam.rtspUrl || initial?.rtspUrl || '',
-            verificationCode: local?.verificationCode || initial?.verificationCode || '',
-            deviceSerial: cam.deviceSerial || local?.deviceSerial || initial?.deviceSerial,
-            hlsStreamUrl: hlsUrl,
-            webrtcUrl,
-          };
-        });
+        const enriched = deduplicateCameras(
+          mergedCams.map((cam) => {
+            const { hlsUrl, webrtcUrl } = resolveStreamUrls(cam, gatewayNow);
+            const local = localById.get(cam.id);
+            const initial = INITIAL_CAMERAS.find((c) => c.id === cam.id);
+            return {
+              ...cam,
+              username: local?.username || cam.username || initial?.username || '',
+              password: local?.password ?? cam.password ?? initial?.password ?? '',
+              rtspUrl: local?.rtspUrl || cam.rtspUrl || initial?.rtspUrl || '',
+              verificationCode: local?.verificationCode || cam.verificationCode || initial?.verificationCode || '',
+              deviceSerial: cam.deviceSerial || local?.deviceSerial || initial?.deviceSerial,
+              hlsStreamUrl: hlsUrl,
+              webrtcUrl,
+            };
+          })
+        );
         setCameras(enriched);
         storage.saveCameras(enriched);
         setSelectedCameraId((prev) =>
@@ -556,23 +591,38 @@ function AppShell() {
 
   // Save changes to local storage + Cloud Firestore
   const handleSaveCamera = (camera: Camera) => {
-    let updated: Camera[];
+    storage.unmarkCameraDeleted(camera.id);
     const exists = cameras.some((c) => c.id === camera.id);
-    if (exists) {
-      updated = cameras.map((c) => (c.id === camera.id ? camera : c));
-      showToast('Cámara actualizada y sincronizada en la nube');
-    } else {
-      updated = [camera, ...cameras];
-      showToast('Cámara registrada y sincronizada en la nube (Firestore)');
-    }
+    const updated = deduplicateCameras(
+      exists ? cameras.map((c) => (c.id === camera.id ? camera : c)) : [camera, ...cameras]
+    );
+    showToast(exists ? 'Cámara actualizada y sincronizada en la nube' : 'Cámara registrada y sincronizada en la nube (Firestore)');
     pendingLocalCameraIdsRef.current.add(camera.id);
     setCameras(updated);
     storage.saveCameras(updated);
     upsertCloudCamera(camera).catch((err) => console.warn('Cloud camera sync error:', err));
   };
 
-  const handleClientAddCamerasBatch = (newCameras: Camera[], _clientName: string) => {
+  const handleClientAddCamerasBatch = (newCameras: Camera[], clientName: string) => {
     if (!newCameras.length) return;
+    newCameras.forEach((nc) => storage.unmarkCameraDeleted(nc.id));
+
+    // Si la cámara trae un projectId nuevo que aún no existe en la lista de carpetas, crearlo automáticamente
+    const targetProjectId = newCameras[0]?.projectId;
+    if (targetProjectId && !projects.some((p) => p.id === targetProjectId)) {
+      const folderName = clientName || `Proyecto ${newCameras[0]?.deviceSerial || 'Nuevo'}`;
+      handleSaveProject({
+        id: targetProjectId,
+        name: folderName.toUpperCase(),
+        clientName: folderName,
+        clientPhone: '',
+        location: folderName,
+        status: 'activo',
+        equipmentNotes: 'Carpeta de proyecto creada automáticamente desde el Asistente',
+        createdAt: new Date().toISOString(),
+      });
+    }
+
     const replaced = cameras.filter((existing) =>
       newCameras.some(
         (nc) =>
@@ -585,13 +635,15 @@ function AppShell() {
     const remaining = cameras.filter((existing) => !replaced.some((r) => r.id === existing.id));
     replaced.forEach((r) => {
       pendingLocalCameraIdsRef.current.delete(r.id);
-      if (r.id !== newCameras.find((n) => n.deviceSerial === r.deviceSerial && n.channel === r.channel)?.id) {
+      const winner = newCameras.find((n) => n.deviceSerial === r.deviceSerial && n.channel === r.channel);
+      if (r.id !== winner?.id) {
+        storage.markCameraDeleted(r.id);
         deleteCloudCamera(r.id).catch(() => {});
       }
     });
     newCameras.forEach((nc) => pendingLocalCameraIdsRef.current.add(nc.id));
 
-    const updated = [...newCameras, ...remaining];
+    const updated = deduplicateCameras([...newCameras, ...remaining]);
     setCameras(updated);
     storage.saveCameras(updated);
     setSelectedCameraId(newCameras[0].id);
@@ -605,28 +657,63 @@ function AppShell() {
     );
   };
 
-  const handleCloneNextChannel = (sourceCam: Camera) => {
-    const nextCam = cloneNextDvrChannel(sourceCam, cameras);
-    pendingLocalCameraIdsRef.current.add(nextCam.id);
-    const updated = [nextCam, ...cameras];
+  const handleMoveCameraProject = (cameraId: string, nextProjectId: string) => {
+    const target = cameras.find((c) => c.id === cameraId);
+    if (!target || target.projectId === nextProjectId) return;
+    const updatedCam = { ...target, projectId: nextProjectId };
+    const updated = cameras.map((c) => (c.id === cameraId ? updatedCam : c));
     setCameras(updated);
     storage.saveCameras(updated);
-    upsertCloudCamera(nextCam).catch((err) => console.warn('Clone channel cloud sync error:', err));
-    showToast(`Canal CH${nextCam.channel} (${nextCam.host}) clonado y agregado al servidor`);
+    upsertCloudCamera(updatedCam).catch((err) => console.warn('Cloud camera move error:', err));
+    const projName = projects.find((p) => p.id === nextProjectId)?.name || 'Nuevo proyecto';
+    showToast(`Cámara movida a ${projName}`);
   };
 
   const handleDeleteCamera = (id: string) => {
     if (confirm('¿Está seguro de eliminar esta cámara del sistema?')) {
       pendingLocalCameraIdsRef.current.delete(id);
+      storage.markCameraDeleted(id);
       const updated = cameras.filter((c) => c.id !== id);
       setCameras(updated);
       storage.saveCameras(updated);
-      if (selectedCameraId === id && updated.length > 0) {
-        setSelectedCameraId(updated[0].id);
+      if (selectedCameraId === id) {
+        setSelectedCameraId(updated[0]?.id || '');
+      }
+      if (focusedCameraId === id) {
+        setFocusedCameraId(null);
       }
       deleteCloudCamera(id).catch((err) => console.warn('Cloud camera delete error:', err));
       showToast('Cámara eliminada de la nube');
     }
+  };
+
+  const handleDeleteCamerasByProject = (projectId: string) => {
+    const projectName = projects.find((p) => p.id === projectId)?.name || 'Sin proyecto';
+    const targets = cameras.filter((c) =>
+      projectId === '__UNASSIGNED__'
+        ? !projects.some((p) => p.id === c.projectId)
+        : c.projectId === projectId
+    );
+    if (targets.length === 0) return;
+    if (!confirm(`¿Eliminar las ${targets.length} ${targets.length === 1 ? 'cámara' : 'cámaras'} de "${projectName}"?`)) {
+      return;
+    }
+    const targetIds = new Set(targets.map((t) => t.id));
+    targets.forEach((t) => {
+      pendingLocalCameraIdsRef.current.delete(t.id);
+      storage.markCameraDeleted(t.id);
+      deleteCloudCamera(t.id).catch((err) => console.warn('Cloud bulk camera delete error:', err));
+    });
+    const updated = cameras.filter((c) => !targetIds.has(c.id));
+    setCameras(updated);
+    storage.saveCameras(updated);
+    if (targetIds.has(selectedCameraId)) {
+      setSelectedCameraId(updated[0]?.id || '');
+    }
+    if (focusedCameraId && targetIds.has(focusedCameraId)) {
+      setFocusedCameraId(null);
+    }
+    showToast(`${targets.length} ${targets.length === 1 ? 'cámara eliminada' : 'cámaras eliminadas'} de ${projectName}`);
   };
 
   /**
@@ -764,18 +851,54 @@ function AppShell() {
   };
 
   const handleSaveProject = (project: Project) => {
+    storage.unmarkProjectDeleted(project.id);
     let updated: Project[];
     const exists = projects.some((p) => p.id === project.id);
     if (exists) {
       updated = projects.map((p) => (p.id === project.id ? project : p));
-      showToast('Cliente / Demo actualizado en la nube');
+      showToast('Carpeta de proyecto actualizada en la nube');
     } else {
-      updated = [project, ...projects];
-      showToast('Cliente / Demo registrado en la nube');
+      updated = [...projects, project];
+      showToast(`Carpeta "${project.name}" creada y sincronizada`);
     }
     setProjects(updated);
     storage.saveProjects(updated);
     upsertCloudProject(project).catch((err) => console.warn('Cloud project sync error:', err));
+  };
+
+  const handleDeleteProject = (projectId: string) => {
+    const target = projects.find((p) => p.id === projectId);
+    if (!target) return;
+    const attachedCams = cameras.filter((c) => c.projectId === projectId);
+    const confirmMsg = attachedCams.length > 0
+      ? `La carpeta "${target.name}" contiene ${attachedCams.length} ${attachedCams.length === 1 ? 'cámara' : 'cámaras'}. ¿Eliminar la carpeta junto con sus cámaras?`
+      : `¿Eliminar la carpeta de proyecto "${target.name}"?`;
+    if (!confirm(confirmMsg)) return;
+
+    storage.markProjectDeleted(projectId);
+    const remainingProjects = projects.filter((p) => p.id !== projectId);
+    setProjects(remainingProjects);
+    storage.saveProjects(remainingProjects);
+    deleteCloudProject(projectId).catch((err) => console.warn('Cloud project delete error:', err));
+
+    if (attachedCams.length > 0) {
+      const camIds = new Set(attachedCams.map((c) => c.id));
+      attachedCams.forEach((c) => {
+        pendingLocalCameraIdsRef.current.delete(c.id);
+        storage.markCameraDeleted(c.id);
+        deleteCloudCamera(c.id).catch(() => {});
+      });
+      const remainingCams = cameras.filter((c) => !camIds.has(c.id));
+      setCameras(remainingCams);
+      storage.saveCameras(remainingCams);
+      if (camIds.has(selectedCameraId)) {
+        setSelectedCameraId(remainingCams[0]?.id || '');
+      }
+      if (focusedCameraId && camIds.has(focusedCameraId)) {
+        setFocusedCameraId(null);
+      }
+    }
+    showToast(`Carpeta "${target.name}" eliminada`);
   };
 
   const handleForceCloudSync = async () => {
@@ -1104,6 +1227,7 @@ function AppShell() {
           {/* VIEW 1: Muro de Video (Matrix Multicámara) - Conexión viva 24/7 sin reinicios al cambiar pestañas */}
           <div className={activeTab === 'videowall' ? 'block' : 'hidden'}>
             <VideoWall
+              projects={projects}
               cameras={cameras}
               focusedCameraId={focusedCameraId}
               onClearFocus={() => setFocusedCameraId(null)}
@@ -1111,10 +1235,16 @@ function AppShell() {
                 setSelectedCameraId(id);
                 setFocusedCameraId(id);
               }}
-              onOpenNewCamera={() => {
+              onOpenNewCamera={(defaultProjectId) => {
                 setEditingCamera(null);
+                setCameraModalDefaultProjectId(defaultProjectId || null);
                 setIsCameraModalOpen(true);
               }}
+              onOpenNewProject={() => {
+                setEditingProject(null);
+                setIsProjectModalOpen(true);
+              }}
+              onDeleteProject={handleDeleteProject}
               onGenerateLink={(cam) => {
                 setEditingShareLink(null);
                 setShareDefaultProjectId(cam.projectId);
@@ -1385,162 +1515,292 @@ function AppShell() {
               )}
 
               {/* Filter & Add Bar */}
-              <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-neutral-900/60 border border-neutral-800/80 p-3 rounded-xl">
+              <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3 bg-neutral-900/60 border border-neutral-800/80 p-3 rounded-xl">
                 <div className="flex items-center gap-2 flex-1 max-w-md bg-neutral-950/60 px-3 py-1.5 rounded-lg border border-neutral-850">
                   <Search className="w-3.5 h-3.5 text-neutral-500 shrink-0" />
                   <input
                     type="text"
                     value={cameraSearch}
                     onChange={(e) => setCameraSearch(e.target.value)}
-                    placeholder="Buscar por nombre, IP o modelo..."
+                    placeholder="Buscar por nombre, proyecto, serie o IP..."
                     className="bg-transparent border-none text-xs text-white placeholder-neutral-500 focus:outline-none w-full"
                   />
                 </div>
 
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <select
+                    aria-label="Filtrar cámaras por proyecto"
                     value={projectFilter}
                     onChange={(e) => setProjectFilter(e.target.value)}
                     className="bg-neutral-950 border border-neutral-800 text-xs text-neutral-300 rounded-lg px-3 py-1.5 focus:outline-none"
                   >
-                    <option value="all">Todos los proyectos</option>
+                    <option value="all">Todos los proyectos ({projects.length})</option>
                     {projects.map((p) => (
                       <option key={p.id} value={p.id}>{p.name}</option>
                     ))}
                   </select>
 
                   <button
-                    onClick={() => setIsAiAssistantOpen(true)}
-                    className="px-3.5 py-1.5 bg-sky-600 hover:bg-sky-500 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 transition shadow-sm shrink-0"
+                    type="button"
+                    onClick={() => {
+                      setEditingProject(null);
+                      setIsProjectModalOpen(true);
+                    }}
+                    className="px-3 py-1.5 bg-neutral-800 hover:bg-neutral-700 text-white border border-neutral-700 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition shrink-0 cursor-pointer"
                   >
-                    <Sparkles className="w-3.5 h-3.5 text-amber-300" />
-                    <span>Asistente IA (Agregar Cámaras)</span>
+                    <FolderPlus className="w-3.5 h-3.5 text-sky-400" />
+                    <span>Nueva Carpeta</span>
                   </button>
 
                   <button
+                    type="button"
+                    onClick={() => setIsAiAssistantOpen(true)}
+                    className="px-3.5 py-1.5 bg-sky-600 hover:bg-sky-500 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 transition shadow-sm shrink-0 cursor-pointer"
+                  >
+                    <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+                    <span>Asistente IA</span>
+                  </button>
+
+                  <button
+                    type="button"
                     onClick={() => {
                       setEditingCamera(null);
+                      setCameraModalDefaultProjectId(projectFilter !== 'all' ? projectFilter : null);
                       setIsCameraModalOpen(true);
                     }}
-                    className="px-3.5 py-1.5 bg-white hover:bg-neutral-100 text-neutral-950 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition shadow-sm shrink-0"
+                    className="px-3.5 py-1.5 bg-white hover:bg-neutral-100 text-neutral-950 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition shadow-sm shrink-0 cursor-pointer"
                   >
                     <Plus className="w-3.5 h-3.5 text-neutral-700" />
-                    <span>Nueva Cámara Individual</span>
+                    <span>Nueva Cámara</span>
                   </button>
                 </div>
               </div>
 
-              {/* Cameras Table */}
-              <div className="bg-neutral-900/70 border border-neutral-800/80 rounded-xl overflow-hidden shadow-sm">
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left text-xs">
-                    <thead className="bg-neutral-950 text-neutral-500 uppercase font-mono text-[10px] border-b border-neutral-800/80">
-                      <tr>
-                        <th className="py-2.5 px-4 font-medium">Estado</th>
-                        <th className="py-2.5 px-4 font-medium">Nombre / Ubicación</th>
-                        <th className="py-2.5 px-4 font-medium">Hardware & Canal</th>
-                        <th className="py-2.5 px-4 font-medium">URL RTSP</th>
-                        <th className="py-2.5 px-4 font-medium">Formato</th>
-                        <th className="py-2.5 px-4 text-right font-medium">Acciones</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-neutral-850">
-                      {filteredCameras.map((cam) => {
-                        return (
-                          <tr key={cam.id} className="hover:bg-neutral-850/40 transition">
-                            <td className="py-3 px-4 whitespace-nowrap">
-                              <span className="inline-flex items-center gap-1.5 text-xs">
-                                <span className={`w-1.5 h-1.5 rounded-full ${cam.status === 'online' ? 'bg-emerald-400' : 'bg-amber-400'}`} />
-                                <span className="text-neutral-300 font-medium text-[11px]">
-                                  {cam.status === 'online' ? 'Online' : 'Aviso 4G'}
-                                </span>
+              {/* Vista Lineal Agrupada por Proyecto (con consumo 4G y eliminación por proyecto) */}
+              {(() => {
+                const knownIds = new Set(projects.map((p) => p.id));
+                const projectGroups: Array<{ id: string; name: string; location: string; isRealProject: boolean; items: Camera[] }> =
+                  projects
+                    .filter((p) => projectFilter === 'all' || projectFilter === p.id)
+                    .map((p) => ({
+                      id: p.id,
+                      name: p.name,
+                      location: p.location,
+                      isRealProject: true,
+                      items: filteredCameras.filter((c) => c.projectId === p.id),
+                    }));
+
+                const unassignedCams =
+                  projectFilter === 'all'
+                    ? filteredCameras.filter((c) => !knownIds.has(c.projectId))
+                    : [];
+                if (unassignedCams.length > 0) {
+                  projectGroups.push({
+                    id: '__UNASSIGNED__',
+                    name: 'CÁMARAS SIN CARPETA',
+                    location: 'Asignación pendiente',
+                    isRealProject: false,
+                    items: unassignedCams,
+                  });
+                }
+
+                if (projectGroups.length === 0 || (filteredCameras.length === 0 && projectFilter === 'all' && cameraSearch.trim())) {
+                  return (
+                    <div className="bg-neutral-900/60 border border-neutral-800 rounded-xl p-8 text-center text-xs text-neutral-400">
+                      No se encontraron cámaras con ese filtro.
+                    </div>
+                  );
+                }
+
+                return (
+                  <div className="space-y-4">
+                    {projectGroups.map((group) => {
+                      const has4g = group.items.some((c) => isCamera4gDevice(c));
+                      const projMetrics = has4g ? getProject4gMetrics(ocosTelemetry, group.items) : null;
+
+                      return (
+                        <section
+                          key={group.id}
+                          className="bg-neutral-900/75 border border-neutral-800 rounded-xl overflow-hidden shadow-sm"
+                        >
+                          {/* Encabezado del Proyecto + Botón Eliminar Cámaras del Proyecto */}
+                          <div className="px-4 py-3 bg-neutral-950/90 border-b border-neutral-800 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                            <div className="flex flex-wrap items-center gap-2 min-w-0">
+                              <FolderOpen className="w-4 h-4 text-sky-400 shrink-0" />
+                              <h3 className="text-xs sm:text-sm font-bold text-white uppercase tracking-wide truncate">
+                                {group.name}
+                              </h3>
+                              <span className="px-2 py-0.5 rounded-full bg-neutral-900 border border-neutral-800 text-[11px] font-mono text-neutral-300">
+                                {group.items.length} {group.items.length === 1 ? 'cámara' : 'cámaras'}
                               </span>
-                            </td>
+                              {projMetrics && (
+                                <span className="px-2 py-0.5 rounded-full bg-emerald-950/70 border border-emerald-500/30 text-[11px] font-mono text-emerald-300">
+                                  📊 Datos 4G: {formatMobileDataUsage(projMetrics.sessionBytes)}
+                                  {projMetrics.isStreaming ? ` · ~${projMetrics.currentRateKBs} KB/s` : ' · Reposo'}
+                                </span>
+                              )}
+                            </div>
 
-                            <td className="py-3 px-4">
-                              <div className="font-medium text-white">{cam.name}</div>
-                              <div className="text-[11px] text-neutral-400">{cam.locationDesc}</div>
-                            </td>
-
-                            <td className="py-3 px-4 whitespace-nowrap">
-                              <div className="text-neutral-300 font-medium text-xs">
-                                {cam.deviceType === 'hikvision_dvr' && 'Hikvision DVR'}
-                                {cam.deviceType === 'hikvision_ip' && 'Hikvision IP POE'}
-                                {cam.deviceType === 'generic_rtsp' && 'ONVIF / RTSP'}
-                              </div>
-                              <div className="text-[10px] text-neutral-500 font-mono">
-                                Canal {cam.channel} · {cam.streamType === 'main' ? 'Principal' : 'Subflujo'}
-                              </div>
-                            </td>
-
-                            <td className="py-3 px-4 max-w-xs">
-                              <div className="font-mono text-[11px] text-neutral-400 truncate bg-neutral-950/80 px-2.5 py-1 rounded border border-neutral-850">
-                                {maskRtspUrl(cam.rtspUrl)}
-                              </div>
-                            </td>
-
-                            <td className="py-3 px-4 whitespace-nowrap text-neutral-400">
-                              <div>{cam.resolution}</div>
-                              <div className="text-[10px] font-mono text-neutral-500">
-                                {cam.fps} FPS · {cam.codec}
-                              </div>
-                            </td>
-
-                            <td className="py-3 px-4 text-right whitespace-nowrap">
-                              <div className="flex items-center justify-end gap-1">
+                            <div className="flex items-center gap-2 shrink-0">
+                              {group.items.length > 0 && (
                                 <button
                                   type="button"
-                                  aria-label={`Clonar siguiente canal de ${cam.name}`}
-                                  onClick={() => handleCloneNextChannel(cam)}
-                                  className="px-2 py-1 bg-sky-950/80 hover:bg-sky-900 border border-sky-700/50 text-sky-300 hover:text-white rounded-lg text-[11px] font-mono font-semibold transition flex items-center gap-1"
-                                  title="Clonar siguiente canal (CH+1) con la misma IP y clave"
+                                  onClick={() => handleDeleteCamerasByProject(group.id)}
+                                  className="px-3 py-1.5 bg-red-950/60 hover:bg-red-900/80 text-red-300 hover:text-white border border-red-500/30 rounded-lg text-[11px] font-semibold flex items-center gap-1.5 transition cursor-pointer"
                                 >
-                                  <Plus className="w-3 h-3" />
-                                  <span>CH+1</span>
+                                  <Trash2 className="w-3.5 h-3.5 shrink-0" />
+                                  <span>Eliminar cámaras del proyecto</span>
                                 </button>
-
+                              )}
+                              {group.isRealProject && group.items.length === 0 && (
                                 <button
-                                  aria-label="Ver cámara en monitor"
-                                  onClick={() => {
-                                    setSelectedCameraId(cam.id);
-                                    setFocusedCameraId(cam.id);
-                                    setActiveTab('videowall');
-                                  }}
-                                  className="p-1.5 bg-neutral-800/80 hover:bg-neutral-700 text-neutral-400 hover:text-white rounded-lg transition"
-                                  title="Ver en Monitor"
+                                  type="button"
+                                  onClick={() => handleDeleteProject(group.id)}
+                                  className="px-3 py-1.5 bg-neutral-900 hover:bg-red-950/70 text-neutral-400 hover:text-red-300 border border-neutral-800 hover:border-red-500/30 rounded-lg text-[11px] font-semibold flex items-center gap-1.5 transition cursor-pointer"
                                 >
-                                  <Eye className="w-3.5 h-3.5" />
+                                  <Trash2 className="w-3.5 h-3.5 shrink-0" />
+                                  <span>Eliminar carpeta</span>
                                 </button>
+                              )}
+                            </div>
+                          </div>
 
-                                <button
-                                  aria-label="Editar cámara"
-                                  onClick={() => {
-                                    setEditingCamera(cam);
-                                    setIsCameraModalOpen(true);
-                                  }}
-                                  className="p-1.5 bg-neutral-800/80 hover:bg-neutral-700 text-neutral-400 hover:text-white rounded-lg transition"
-                                  title="Editar"
-                                >
-                                  <Edit3 className="w-3.5 h-3.5" />
-                                </button>
+                          {/* Filas Lineales de Cámaras dentro del Proyecto */}
+                          {group.items.length === 0 ? (
+                            <div className="px-4 py-5 text-xs text-neutral-500 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                              <span>No hay cámaras asignadas a esta carpeta todavía.</span>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setEditingCamera(null);
+                                  setCameraModalDefaultProjectId(group.id);
+                                  setIsCameraModalOpen(true);
+                                }}
+                                className="px-3 py-1.5 bg-sky-600/20 hover:bg-sky-600/30 text-sky-300 border border-sky-500/30 rounded-lg text-xs font-semibold w-fit cursor-pointer"
+                              >
+                                + Agregar Cámara aquí
+                              </button>
+                            </div>
+                          ) : (
+                            <div className="divide-y divide-neutral-800/70">
+                              {group.items.map((cam) => {
+                                const is4g = isCamera4gDevice(cam);
+                                const camBytes = is4g ? getCamera4gSessionBytes(ocosTelemetry, cam.id) : 0;
 
-                                <button
-                                  aria-label="Eliminar cámara"
-                                  onClick={() => handleDeleteCamera(cam.id)}
-                                  className="p-1.5 bg-neutral-800/80 hover:bg-red-950/80 text-neutral-400 hover:text-red-400 rounded-lg transition"
-                                  title="Eliminar"
-                                >
-                                  <Trash2 className="w-3.5 h-3.5" />
-                                </button>
-                              </div>
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
+                                return (
+                                  <div
+                                    key={cam.id}
+                                    className="px-4 py-3 hover:bg-neutral-800/35 transition flex flex-col lg:flex-row lg:items-center justify-between gap-3"
+                                  >
+                                    {/* Info Lineal: Nombre + Sección de Proyecto + Consumo 4G */}
+                                    <div className="min-w-0 flex-1 space-y-1">
+                                      <div className="flex flex-wrap items-center gap-2">
+                                        <span
+                                          className={`w-2 h-2 rounded-full shrink-0 ${
+                                            cam.status === 'online' ? 'bg-emerald-400' : 'bg-amber-400'
+                                          }`}
+                                        />
+                                        <span className="font-semibold text-white text-xs sm:text-sm">
+                                          {cam.name}
+                                        </span>
+                                        <span className="px-2 py-0.5 rounded bg-neutral-950 border border-neutral-800 text-[10px] font-mono text-sky-300">
+                                          CH0{cam.channel}
+                                        </span>
+                                        <span className="px-2 py-0.5 rounded bg-neutral-800/90 border border-neutral-700 text-[10px] font-semibold text-neutral-200">
+                                          📁 {group.name}
+                                        </span>
+                                        {is4g && (
+                                          <span className="px-2 py-0.5 rounded bg-emerald-950/70 border border-emerald-500/30 text-[10px] font-mono text-emerald-300">
+                                            🍃 4G Ahorro Auto · {cam.codec} · {formatMobileDataUsage(camBytes)}
+                                          </span>
+                                        )}
+                                      </div>
+
+                                      <div className="text-[11px] text-neutral-400 flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                                        <span className="font-mono text-neutral-500">
+                                          {cam.deviceSerial ? `Serie: ${cam.deviceSerial}` : `${cam.host}:${cam.port}`}
+                                        </span>
+                                        <span>·</span>
+                                        <span className="truncate">{cam.locationDesc}</span>
+                                      </div>
+                                    </div>
+
+                                    {/* Acciones Lineales: Mover Proyecto + Ver + Editar + Eliminar */}
+                                    <div className="flex flex-wrap items-center gap-1.5 shrink-0">
+                                      {projects.length > 0 && (
+                                        <select
+                                          aria-label={`Proyecto de ${cam.name}`}
+                                          value={knownIds.has(cam.projectId) ? cam.projectId : ''}
+                                          onChange={(e) => {
+                                            if (e.target.value) {
+                                              handleMoveCameraProject(cam.id, e.target.value);
+                                            }
+                                          }}
+                                          className="bg-neutral-950 border border-neutral-800 text-[11px] text-neutral-300 rounded-lg px-2 py-1.5 focus:outline-none max-w-[185px]"
+                                          title="Cambiar carpeta o proyecto asignado"
+                                        >
+                                          {!knownIds.has(cam.projectId) && (
+                                            <option value="">Sin carpeta asignada</option>
+                                          )}
+                                          {projects.map((p) => (
+                                            <option key={p.id} value={p.id}>
+                                              📁 {p.name}
+                                            </option>
+                                          ))}
+                                        </select>
+                                      )}
+
+                                      <button
+                                        type="button"
+                                        aria-label={`Ver cámara ${cam.name} en monitor`}
+                                        onClick={() => {
+                                          setSelectedCameraId(cam.id);
+                                          setFocusedCameraId(cam.id);
+                                          setActiveTab('videowall');
+                                        }}
+                                        className="px-2.5 py-1.5 bg-neutral-800/90 hover:bg-neutral-700 text-neutral-200 hover:text-white rounded-lg text-[11px] font-medium transition flex items-center gap-1 cursor-pointer"
+                                        title="Ver en Monitor"
+                                      >
+                                        <Eye className="w-3.5 h-3.5" />
+                                        <span className="hidden sm:inline">Ver</span>
+                                      </button>
+
+                                      <button
+                                        type="button"
+                                        aria-label={`Editar cámara ${cam.name}`}
+                                        onClick={() => {
+                                          setEditingCamera(cam);
+                                          setIsCameraModalOpen(true);
+                                        }}
+                                        className="px-2.5 py-1.5 bg-neutral-800/90 hover:bg-neutral-700 text-neutral-200 hover:text-white rounded-lg text-[11px] font-medium transition flex items-center gap-1 cursor-pointer"
+                                        title="Editar"
+                                      >
+                                        <Edit3 className="w-3.5 h-3.5" />
+                                        <span className="hidden sm:inline">Editar</span>
+                                      </button>
+
+                                      <button
+                                        type="button"
+                                        aria-label={`Eliminar cámara ${cam.name}`}
+                                        onClick={() => handleDeleteCamera(cam.id)}
+                                        className="px-2.5 py-1.5 bg-neutral-800/90 hover:bg-red-950/90 text-neutral-400 hover:text-red-300 border border-transparent hover:border-red-500/30 rounded-lg text-[11px] font-medium transition flex items-center gap-1 cursor-pointer"
+                                        title="Eliminar"
+                                      >
+                                        <Trash2 className="w-3.5 h-3.5" />
+                                        <span className="hidden sm:inline">Eliminar</span>
+                                      </button>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </section>
+                      );
+                    })}
+                  </div>
+                );
+              })()}
             </div>
           )}
 
@@ -1600,10 +1860,12 @@ function AppShell() {
         onClose={() => {
           setIsCameraModalOpen(false);
           setEditingCamera(null);
+          setCameraModalDefaultProjectId(null);
         }}
         onSave={handleSaveCamera}
         projects={projects}
         initialCamera={editingCamera}
+        defaultProjectId={cameraModalDefaultProjectId}
       />
 
       <ProjectModal
@@ -1689,6 +1951,7 @@ function AppShell() {
         projects={projects}
         cameras={cameras}
         onAddCamerasBatch={handleClientAddCamerasBatch}
+        onCreateProject={handleSaveProject}
         onSelectCameraAndGoToWall={(cameraId) => {
           setSelectedCameraId(cameraId);
           setFocusedCameraId(cameraId);
