@@ -9,6 +9,7 @@ import {
 } from '../lib/firebase';
 import { LiveCameraPlayer, prewarmHikvisionCameras } from './LiveCameraPlayer';
 import { syncEzvizAuthFromRemote, extractEzvizTokenFromCamera } from '../lib/ezvizAuth';
+import { isCamera4gDevice } from '../lib/ocos4gMonitor';
 import { buildWhatsAppUrl } from '../lib/whatsapp';
 import { usePWAInstall } from '../lib/usePWAInstall';
 import { 
@@ -226,9 +227,9 @@ export const ClientLivePortal: React.FC<ClientLivePortalProps> = ({
     }
   }
 
-  // Sincronizar token de EZVIZ para la cámara de Ocós para que clientes en móvil nunca vean token vencido
+  // Sincronizar token de EZVIZ para las cámaras 4G de Ocós para que clientes en móvil nunca vean token vencido
   useEffect(() => {
-    const ocosCam = pool.find((c) => c.id === 'cam-ocos-ch1' || c.deviceSerial === 'FF9363270');
+    const ocosCam = pool.find((c) => isCamera4gDevice(c) || c.deviceSerial?.startsWith('FF9'));
     if (ocosCam) {
       const extracted = extractEzvizTokenFromCamera(ocosCam);
       if (extracted) {
@@ -238,7 +239,7 @@ export const ClientLivePortal: React.FC<ClientLivePortalProps> = ({
   }, [pool]);
 
   useEffect(() => {
-    if (allowedCameras.some((c) => c.deviceSerial === 'FF9363270' || c.id.includes('ocos'))) {
+    if (allowedCameras.some((c) => isCamera4gDevice(c) || c.deviceSerial?.startsWith('FF9') || c.id.includes('ocos'))) {
       prewarmHikvisionCameras();
     }
   }, [allowedCameras]);
@@ -779,18 +780,24 @@ export const ClientLivePortal: React.FC<ClientLivePortalProps> = ({
           </div>
         ) : (
           /* Multi-Camera Grid View */
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-5xl mx-auto w-full">
             {allowedCameras.map((cam) => (
-              <div key={cam.id} className="flex flex-col gap-1">
-                <LiveCameraPlayer
-                  camera={cam}
-                  allowPtz={activeShareLink.allowPtz}
-                  allowAudio={activeShareLink.allowAudio}
-                  allowSnapshot={activeShareLink.allowSnapshot}
-                  showWatermark={activeShareLink.showWatermark}
-                  watermarkText={activeShareLink.clientName}
-                  isCompact={true}
-                />
+              <div key={cam.id} className="flex flex-col gap-1.5 bg-neutral-900 border border-neutral-800 rounded-2xl overflow-hidden shadow-lg p-2 sm:p-2.5">
+                <div className="aspect-video w-full rounded-xl overflow-hidden bg-black">
+                  <LiveCameraPlayer
+                    camera={cam}
+                    allowPtz={activeShareLink.allowPtz}
+                    allowAudio={activeShareLink.allowAudio}
+                    allowSnapshot={activeShareLink.allowSnapshot}
+                    showWatermark={activeShareLink.showWatermark}
+                    watermarkText={activeShareLink.clientName}
+                    isCompact={true}
+                  />
+                </div>
+                <div className="flex items-center justify-between px-2 py-0.5 text-xs text-neutral-400">
+                  <span className="font-semibold text-white truncate text-xs">{cam.name}</span>
+                  <span className="font-mono text-[11px] text-sky-400 shrink-0">{cam.resolution.split(' ')[0]}</span>
+                </div>
               </div>
             ))}
           </div>

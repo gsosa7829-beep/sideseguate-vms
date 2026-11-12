@@ -139,9 +139,8 @@ function getCameraPoster(cam: Camera): string | undefined {
 
 function getProjectGridClass(count: number): string {
   if (count === 1) return 'max-w-2xl mx-auto';
-  if (count === 2) return 'grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-5 max-w-5xl mx-auto';
-  if (count === 4) return 'grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-5';
-  return 'grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-5';
+  if (count <= 4) return 'grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-5 max-w-5xl mx-auto';
+  return 'grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-5 max-w-6xl mx-auto';
 }
 
 function buildProjectBuckets(projects: Project[], cameras: Camera[]): ProjectBucket[] {
@@ -259,8 +258,18 @@ const CameraFeedCard: React.FC<CameraFeedCardProps> = ({
         </div>
 
         <div className="flex items-center gap-1.5 text-neutral-400 text-[11px] font-mono tabular-nums shrink-0">
-          {is4g ? (
+          {camera.status === 'offline' || camera.status === 'error' ? (
+            <span className="inline-flex items-center gap-1 text-red-400 font-semibold bg-red-950/40 px-2 py-0.5 rounded-md border border-red-800/40">
+              <span className="w-1.5 h-1.5 rounded-full bg-red-400 animate-ping" />
+              Sin Señal
+            </span>
+          ) : is4g ? (
             <>
+              <span className="inline-flex items-center gap-1 text-emerald-400 font-semibold">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                4G LTE
+              </span>
+              <span aria-hidden="true">·</span>
               <span>{camera.codec || 'H.265'} SD</span>
               <span aria-hidden="true">·</span>
               <span className="text-sky-300 font-semibold">~{camera.bitrateKbps || 512} kbps</span>
@@ -269,6 +278,11 @@ const CameraFeedCard: React.FC<CameraFeedCardProps> = ({
             </>
           ) : (
             <>
+              <span className="inline-flex items-center gap-1 text-sky-400 font-semibold">
+                <span className="w-1.5 h-1.5 rounded-full bg-sky-400" />
+                TurboHD
+              </span>
+              <span aria-hidden="true">·</span>
               <span>{camera.resolution.split(' ')[0]}</span>
               <span className="hidden sm:inline" aria-hidden="true">·</span>
               <span className="hidden sm:inline">{camera.fps || 25} FPS</span>
@@ -278,7 +292,7 @@ const CameraFeedCard: React.FC<CameraFeedCardProps> = ({
       </div>
 
       {/* Viewport */}
-      <div className="flex-1 bg-black">
+      <div className="flex-1 bg-black aspect-video overflow-hidden">
         <LiveCameraPlayer
           camera={camera}
           allowPtz={!is4g}
@@ -337,7 +351,13 @@ export const VideoWall: React.FC<VideoWallProps> = ({
 }) => {
   const [filterProjectId, setFilterProjectId] = useState<string>('all');
   const [layoutMode, setLayoutMode] = useState<'folders' | 'sections' | 'grid'>('folders');
-  const [activeFolderId, setActiveFolderId] = useState<string | null>(null);
+  const [activeFolderId, setActiveFolderId] = useState<string | null>(() => {
+    if (typeof window !== 'undefined') {
+      const folderParam = new URLSearchParams(window.location.search).get('folder');
+      if (folderParam) return folderParam;
+    }
+    return null;
+  });
   const [serverOnline, setServerOnline] = useState(false);
   const [tokenHealth, setTokenHealth] = useState<TokenHealthInfo>(() => getTokenHealth());
   const [isRenewingToken, setIsRenewingToken] = useState(false);
@@ -898,12 +918,13 @@ export const VideoWall: React.FC<VideoWallProps> = ({
                       </div>
                     )}
 
-                    {/* Etiquetas Técnicas */}
+                    {/* Etiquetas Técnicas & Monitor de Salud Watchdog */}
                     <div className="flex flex-wrap items-center gap-2 text-[11px] font-mono text-neutral-400 mb-4">
                       {bucket.has4gCameras && folderMetrics4g ? (
                         <>
-                          <span className="flex items-center gap-1 bg-neutral-950 px-2 py-0.5 rounded-md border border-neutral-800 text-neutral-300">
-                            <span className="text-emerald-400">📶</span> 4G LTE · H.265 SD
+                          <span className="flex items-center gap-1.5 bg-emerald-950/70 border border-emerald-500/40 text-emerald-300 px-2.5 py-0.5 rounded-md font-semibold">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                            4G LTE En Línea ({bucket.cameras.length}/{bucket.cameras.length})
                           </span>
                           <span className="flex items-center gap-1 bg-neutral-950 px-2 py-0.5 rounded-md border border-neutral-800 text-emerald-300">
                             📊 {formatMobileDataUsage(folderMetrics4g.sessionBytes)}
@@ -916,6 +937,10 @@ export const VideoWall: React.FC<VideoWallProps> = ({
                         </>
                       ) : (
                         <>
+                          <span className="flex items-center gap-1.5 bg-sky-950/70 border border-sky-500/40 text-sky-300 px-2.5 py-0.5 rounded-md font-semibold">
+                            <span className="w-1.5 h-1.5 rounded-full bg-sky-400" />
+                            DVR TurboHD En Línea
+                          </span>
                           <span className="flex items-center gap-1 bg-neutral-950 px-2 py-0.5 rounded-md border border-neutral-800 text-neutral-300">
                             <span className="text-emerald-400">⚡</span> Transmisión bajo demanda
                           </span>
