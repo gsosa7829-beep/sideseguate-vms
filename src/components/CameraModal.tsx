@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Camera, DeviceType, Project } from '../lib/types';
 import { buildPresetRtspUrl, validateRtspSyntax, maskRtspUrl } from '../lib/rtspHelper';
+import { saveDeviceVerificationCode, disableEzvizEncryption } from '../lib/ezvizAuth';
 import { 
   X, 
   Cctv, 
@@ -156,6 +157,9 @@ export const CameraModal: React.FC<CameraModalProps> = ({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
+    const serial = initialCamera?.deviceSerial || (/^(FF|F3|K2)/i.test(host.trim()) ? host.trim().toUpperCase() : undefined);
+    const code = verificationCode.trim().toUpperCase();
+
     const camera: Camera = {
       id: initialCamera?.id || `cam-${Date.now()}`,
       projectId,
@@ -166,7 +170,8 @@ export const CameraModal: React.FC<CameraModalProps> = ({
       onvifPort: Number(onvifPort),
       username: username.trim(),
       password,
-      verificationCode: verificationCode.trim(),
+      verificationCode: code,
+      deviceSerial: serial,
       channel: Number(channel),
       streamType,
       rtspUrl: customRtsp,
@@ -180,6 +185,12 @@ export const CameraModal: React.FC<CameraModalProps> = ({
       nightVision,
       notes: notes.trim()
     };
+
+    if (serial && code) {
+      saveDeviceVerificationCode(serial, code);
+      // Auto-desactivar cifrado en EZVIZ Cloud silenciosamente en segundo plano
+      void disableEzvizEncryption(serial, code);
+    }
 
     onSave(camera);
     onClose();

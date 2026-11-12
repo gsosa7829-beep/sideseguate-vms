@@ -87,6 +87,36 @@ async function verifyTokenLive(token, serial = 'FF9363270') {
   }
 }
 
+const KNOWN_HARDWARE_CODES = {
+  FF9363192: 'WZRIKO', // Calle Iglesia del Tabernáculo Ocos
+  FF9363276: 'PZHQVT', // Calle sector el campo ocos
+  FF9363285: 'UFYQQQ', // Calle Colonia el Mezquital
+  FF9363270: 'LBNZYU', // Calle del Instituto / Ocós
+  F31700438: 'HELGDM', // Calle del Cementerio
+};
+
+async function autoUnlockKnownCameras(token) {
+  for (const [serial, code] of Object.entries(KNOWN_HARDWARE_CODES)) {
+    try {
+      const res = await fetch('https://open.ezvizlife.com/api/lapp/device/encrypt/off', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+          accessToken: token,
+          deviceSerial: serial,
+          validateCode: code,
+        }),
+      });
+      const data = await res.json();
+      if (data?.code === '200') {
+        console.log(`  🔓 Cifrado de video desactivado exitosamente para ${serial}`);
+      } else if (data?.code === '60016') {
+        console.log(`  ✓ Cifrado ya se encuentra desactivado para ${serial}`);
+      }
+    } catch {}
+  }
+}
+
 async function findFirstValidToken(logFilePath) {
   if (!logFilePath || !fs.existsSync(logFilePath)) return null;
   const candidates = extractTokensNewestFirst(logFilePath).slice(0, 12);
@@ -176,6 +206,9 @@ async function main() {
 
   console.log(`✓ Token válido confirmado en EZVIZ Cloud (${check.name || 'FF9363270'})`);
   console.log(`✓ Próxima fecha de renovación estimada: ${nextDateStr}`);
+
+  console.log('Verificando y desbloqueando cifrado de video en cámaras conocidas...');
+  await autoUnlockKnownCameras(token);
 
   const configPath = path.join(projectRoot, 'firebase-applet-config.json');
   const firebaseConfig = JSON.parse(fs.readFileSync(configPath, 'utf8'));

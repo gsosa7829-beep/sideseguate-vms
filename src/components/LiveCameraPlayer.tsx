@@ -737,8 +737,7 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
   const effectiveVerificationCode =
     inlineUnlockedCode ||
     camera.verificationCode ||
-    getDeviceVerificationCode(deviceSerial) ||
-    (deviceSerial === 'FF9363270' ? 'LBNZYU' : deviceSerial === 'F31700438' ? 'HELGDM' : '');
+    getDeviceVerificationCode(deviceSerial);
 
   const handleUnlockWithCode = useCallback(
     async (e?: React.FormEvent) => {

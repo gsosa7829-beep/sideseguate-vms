@@ -508,6 +508,18 @@ export async function verifyTokenLive(serial: string = 'FF9363270'): Promise<{
   }
 }
 
+/**
+ * Diccionario de códigos de verificación de fábrica conocidos (etiquetas físicas)
+ * para asegurar reproducción automática y desencriptación instantánea en cualquier navegador/celular.
+ */
+export const KNOWN_HARDWARE_CODES: Record<string, string> = {
+  FF9363192: 'WZRIKO', // Calle Iglesia del Tabernáculo Ocos
+  FF9363276: 'PZHQVT', // Calle sector el campo ocos
+  FF9363285: 'UFYQQQ', // Calle Colonia el Mezquital
+  FF9363270: 'LBNZYU', // Calle del Instituto / Ocós
+  F31700438: 'HELGDM', // Calle del Cementerio
+};
+
 let cachedDeviceCodes: Record<string, string> | null = null;
 
 function readDeviceCodesMap(): Record<string, string> {
@@ -531,11 +543,13 @@ function readDeviceCodesMap(): Record<string, string> {
   return cachedDeviceCodes;
 }
 
-/** Obtiene el código de verificación persistido localmente para un número de serie */
+/** Obtiene el código de verificación persistido localmente o del catálogo físico para un número de serie */
 export function getDeviceVerificationCode(serial: string | null | undefined): string {
   const cleanSerial = String(serial || '').trim().toUpperCase();
   if (!cleanSerial) return '';
-  return String(readDeviceCodesMap()[cleanSerial] || '').trim().toUpperCase();
+  const stored = String(readDeviceCodesMap()[cleanSerial] || '').trim().toUpperCase();
+  if (stored) return stored;
+  return KNOWN_HARDWARE_CODES[cleanSerial] || '';
 }
 
 /** Guarda el código de verificación por número de serie en localStorage y memoria */
@@ -567,8 +581,8 @@ export interface DisableEncryptionResult {
 }
 
 /**
- * Intenta desactivar el cifrado de video en la nube EZVIZ mediante /api/lapp/device/encrypt/off.
- * Si el token vigente proviene de sesión cliente sin AppKey Open Platform, EZVIZ responde 10017.
+ * Desactiva el cifrado de video en la nube EZVIZ mediante /api/lapp/device/encrypt/off.
+ * Intenta open.ezvizlife.com (apto para tokens cliente y Open Platform) y iusopen.ezvizlife.com.
  */
 export async function disableEzvizEncryption(
   deviceSerial: string,
@@ -583,23 +597,39 @@ export async function disableEzvizEncryption(
   saveDeviceVerificationCode(cleanSerial, cleanCode);
 
   const sendRequest = async (tokenOverride?: string) => {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 10_000);
-    try {
-      const res = await fetch('https://iusopen.ezvizlife.com/api/lapp/device/encrypt/off', {
-        method: 'POST',
-        signal: controller.signal,
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: new URLSearchParams({
-          accessToken: tokenOverride || getAccessToken(),
-          deviceSerial: cleanSerial,
-          validateCode: cleanCode,
-        }),
-      });
-      return res.ok ? await res.json() : { code: String(res.status), msg: `HTTP ${res.status}` };
-    } finally {
-      clearTimeout(timer);
+    const endpoints = [
+      'https://open.ezvizlife.com/api/lapp/device/encrypt/off',
+      'https://iusopen.ezvizlife.com/api/lapp/device/encrypt/off',
+    ];
+    let lastResult: any = null;
+
+    for (const url of endpoints) {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 10_000);
+      try {
+        const res = await fetch(url, {
+          method: 'POST',
+          signal: controller.signal,
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: new URLSearchParams({
+            accessToken: tokenOverride || getAccessToken(),
+            deviceSerial: cleanSerial,
+            validateCode: cleanCode,
+          }),
+        });
+        const json = res.ok ? await res.json() : { code: String(res.status), msg: `HTTP ${res.status}` };
+        const code = String(json?.code ?? json?.meta?.code ?? '');
+        if (code === '200' || code === '60016') {
+          return json;
+        }
+        lastResult = json;
+      } catch (err: any) {
+        lastResult = { code: 'NET', msg: err?.message || 'Error de red' };
+      } finally {
+        clearTimeout(timer);
+      }
     }
+    return lastResult;
   };
 
   try {
