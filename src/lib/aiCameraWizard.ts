@@ -20,6 +20,9 @@ export const ACTIVE_GEMINI_MODELS = [
   'gemini-3-flash-preview',
 ] as const;
 
+/** Límite máximo de canales por DVR/NVR soportado por Cloud Firestore (1..128). */
+export const MAX_SUPPORTED_CHANNELS = 128;
+
 export interface ParsedCameraSetupIntent {
   brand: 'hikvision_dvr' | 'hikvision_ip' | 'dahua_dvr' | 'generic_rtsp';
   brandLabel: string;
@@ -331,27 +334,27 @@ export function parseNaturalCameraPrompt(text: string): ParsedCameraSetupIntent 
 
   const chRangeMatch = raw.match(/\bcanales?\s+(\d+)\s*(?:,|y|al|-)\s*(\d+)\b/i);
   const chCountMatch =
-    raw.match(/\b(?:de\s+)?(\d{1,2})\s*(?:canales|ch|camaras|c[aá]maras)\b/i) ||
-    raw.match(/\bcanales?\s*[:=]?\s*(\d{1,2})\b/i);
-  const singleChMatch = raw.match(/\bcanal\s+(\d{1,4})\b/i);
+    raw.match(/\b(?:de\s+)?(\d{1,3})\s*(?:canales|ch|camaras|c[aá]maras)\b/i) ||
+    raw.match(/\bcanales?\s*[:=]?\s*(\d{1,3})\b/i);
+  const singleChMatch = raw.match(/\bcanal\s+(\d{1,5})\b/i);
 
   if (chCountMatch) {
-    channelsCount = Math.max(1, Math.min(32, Number(chCountMatch[1])));
+    channelsCount = Math.max(1, Math.min(MAX_SUPPORTED_CHANNELS, Number(chCountMatch[1])));
   } else if (chRangeMatch) {
     const c1 = Number(chRangeMatch[1]);
     const c2 = Number(chRangeMatch[2]);
-    if (c1 >= 1 && c2 >= c1 && c2 <= 32) {
+    if (c1 >= 1 && c2 >= c1 && c2 <= MAX_SUPPORTED_CHANNELS) {
       specificChannels = [];
       for (let c = c1; c <= c2; c++) specificChannels.push(c);
       channelsCount = specificChannels.length;
     }
   } else if (singleChMatch) {
     const chNum = Number(singleChMatch[1]);
-    if (chNum >= 101 && chNum <= 1602) {
+    if (chNum >= 101 && chNum <= MAX_SUPPORTED_CHANNELS * 100 + 99) {
       const realCh = Math.floor(chNum / 100);
       specificChannels = [realCh];
       channelsCount = 1;
-    } else if (chNum >= 1 && chNum <= 32) {
+    } else if (chNum >= 1 && chNum <= MAX_SUPPORTED_CHANNELS) {
       specificChannels = [chNum];
       channelsCount = 1;
     }
@@ -697,7 +700,13 @@ Tu tarea es analizar el mensaje del usuario y devolver SIEMPRE un objeto JSON v�
             verificationCode:
               (ext.verificationCode || localFallbackIntent.verificationCode || '').toUpperCase(),
             deviceSerial: serial,
-            channelsCount: Number(ext.channelsCount) || localFallbackIntent.channelsCount || 4,
+            channelsCount: Math.max(
+              1,
+              Math.min(
+                MAX_SUPPORTED_CHANNELS,
+                Number(ext.channelsCount) || localFallbackIntent.channelsCount || 4
+              )
+            ),
             codec: ext.codec === 'H.265' ? 'H.265' : localFallbackIntent.codec,
             cameraNamePrefix: ext.cameraNamePrefix || localFallbackIntent.cameraNamePrefix,
             isComplete: Boolean(resolvedHost),
@@ -841,7 +850,7 @@ export async function probeAndDiscoverChannels(
       if (capRes?.code === '200' && capRes.data) {
         const hwChannels = Number(capRes.data.support_channel_number || 0);
         if (hwChannels >= 1 && (!intent.specificChannels || intent.specificChannels.length === 0)) {
-          realChannelCount = hwChannels === 1 ? 1 : Math.min(intent.channelsCount, hwChannels);
+          realChannelCount = Math.min(MAX_SUPPORTED_CHANNELS, hwChannels);
           intent.channelsCount = realChannelCount;
         }
       }
@@ -855,9 +864,7 @@ export async function probeAndDiscoverChannels(
       ? intent.specificChannels
       : Array.from({ length: realChannelCount }, (_, idx) => idx + 1);
 
-  const results: ChannelProbeResult[] = [];
-
-  for (const ch of channelsToTest) {
+  const probeSingleChannel = async (ch: number): Promise<ChannelProbeResult> => {
     const channelCodeMain = `${ch * 100 + 1}`;
     const channelCodeSub = `${ch * 100 + 2}`;
 
@@ -935,7 +942,7 @@ export async function probeAndDiscoverChannels(
     const isSubOr4g = intent.streamType === 'sub' || is4gHardware;
     let detectedBitrateKbps = isSubOr4g ? 512 : 1760;
 
-    if (host && host !== 'open.ezviz.com' && !is4gHardware && presetBrand === 'hikvision') {
+    if (host && host !== 'open.ezviz.com' && !is4gHardware && presetBrand === 'hikvision' && ch <= 16) {
       try {
         const isapiRes = await fetch(`/api/hikvision/ISAPI/Streaming/channels/${channelCodeSub}`, {
           signal: AbortSignal.timeout(1500),
@@ -956,7 +963,7 @@ export async function probeAndDiscoverChannels(
       }
     }
 
-    results.push({
+    return {
       channel: ch,
       channelCodeMain,
       channelCodeSub,
@@ -972,7 +979,16 @@ export async function probeAndDiscoverChannels(
       detectedModel,
       is4gHardware,
       isEncrypted,
-    });
+    };
+  };
+
+  // Procesar canales en lotes paralelos de 8 para soportar NVRs de 32, 64 o 128 canales en pocos segundos
+  const results: ChannelProbeResult[] = [];
+  const BATCH_SIZE = 8;
+  for (let i = 0; i < channelsToTest.length; i += BATCH_SIZE) {
+    const chunk = channelsToTest.slice(i, i + BATCH_SIZE);
+    const batchResults = await Promise.all(chunk.map((ch) => probeSingleChannel(ch)));
+    results.push(...batchResults);
   }
 
   if (results.length > 0 && !results.some((r) => r.active)) {
@@ -1163,10 +1179,8 @@ export function buildIntentFromGuidedForm(
 
   const channelsCount =
     input.mode === 'remote'
-      ? is4gSerial
-        ? 1
-        : Math.max(1, Math.min(32, Number(input.channelsCount) || 4))
-      : Math.max(1, Math.min(32, Number(input.channelsCount) || 1));
+      ? Math.max(1, Math.min(MAX_SUPPORTED_CHANNELS, Number(input.channelsCount) || (is4gSerial ? 1 : 4)))
+      : Math.max(1, Math.min(MAX_SUPPORTED_CHANNELS, Number(input.channelsCount) || 1));
 
   const cleanName = input.cameraName.trim();
   const codec: 'H.264' | 'H.265' = is4gSerial ? 'H.265' : 'H.264';

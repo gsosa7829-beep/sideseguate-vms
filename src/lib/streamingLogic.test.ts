@@ -1697,3 +1697,49 @@ test('buildCamerasFromWizard respeta proyecto seleccionado y aplica ahorro 4G au
   assert.equal(built[0].codec, 'H.265');
   assert.ok(built[0].notes?.includes('4G LTE'));
 });
+
+test('asistente soporta NVRs de 32, 64 y 128 canales sin tope previo de 16/32', async () => {
+  const {
+    MAX_SUPPORTED_CHANNELS,
+    parseNaturalCameraPrompt,
+    buildIntentFromGuidedForm,
+  } = await import('./aiCameraWizard.ts');
+
+  assert.equal(MAX_SUPPORTED_CHANNELS, 128);
+
+  const parsed64 = parseNaturalCameraPrompt(
+    'Agrega NVR Hikvision de 64 canales en 192.168.1.220 usuario admin clave Solida123'
+  );
+  assert.equal(parsed64.channelsCount, 64);
+
+  const parsed128 = parseNaturalCameraPrompt(
+    'Configura NVR de 128 canales en 10.0.0.50 usuario admin clave Pass1234'
+  );
+  assert.equal(parsed128.channelsCount, 128);
+
+  const guided64 = buildIntentFromGuidedForm({
+    mode: 'local',
+    brand: 'hikvision_dvr',
+    cameraName: 'NVR Central',
+    host: '192.168.1.220',
+    username: 'admin',
+    password: 'Secret',
+    deviceSerial: '',
+    verificationCode: '',
+    channelsCount: 64,
+  });
+  assert.equal(guided64.channelsCount, 64);
+
+  const guided128 = buildIntentFromGuidedForm({
+    mode: 'hybrid',
+    brand: 'dahua_dvr',
+    cameraName: 'Enterprise',
+    host: '192.168.1.221',
+    username: 'admin',
+    password: 'Secret',
+    deviceSerial: 'F31700999',
+    verificationCode: 'ABCDEF',
+    channelsCount: 128,
+  });
+  assert.equal(guided128.channelsCount, 128);
+});

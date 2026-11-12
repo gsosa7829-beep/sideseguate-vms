@@ -245,20 +245,53 @@ const GuidedCameraSetupCard: React.FC<GuidedCameraSetupCardProps> = ({
 
             <div>
               <label className="block text-[11px] font-semibold text-neutral-300 mb-1">
-                Canales del Equipo
+                Canales del Equipo (hasta 128)
               </label>
               <select
-                value={form.channelsCount}
+                value={[1, 2, 4, 8, 16, 32, 64, 128].includes(form.channelsCount) ? form.channelsCount : 'custom'}
                 disabled={disabled}
-                onChange={(e) => setForm((prev) => ({ ...prev, channelsCount: Number(e.target.value) }))}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  if (val === 'custom') {
+                    setForm((prev) => ({
+                      ...prev,
+                      channelsCount: [1, 2, 4, 8, 16, 32, 64, 128].includes(prev.channelsCount)
+                        ? 24
+                        : prev.channelsCount,
+                    }));
+                  } else {
+                    setForm((prev) => ({ ...prev, channelsCount: Number(val) }));
+                  }
+                }}
                 className={inputBaseClass}
               >
                 <option value={1}>1 Canal (Cámara única)</option>
                 <option value={2}>2 Canales</option>
                 <option value={4}>4 Canales (DVR estándar)</option>
                 <option value={8}>8 Canales</option>
-                <option value={16}>16 Canales</option>
+                <option value={16}>16 Canales (NVR/DVR)</option>
+                <option value={32}>32 Canales (NVR)</option>
+                <option value={64}>64 Canales (NVR Pro)</option>
+                <option value={128}>128 Canales (Máx. Nube)</option>
+                <option value="custom">Otro número exacto (1–128)...</option>
               </select>
+              {![1, 2, 4, 8, 16, 32, 64, 128].includes(form.channelsCount) && (
+                <input
+                  type="number"
+                  min={1}
+                  max={128}
+                  disabled={disabled}
+                  value={form.channelsCount}
+                  onChange={(e) =>
+                    setForm((prev) => ({
+                      ...prev,
+                      channelsCount: Math.max(1, Math.min(128, Number(e.target.value) || 1)),
+                    }))
+                  }
+                  placeholder="Ej. 24"
+                  className={`${inputBaseClass} font-mono mt-1.5`}
+                />
+              )}
             </div>
           </div>
 
@@ -921,7 +954,7 @@ export const AiCameraSetupAssistant: React.FC<AiCameraSetupAssistantProps> = ({
                         </span>
                       </div>
 
-                      <div className="space-y-1.5 max-h-56 overflow-y-auto pr-1">
+                      <div className="space-y-1.5 max-h-72 overflow-y-auto pr-1">
                         {msg.probedChannels.map((ch) => {
                           const copyIdMain = `${msg.id}-ch${ch.channel}-main`;
                           const copyIdSub = `${msg.id}-ch${ch.channel}-sub`;
