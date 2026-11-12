@@ -28,12 +28,15 @@ export interface TokenHealthInfo {
   label: string;
   color: 'emerald' | 'amber' | 'red';
   expireDateStr: string;
+  shortExpireDateStr: string;
   hasCredentials: boolean;
   canAutoRefresh: boolean;
 }
 
 export const EZVIZ_AUTH_STORAGE_KEY = 'sideseguate_ezviz_auth_v2';
 export const DEFAULT_FALLBACK_TOKEN = 'at.1pzo6ehydxokb80xcx3rdhk7ah6z025w-8z7cnhbby8-1kgt1vp-j2bvrfxms';
+// Vigencia estimada del token actual (7 días desde su emisión del 06 nov 2026)
+export const DEFAULT_FALLBACK_EXPIRE_MS = Date.parse('2026-11-14T05:51:00.000Z');
 
 function getEnvEzvizCredentials(): { appKey: string; appSecret: string } {
   try {
@@ -52,12 +55,12 @@ function getEnvEzvizCredentials(): { appKey: string; appSecret: string } {
 
 const ENV_CREDS = getEnvEzvizCredentials();
 
-// Configuración inicial por defecto con vigencia activa para no resetear sesiones limpias
+// Configuración inicial por defecto con vigencia real del token de respaldo
 const INITIAL_CONFIG: EzvizAuthConfig = {
   appKey: ENV_CREDS.appKey,
   appSecret: ENV_CREDS.appSecret,
   accessToken: DEFAULT_FALLBACK_TOKEN,
-  expireTime: Date.now() + 7 * 86400 * 1000,
+  expireTime: DEFAULT_FALLBACK_EXPIRE_MS,
   lastRefreshAt: Date.now(),
   lastError: undefined,
   autoRefresh: true,
@@ -83,6 +86,8 @@ export function loadEzvizAuth(): EzvizAuthConfig {
         const resolvedExpire =
           rawExpireTime > 0
             ? rawExpireTime
+            : activeToken === DEFAULT_FALLBACK_TOKEN
+            ? DEFAULT_FALLBACK_EXPIRE_MS
             : Date.now() + 7 * 86400 * 1000;
         cachedConfig = {
           appKey: String(parsed.appKey || envCreds.appKey || '').trim(),
@@ -148,9 +153,12 @@ export function syncEzvizAuthFromRemote(remote: {
   }
 
   const current = loadEzvizAuth();
-  const remoteExpire = typeof remote.expireTime === 'number' && remote.expireTime > 0
-    ? remote.expireTime
-    : Date.now() + 7 * 86400 * 1000;
+  const remoteExpire =
+    typeof remote.expireTime === 'number' && remote.expireTime > 0
+      ? remote.expireTime
+      : cleanToken === DEFAULT_FALLBACK_TOKEN
+      ? DEFAULT_FALLBACK_EXPIRE_MS
+      : Date.now() + 7 * 86400 * 1000;
 
   if (cleanToken !== current.accessToken || remoteExpire > (current.expireTime || 0)) {
     saveEzvizAuth({
@@ -263,6 +271,7 @@ export function getTokenHealth(nowMs: number = Date.now()): TokenHealthInfo {
   const hasCredentials = Boolean(config.appKey?.trim() && config.appSecret?.trim());
 
   let expireDateStr = 'Vencido';
+  let shortExpireDateStr = 'Vencido';
   if (expireTime > 0) {
     try {
       expireDateStr = new Date(expireTime).toLocaleDateString('es-GT', {
@@ -272,8 +281,15 @@ export function getTokenHealth(nowMs: number = Date.now()): TokenHealthInfo {
         hour: '2-digit',
         minute: '2-digit',
       });
+      shortExpireDateStr = new Date(expireTime)
+        .toLocaleDateString('es-GT', {
+          day: '2-digit',
+          month: 'short',
+        })
+        .replace('.', '');
     } catch {
       expireDateStr = 'Vencido';
+      shortExpireDateStr = 'Vencido';
     }
   }
 
@@ -285,6 +301,7 @@ export function getTokenHealth(nowMs: number = Date.now()): TokenHealthInfo {
       label: 'Token Vencido (Requiere Renovación)',
       color: 'red',
       expireDateStr,
+      shortExpireDateStr: 'Vencido',
       hasCredentials,
       canAutoRefresh: hasCredentials,
     };
@@ -299,6 +316,7 @@ export function getTokenHealth(nowMs: number = Date.now()): TokenHealthInfo {
       label: `Alerta: Expira en ${hoursRemaining}h`,
       color: 'amber',
       expireDateStr,
+      shortExpireDateStr,
       hasCredentials,
       canAutoRefresh: hasCredentials,
     };
@@ -312,6 +330,7 @@ export function getTokenHealth(nowMs: number = Date.now()): TokenHealthInfo {
     label: `Token Activo (Válido por ${daysRemaining} ${daysRemaining === 1 ? 'día' : 'días'})`,
     color: 'emerald',
     expireDateStr,
+    shortExpireDateStr,
     hasCredentials,
     canAutoRefresh: hasCredentials,
   };

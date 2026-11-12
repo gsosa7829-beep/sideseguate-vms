@@ -63,8 +63,8 @@ export const EzvizTokenRenewalModal: React.FC<EzvizTokenRenewalModalProps> = ({
       setSuccessMessage(null);
       setIsSubmitting(false);
 
-      // Priorizar la configuración automática 24/7 para renovar sin tocar botones
-      setActiveTab('auto');
+      // Si ya tiene AppKey/AppSecret abre en Auto-Renovación; si usa PC/HiLookVision abre en Token Manual / Script PC
+      setActiveTab(hasEzvizCredentials() ? 'auto' : 'manual');
     }
   }, [isOpen]);
 
@@ -296,18 +296,27 @@ export const EzvizTokenRenewalModal: React.FC<EzvizTokenRenewalModalProps> = ({
                   placeholder="Ej. at.b1exbqau80l85aox2k6x3487cw0byh2s-51eyws3m7n-0ii5ze3-uuk9pufag..."
                   className="w-full bg-neutral-950 border border-neutral-700 focus:border-sky-500 rounded-xl p-3 text-white font-mono text-xs focus:outline-none transition resize-none"
                 />
-                <span className="text-[10px] text-neutral-500 mt-1 block">
-                  Copia el token directamente desde la consola oficial de EZVIZ Cloud (
-                  <a
-                    href="https://iusopen.ezviz.com/console/home.html"
-                    target="_blank"
-                    rel="noreferrer"
-                    className="text-sky-400 hover:underline inline-flex items-center gap-0.5"
-                  >
-                    iusopen.ezviz.com <ExternalLink className="w-2.5 h-2.5 inline" />
-                  </a>
-                  ) y pégalo aquí.
-                </span>
+                <div className="text-[10px] text-neutral-400 mt-2 bg-neutral-950/90 border border-neutral-800 rounded-lg p-2.5 space-y-1">
+                  <p className="text-neutral-300 font-semibold">
+                    💻 Renovación en 1 clic desde tu PC (sin pagos):
+                  </p>
+                  <p>
+                    Si usas <strong>HiLookVision Client</strong> en tu computadora, abre ese programa y ejecuta{' '}
+                    <code className="text-sky-300 font-mono">Renovar-Token-4G.bat</code> en la carpeta del proyecto para sincronizar el token nuevo directo a la nube para todos tus celulares.
+                  </p>
+                  <p className="text-neutral-500">
+                    O pega manualmente un token de{' '}
+                    <a
+                      href="https://iusopen.ezviz.com/console/home.html"
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-sky-400 hover:underline inline-flex items-center gap-0.5"
+                    >
+                      iusopen.ezviz.com <ExternalLink className="w-2.5 h-2.5 inline" />
+                    </a>
+                    .
+                  </p>
+                </div>
               </div>
 
               {/* Días de Validez */}

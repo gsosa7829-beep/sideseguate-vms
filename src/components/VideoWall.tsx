@@ -139,8 +139,8 @@ function getCameraPoster(cam: Camera): string | undefined {
 function getProjectGridClass(count: number): string {
   if (count === 1) return 'max-w-2xl mx-auto';
   if (count === 2) return 'grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-5 max-w-5xl mx-auto';
-  if (count === 3) return 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5';
-  return 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-5';
+  if (count === 4) return 'grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-5';
+  return 'grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-5';
 }
 
 function buildProjectBuckets(projects: Project[], cameras: Camera[]): ProjectBucket[] {
@@ -241,8 +241,8 @@ const CameraFeedCard: React.FC<CameraFeedCardProps> = ({
   return (
     <article className="bg-neutral-900 border border-neutral-800 hover:border-neutral-700 transition rounded-2xl overflow-hidden flex flex-col shadow-lg">
       {/* Franja Superior */}
-      <div className="px-4 py-3 bg-neutral-950/95 border-b border-neutral-800 flex items-center justify-between gap-3 text-xs">
-        <div className="flex items-center gap-2 min-w-0">
+      <div className="px-4 py-2.5 bg-neutral-950/95 border-b border-neutral-800 flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-xs">
+        <div className="flex items-center gap-2 min-w-[140px] flex-1">
           <span
             className={`w-2 h-2 rounded-full shrink-0 ${
               isPlaying ? 'bg-emerald-400 animate-pulse' : 'bg-neutral-500'
@@ -251,7 +251,7 @@ const CameraFeedCard: React.FC<CameraFeedCardProps> = ({
           <span className={`font-mono text-xs font-bold shrink-0 ${is4g ? 'text-emerald-400' : 'text-sky-400'}`}>
             CH0{camera.channel}
           </span>
-          <span className="text-neutral-600" aria-hidden="true">·</span>
+          <span className="text-neutral-600 shrink-0" aria-hidden="true">·</span>
           <TitleTag className="font-semibold text-white truncate text-xs sm:text-sm">
             {camera.name}
           </TitleTag>
@@ -1064,7 +1064,7 @@ export const VideoWall: React.FC<VideoWallProps> = ({
 
                     {/* Controles de Ahorro 4G o Control Grupal + Botón Agregar */}
                     {metrics4g ? (
-                      <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 self-stretch md:self-center">
+                      <div className="flex flex-col sm:flex-row sm:flex-wrap items-stretch sm:items-center gap-2 self-stretch md:self-center">
                         <div className="flex items-center justify-between sm:justify-start gap-2.5 bg-neutral-950/90 border border-neutral-800 px-3 py-2 rounded-xl text-xs text-neutral-300 font-mono">
                           <div className="flex items-center gap-2">
                             <span
@@ -1100,7 +1100,7 @@ export const VideoWall: React.FC<VideoWallProps> = ({
                           )}
                         </div>
 
-                        <div className="flex items-center justify-between sm:justify-start gap-1.5 bg-neutral-950/90 border border-neutral-800 px-2.5 py-1.5 rounded-xl text-xs font-mono">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between sm:justify-start gap-1.5 bg-neutral-950/90 border border-neutral-800 px-2.5 py-1.5 rounded-xl text-xs font-mono">
                           <span className="text-[11px] text-neutral-400 px-1 shrink-0" title="Auto-pausa para ahorrar datos 4G">
                             ⏱️ Auto-pausa:
                           </span>
@@ -1112,7 +1112,7 @@ export const VideoWall: React.FC<VideoWallProps> = ({
                                   key={opt.value}
                                   type="button"
                                   onClick={() => setOcosEcoSleepOption(opt.value)}
-                                  className={`h-7 px-2 rounded-lg text-[11px] font-bold transition cursor-pointer text-center ${
+                                  className={`h-7 px-1.5 sm:px-2 rounded-lg text-[10px] sm:text-[11px] font-bold transition cursor-pointer text-center ${
                                     isSelected
                                       ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/50 shadow-xs'
                                       : 'bg-neutral-900 hover:bg-neutral-800 text-neutral-400 hover:text-neutral-200 border border-transparent'
@@ -1125,6 +1125,24 @@ export const VideoWall: React.FC<VideoWallProps> = ({
                             })}
                           </div>
                         </div>
+
+                        {/* Botón discreto de Token y fecha próxima de renovación dentro de la carpeta 4G */}
+                        <button
+                          type="button"
+                          onClick={handleQuickRenew}
+                          disabled={isRenewingToken}
+                          className="h-[38px] px-2.5 py-1.5 rounded-xl bg-neutral-950/90 hover:bg-neutral-800 border border-neutral-800 hover:border-neutral-700 text-neutral-400 hover:text-neutral-200 text-[11px] font-mono transition flex items-center justify-center gap-1.5 cursor-pointer shrink-0"
+                          title={`Token EZVIZ · Próxima renovación: ${tokenHealth.expireDateStr} · Clic para actualizar o ver script de PC`}
+                        >
+                          <Key className="w-3 h-3 text-neutral-500 shrink-0" />
+                          <span>
+                            {isRenewingToken
+                              ? 'Renovando...'
+                              : tokenHealth.status === 'expired'
+                              ? 'Renovar token · Vencido'
+                              : `Renovar token · ${tokenHealth.shortExpireDateStr}`}
+                          </span>
+                        </button>
                       </div>
                     ) : (
                       <div className="flex flex-wrap items-center gap-2 shrink-0 pt-2 md:pt-0 border-t md:border-t-0 border-neutral-800">
