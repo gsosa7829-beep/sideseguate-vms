@@ -161,7 +161,12 @@ export function syncEzvizAuthFromRemote(remote: {
       ? DEFAULT_FALLBACK_EXPIRE_MS
       : Date.now() + 7 * 86400 * 1000;
 
-  if (cleanToken !== current.accessToken || remoteExpire > (current.expireTime || 0)) {
+  const tokenChanged = cleanToken !== current.accessToken;
+  const remoteExpireValid = typeof remote.expireTime === 'number' && remote.expireTime > 0;
+  const significantExpireBump =
+    remoteExpireValid && remote.expireTime! > (current.expireTime || 0) + 3600_000;
+
+  if (tokenChanged || significantExpireBump) {
     saveEzvizAuth({
       accessToken: cleanToken,
       expireTime: remoteExpire,

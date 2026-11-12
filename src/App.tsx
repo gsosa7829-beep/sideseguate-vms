@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, lazy, Suspense } from 'react';
 import { Camera, Project, ShareLink, AccessLog, NavigationTab } from './lib/types';
-import { storage, deduplicateCameras } from './lib/storage';
+import { storage, deduplicateCameras, cameraListsDiffer } from './lib/storage';
 import { INITIAL_PROJECTS, INITIAL_SHARE_LINKS, INITIAL_CAMERAS, isLegacyDemoCamera } from './lib/initialData';
 import {
   upsertCloudProject,
@@ -532,8 +532,11 @@ function AppShell() {
             };
           })
         );
-        setCameras(enriched);
-        storage.saveCameras(enriched);
+        setCameras((prev) => {
+          if (!cameraListsDiffer(enriched, prev)) return prev;
+          storage.saveCameras(enriched);
+          return enriched;
+        });
         setSelectedCameraId((prev) =>
           prev && enriched.some((c) => c.id === prev) ? prev : enriched[0]?.id || ''
         );

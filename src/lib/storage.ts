@@ -63,6 +63,30 @@ export function getCameraCanonicalKey(camera: Partial<Camera>): string {
   return `id:${camera.id || `${camera.name || 'cam'}:ch${channel}`}`;
 }
 
+export function cameraListsDiffer(a: Camera[], b: Camera[]): boolean {
+  if (a === b) return false;
+  if (a.length !== b.length) return true;
+  for (let i = 0; i < a.length; i++) {
+    const ca = a[i];
+    const cb = b[i];
+    if (
+      ca.id !== cb.id ||
+      ca.name !== cb.name ||
+      ca.status !== cb.status ||
+      ca.hlsStreamUrl !== cb.hlsStreamUrl ||
+      ca.webrtcUrl !== cb.webrtcUrl ||
+      ca.deviceSerial !== cb.deviceSerial ||
+      ca.verificationCode !== cb.verificationCode ||
+      ca.projectId !== cb.projectId ||
+      ca.cloudId !== cb.cloudId ||
+      ca.notes !== cb.notes
+    ) {
+      return true;
+    }
+  }
+  return false;
+}
+
 export function deduplicateCameras(cameras: Camera[]): Camera[] {
   const byKey = new Map<string, Camera>();
   const seenIds = new Set<string>();
