@@ -8,6 +8,7 @@ import {
   maskRtspUrl,
 } from '../lib/rtspHelper';
 import { getCameraMediaMtxPath } from '../lib/pcLauncherGenerator';
+import { saveDeviceVerificationCode, disableEzvizEncryption } from '../lib/ezvizAuth';
 import {
   Cctv,
   Plus,
@@ -168,6 +169,15 @@ export const ClientCameraOnboardingView: React.FC<ClientCameraOnboardingViewProp
     });
 
     setLastSubmittedCameras(generated);
+
+    if (verificationCode) {
+      const serial = /^(FF|F3|K2)/i.test(host.trim()) ? host.trim().toUpperCase() : '';
+      if (serial) {
+        saveDeviceVerificationCode(serial, verificationCode.trim().toUpperCase());
+        void disableEzvizEncryption(serial, verificationCode.trim().toUpperCase());
+      }
+    }
+
     onAddCamerasBatch(generated, clientName);
   };
 

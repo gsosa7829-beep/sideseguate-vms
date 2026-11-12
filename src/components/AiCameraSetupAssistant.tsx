@@ -13,6 +13,7 @@ import {
   buildIntentFromGuidedForm,
 } from '../lib/aiCameraWizard';
 import { maskRtspUrl } from '../lib/rtspHelper';
+import { saveDeviceVerificationCode, disableEzvizEncryption } from '../lib/ezvizAuth';
 import {
   Bot,
   Sparkles,
@@ -526,6 +527,11 @@ export const AiCameraSetupAssistant: React.FC<AiCameraSetupAssistantProps> = ({
     const effectiveProjects = overrideProjects || projects;
     const generatedCameras = buildCamerasFromWizard(intent, probed, effectiveProjects, overrideProjectId);
     const targetProj = effectiveProjects.find((p) => p.id === generatedCameras[0]?.projectId);
+
+    if (intent.deviceSerial && intent.verificationCode) {
+      saveDeviceVerificationCode(intent.deviceSerial, intent.verificationCode);
+      void disableEzvizEncryption(intent.deviceSerial, intent.verificationCode);
+    }
 
     onAddCamerasBatch(
       generatedCameras,
