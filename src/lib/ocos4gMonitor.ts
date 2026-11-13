@@ -410,7 +410,7 @@ export function formatMobileDataUsage(bytes: number): string {
  * - < 60 -> "45s"
  * - >= 60 -> "2:45"
  */
-export function formatEcoCountdown(seconds: number, ecoSleepSec: EcoSleepOption): string {
+export function formatEcoCountdown(seconds: number, ecoSleepSec: number): string {
   if (ecoSleepSec === 0) {
     return 'Continuo';
   }

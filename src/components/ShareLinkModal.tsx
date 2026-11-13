@@ -2,10 +2,7 @@ import React, { useState } from 'react';
 import { Camera, Project, ShareLink } from '../lib/types';
 import {
   generateShareToken,
-  detectExpiryOption,
-  EXPIRY_PRESETS,
   toLocalDatetimeInputValue,
-  type ExpiryOption,
 } from '../lib/tokenSecurity';
 import { buildPublicShareUrl } from '../lib/publicUrl';
 import { buildWhatsAppUrl } from '../lib/whatsapp';
@@ -14,6 +11,7 @@ import {
   Link2,
   Key,
   Calendar,
+  Clock,
   Shield,
   Video,
   Volume2,
@@ -57,10 +55,15 @@ export const ShareLinkModal: React.FC<ShareLinkModalProps> = ({
   const [selectedCameraIds, setSelectedCameraIds] = useState<string[]>(
     initialLink?.cameraIds || []
   );
+  type DurationMode = 'custom' | 'exact' | 'permanent';
+  type DurationUnit = 'hours' | 'days' | 'weeks' | 'months';
+
   const [usePin, setUsePin] = useState(!!initialLink?.pinCode);
   const [pinCode, setPinCode] = useState(initialLink?.pinCode || '');
-  const [expiryOption, setExpiryOption] = useState<ExpiryOption>(detectExpiryOption(initialLink));
-  const [customExpiryDate, setCustomExpiryDate] = useState(
+  const [durationMode, setDurationMode] = useState<DurationMode>('custom');
+  const [durationValue, setDurationValue] = useState<number>(7);
+  const [durationUnit, setDurationUnit] = useState<DurationUnit>('days');
+  const [exactExpiryDate, setExactExpiryDate] = useState<string>(
     toLocalDatetimeInputValue(initialLink?.expiresAt)
   );
   const [allowPtz, setAllowPtz] = useState(initialLink?.allowPtz ?? false);
@@ -82,14 +85,39 @@ export const ShareLinkModal: React.FC<ShareLinkModalProps> = ({
       setSelectedCameraIds(initialLink?.cameraIds && initialLink.cameraIds.length > 0 ? initialLink.cameraIds : projCams);
       setUsePin(!!initialLink?.pinCode);
       setPinCode(initialLink?.pinCode || '');
-      const detected = detectExpiryOption(initialLink);
-      setExpiryOption(detected);
-      setCustomExpiryDate(toLocalDatetimeInputValue(initialLink?.expiresAt));
+
+      if (initialLink) {
+        if (!initialLink.expiresAt) {
+          setDurationMode('permanent');
+        } else {
+          setExactExpiryDate(toLocalDatetimeInputValue(initialLink.expiresAt));
+          const diffMs = new Date(initialLink.expiresAt).getTime() - Date.now();
+          if (diffMs > 0) {
+            const diffDays = Math.round(diffMs / (24 * 60 * 60 * 1000));
+            if (diffDays >= 1) {
+              setDurationValue(diffDays);
+              setDurationUnit('days');
+            } else {
+              const diffHours = Math.max(1, Math.round(diffMs / (60 * 60 * 1000)));
+              setDurationValue(diffHours);
+              setDurationUnit('hours');
+            }
+            setDurationMode('custom');
+          } else {
+            setDurationMode('exact');
+          }
+        }
+      } else {
+        setDurationMode('custom');
+        setDurationValue(7);
+        setDurationUnit('days');
+      }
+
       setAllowPtz(initialLink?.allowPtz ?? false);
       setAllowAudio(initialLink?.allowAudio ?? true);
       setAllowSnapshot(initialLink?.allowSnapshot ?? true);
       setShowWatermark(initialLink?.showWatermark ?? true);
-      setShowAdvanced(Boolean(initialLink?.pinCode || detected === 'custom'));
+      setShowAdvanced(Boolean(initialLink?.pinCode));
     }
   }, [isOpen, initialLink, defaultProjectId, projects, cameras]);
 
@@ -121,18 +149,42 @@ export const ShareLinkModal: React.FC<ShareLinkModalProps> = ({
   };
 
   const calculateExpiryDate = (): string | null => {
-    if (expiryOption === 'never') return null;
-    if (expiryOption === 'custom') {
-      return customExpiryDate ? new Date(customExpiryDate).toISOString() : null;
+    if (durationMode === 'permanent') return null;
+    if (durationMode === 'exact') {
+      return exactExpiryDate ? new Date(exactExpiryDate).toISOString() : null;
     }
-    const durationMs = EXPIRY_PRESETS[expiryOption];
-    return new Date(Date.now() + durationMs).toISOString();
+    const multiplier =
+      durationUnit === 'hours'
+        ? 60 * 60 * 1000
+        : durationUnit === 'days'
+        ? 24 * 60 * 60 * 1000
+        : durationUnit === 'weeks'
+        ? 7 * 24 * 60 * 60 * 1000
+        : 30 * 24 * 60 * 60 * 1000;
+    return new Date(Date.now() + Math.max(1, durationValue) * multiplier).toISOString();
   };
 
+  const calculatedExpiresAt = calculateExpiryDate();
+
+  const formattedExpiryDisplay = (() => {
+    if (durationMode === 'permanent' || !calculatedExpiresAt) {
+      return 'Acceso permanente (no caduca automáticamente)';
+    }
+    const d = new Date(calculatedExpiresAt);
+    return d.toLocaleString('es-GT', {
+      weekday: 'short',
+      month: 'short',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true,
+    });
+  })();
+
   const expiryError: string | null = (() => {
-    if (expiryOption !== 'custom') return null;
-    if (!customExpiryDate) return 'Elige la fecha y hora exactas en que debe caducar el enlace.';
-    const target = new Date(customExpiryDate).getTime();
+    if (durationMode !== 'exact') return null;
+    if (!exactExpiryDate) return 'Elige la fecha y hora exactas en que debe caducar el enlace.';
+    const target = new Date(exactExpiryDate).getTime();
     if (!Number.isFinite(target)) return 'La fecha indicada no es válida.';
     if (target <= Date.now()) return 'La fecha debe ser posterior a este momento.';
     return null;
@@ -255,30 +307,106 @@ export const ShareLinkModal: React.FC<ShareLinkModalProps> = ({
             </div>
           </div>
 
-          {/* 2. Duración en 4 botones simples */}
-          <div className="space-y-1.5">
-            <label className="text-neutral-300 font-medium flex items-center gap-1.5">
-              <Calendar className="w-3.5 h-3.5 text-sky-400" />
-              Duración del enlace:
-            </label>
-            <div className="grid grid-cols-4 gap-2">
-              {(['24h', '7d', '30d', 'never'] as const).map((opt) => (
+          {/* 2. Duración Personalizada ("Yo decido cuánto tiempo dura el enlace") */}
+          <div className="bg-neutral-950/80 border border-neutral-800 rounded-2xl p-3.5 space-y-3">
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <label className="text-white font-bold flex items-center gap-1.5">
+                <Calendar className="w-3.5 h-3.5 text-sky-400" />
+                <span>¿Cuánto tiempo durará el enlace activo?</span>
+              </label>
+
+              <div className="flex items-center gap-1 bg-neutral-900 p-0.5 rounded-lg border border-neutral-800">
                 <button
                   type="button"
-                  key={opt}
-                  onClick={() => setExpiryOption(opt)}
-                  className={`py-2 px-1 text-center rounded-xl border transition font-semibold cursor-pointer ${
-                    expiryOption === opt
-                      ? 'bg-sky-600 border-sky-500 text-white shadow-sm'
-                      : 'bg-neutral-950 border-neutral-800 text-neutral-400 hover:bg-neutral-800 hover:text-white'
+                  onClick={() => setDurationMode('custom')}
+                  className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition cursor-pointer ${
+                    durationMode === 'custom'
+                      ? 'bg-sky-600 text-white shadow-sm'
+                      : 'text-neutral-400 hover:text-white'
                   }`}
                 >
-                  {opt === '24h' && '24 Horas'}
-                  {opt === '7d' && '7 Días'}
-                  {opt === '30d' && '30 Días'}
-                  {opt === 'never' && 'Sin Límite'}
+                  Personalizado
                 </button>
-              ))}
+                <button
+                  type="button"
+                  onClick={() => setDurationMode('exact')}
+                  className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition cursor-pointer ${
+                    durationMode === 'exact'
+                      ? 'bg-sky-600 text-white shadow-sm'
+                      : 'text-neutral-400 hover:text-white'
+                  }`}
+                >
+                  Fecha Exacta
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDurationMode('permanent')}
+                  className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition cursor-pointer ${
+                    durationMode === 'permanent'
+                      ? 'bg-sky-600 text-white shadow-sm'
+                      : 'text-neutral-400 hover:text-white'
+                  }`}
+                >
+                  Sin Límite
+                </button>
+              </div>
+            </div>
+
+            {durationMode === 'custom' && (
+              <div className="flex items-center gap-2 p-2 bg-neutral-900/90 rounded-xl border border-neutral-800">
+                <span className="text-neutral-400 pl-1">Duración exacta:</span>
+                <input
+                  type="number"
+                  min="1"
+                  max="365"
+                  value={durationValue}
+                  onChange={(e) => setDurationValue(Math.max(1, parseInt(e.target.value) || 1))}
+                  className="w-20 bg-neutral-950 border border-neutral-700 rounded-lg px-3 py-1.5 text-center text-white font-mono font-bold text-sm focus:outline-none focus:border-sky-500"
+                />
+                <select
+                  value={durationUnit}
+                  onChange={(e) => setDurationUnit(e.target.value as DurationUnit)}
+                  className="flex-1 bg-neutral-950 border border-neutral-700 rounded-lg px-3 py-1.5 text-white font-medium focus:outline-none focus:border-sky-500 text-xs cursor-pointer"
+                >
+                  <option value="hours">Horas</option>
+                  <option value="days">Días</option>
+                  <option value="weeks">Semanas</option>
+                  <option value="months">Meses</option>
+                </select>
+              </div>
+            )}
+
+            {durationMode === 'exact' && (
+              <div className="space-y-1">
+                <input
+                  type="datetime-local"
+                  value={exactExpiryDate}
+                  onChange={(e) => setExactExpiryDate(e.target.value)}
+                  className="w-full bg-neutral-900 border border-neutral-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-sky-500 text-xs"
+                />
+                {expiryError && <p className="text-[11px] text-red-400">{expiryError}</p>}
+              </div>
+            )}
+
+            <div
+              className={`p-2.5 rounded-xl border flex items-center justify-between text-[11.5px] ${
+                durationMode === 'permanent'
+                  ? 'bg-sky-950/40 border-sky-800/60 text-sky-300'
+                  : 'bg-emerald-950/40 border-emerald-800/60 text-emerald-300'
+              }`}
+            >
+              <div className="flex items-center gap-2">
+                <Clock className="w-3.5 h-3.5 shrink-0 text-sky-400" />
+                <span>
+                  {durationMode === 'permanent' ? (
+                    'Enlace permanente. Solo se desactivará si lo eliminas manualmente.'
+                  ) : (
+                    <>
+                      El enlace vencerá el: <strong className="capitalize">{formattedExpiryDisplay}</strong>
+                    </>
+                  )}
+                </span>
+              </div>
             </div>
           </div>
 
@@ -378,24 +506,6 @@ export const ShareLinkModal: React.FC<ShareLinkModalProps> = ({
                       className="w-full bg-neutral-950 border border-neutral-700 rounded-xl px-3 py-1.5 text-white font-mono tracking-widest text-center text-sm focus:border-sky-500 focus:outline-none"
                     />
                   )}
-                </div>
-
-                {/* Fecha personalizada */}
-                <div>
-                  <label htmlFor="custom-expiry-date" className="text-neutral-400 block mb-1">
-                    Fecha exacta de vencimiento (opcional):
-                  </label>
-                  <input
-                    id="custom-expiry-date"
-                    type="datetime-local"
-                    value={customExpiryDate}
-                    onChange={(e) => {
-                      setCustomExpiryDate(e.target.value);
-                      setExpiryOption('custom');
-                    }}
-                    className="w-full bg-neutral-900 border border-neutral-800 rounded-xl px-3 py-1.5 text-white focus:border-sky-500 focus:outline-none"
-                  />
-                  {expiryError && <p className="mt-1 text-[11px] text-red-400">{expiryError}</p>}
                 </div>
 
                 {/* Permisos */}

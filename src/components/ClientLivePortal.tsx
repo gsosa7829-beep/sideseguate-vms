@@ -10,8 +10,8 @@ import {
 import { LiveCameraPlayer, prewarmHikvisionCameras } from './LiveCameraPlayer';
 import { syncEzvizAuthFromRemote, extractEzvizTokenFromCamera } from '../lib/ezvizAuth';
 import { isCamera4gDevice } from '../lib/ocos4gMonitor';
-import { buildWhatsAppUrl } from '../lib/whatsapp';
-import { usePWAInstall } from '../lib/usePWAInstall';
+import { getOcosMetadataForCamera } from '../lib/ocosMetadata';
+import { OcosTenderPlaque } from './OcosTenderPlaque';
 import { 
   ShieldCheck, 
   Lock, 
@@ -22,9 +22,6 @@ import {
   RefreshCw, 
   Clock, 
   PauseCircle,
-  Smartphone,
-  MessageSquare,
-  Download,
   Video,
 } from 'lucide-react';
 
@@ -92,7 +89,6 @@ export const ClientLivePortal: React.FC<ClientLivePortalProps> = ({
   isCloudLoading = false,
   onClientAddCameras,
 }) => {
-  const { isInstallable, isInstalled, isIOS, install } = usePWAInstall();
   const deletedTokens = storage.getDeletedShareTokens();
   const isTokenDeleted = Boolean(token && deletedTokens.has(token));
   const fallbackInitialLink = isTokenDeleted
@@ -244,10 +240,49 @@ export const ClientLivePortal: React.FC<ClientLivePortalProps> = ({
     }
   }, [allowedCameras]);
 
-  const [selectedCameraId, setSelectedCameraId] = useState<string>(allowedCameras[0]?.id || '');
-  const [viewMode, setViewMode] = useState<'single' | 'grid'>('single');
+  const [selectedCameraId, setSelectedCameraId] = useState<string>(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const camParam = params.get('cam') || params.get('camera') || params.get('serial');
+      if (camParam) {
+        const found = allowedCameras.find(
+          (c) =>
+            c.id === camParam ||
+            c.deviceSerial?.toUpperCase() === camParam.toUpperCase() ||
+            c.name.toLowerCase().includes(camParam.toLowerCase())
+        );
+        if (found) return found.id;
+      }
+    }
+    return allowedCameras[0]?.id || '';
+  });
+  const [viewMode, setViewMode] = useState<'single' | 'grid'>(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('mode') === 'grid' || params.get('grid') === '1' || params.get('mosaico') === '1') {
+        return 'grid';
+      }
+    }
+    return 'single';
+  });
 
   useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const camParam = params.get('cam') || params.get('camera') || params.get('serial');
+      if (camParam) {
+        const found = allowedCameras.find(
+          (c) =>
+            c.id === camParam ||
+            c.deviceSerial?.toUpperCase() === camParam.toUpperCase() ||
+            c.name.toLowerCase().includes(camParam.toLowerCase())
+        );
+        if (found && found.id !== selectedCameraId) {
+          setSelectedCameraId(found.id);
+          return;
+        }
+      }
+    }
     if (allowedCameras.length > 0 && !allowedCameras.some((c) => c.id === selectedCameraId)) {
       setSelectedCameraId(allowedCameras[0].id);
     }
@@ -559,85 +594,53 @@ export const ClientLivePortal: React.FC<ClientLivePortalProps> = ({
                 allowSnapshot={activeShareLink.allowSnapshot}
                 showWatermark={activeShareLink.showWatermark}
                 watermarkText={activeShareLink.clientName}
+                isClientView={true}
+                ecoSleepOverrideSec={60}
+                autoPlay={false}
               />
             )}
 
-            {/* Single Camera Metadata Card */}
-            {selectedCamera && (
-              <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs shadow-md">
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2 mb-1 flex-wrap">
-                    <h2 className="font-bold text-white text-sm sm:text-base truncate">
-                      {selectedCamera.name}
-                    </h2>
-                    <span className="px-2 py-0.5 rounded-md text-[11px] font-mono font-bold bg-sky-950 text-sky-400 border border-sky-800/60 shrink-0">
-                      CH0{selectedCamera.channel}
-                    </span>
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold bg-emerald-950/80 text-emerald-400 border border-emerald-800/60 shrink-0">
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                      EN VIVO
-                    </span>
+            {/* Ficha Oficial de Licitación Ocós o Información de Cámara */}
+            {selectedCamera && (() => {
+              const ocosMeta = getOcosMetadataForCamera(selectedCamera);
+              if (ocosMeta) {
+                return <OcosTenderPlaque metadata={ocosMeta} className="mt-1" />;
+              }
+              return (
+                <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs shadow-md">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2 mb-1 flex-wrap">
+                      <h2 className="font-bold text-white text-sm sm:text-base truncate">
+                        {selectedCamera.name}
+                      </h2>
+                      <span className="px-2 py-0.5 rounded-md text-[11px] font-mono font-bold bg-sky-950 text-sky-400 border border-sky-800/60 shrink-0">
+                        CH0{selectedCamera.channel}
+                      </span>
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold bg-emerald-950/80 text-emerald-400 border border-emerald-800/60 shrink-0">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                        EN VIVO
+                      </span>
+                    </div>
+                    <p className="text-neutral-400 text-xs">
+                      {selectedCamera.locationDesc ? `${selectedCamera.locationDesc} · ` : ''}
+                      {selectedCamera.deviceType === 'hikvision_dvr' 
+                        ? 'Hikvision TurboHD DVR' 
+                        : selectedCamera.deviceType === 'hikvision_ip'
+                        ? 'Hikvision Cámara IP POE'
+                        : 'Cámara ONVIF / RTSP'}
+                    </p>
                   </div>
-                  <p className="text-neutral-400 text-xs">
-                    {selectedCamera.locationDesc ? `${selectedCamera.locationDesc} · ` : ''}
-                    {selectedCamera.deviceType === 'hikvision_dvr' 
-                      ? 'Hikvision TurboHD DVR' 
-                      : selectedCamera.deviceType === 'hikvision_ip'
-                      ? 'Hikvision Cámara IP POE'
-                      : 'Cámara ONVIF / RTSP'}
-                  </p>
-                </div>
 
-                <div className="flex items-center gap-2 text-neutral-300 text-xs font-mono tabular-nums shrink-0 bg-neutral-950 px-3 py-2 rounded-xl border border-neutral-800">
-                  <span className="text-white font-semibold">{selectedCamera.resolution.split(' ')[0]}</span>
-                  <span className="text-neutral-600">·</span>
-                  <span className="text-emerald-400 font-semibold">{selectedCamera.fps} FPS</span>
-                  <span className="text-neutral-600">·</span>
-                  <span className="text-sky-400 font-semibold">{selectedCamera.codec}</span>
-                </div>
-              </div>
-            )}
-
-            {/* Acciones Rápidas Táctiles: WhatsApp + PWA en Celular */}
-            <div className="flex flex-col sm:flex-row gap-3 mt-1">
-              <a
-                href={buildWhatsAppUrl({
-                  text: `Hola, estoy viendo la transmisión en vivo de la cámara "${selectedCamera?.name || 'Cámara'}" (Canal ${selectedCamera?.channel || 1}) y deseo reportar una novedad:`,
-                  phone: project?.clientPhone || null,
-                })}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="min-h-[48px] px-4 py-3 bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 text-white font-bold rounded-xl text-xs transition-all flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/20 active:scale-95 flex-1"
-              >
-                <MessageSquare className="w-4 h-4 shrink-0" />
-                <span>Reportar Novedad por WhatsApp</span>
-              </a>
-
-              {(!isInstalled && isInstallable) || (!isInstalled && isIOS) ? (
-                <div className="min-h-[48px] px-3.5 py-2.5 bg-neutral-900 border border-neutral-800 rounded-xl flex items-center justify-between gap-2 text-xs flex-1">
-                  <div className="flex items-center gap-2 min-w-0">
-                    <Smartphone className="w-4 h-4 text-sky-400 shrink-0" />
-                    <span className="text-xs text-neutral-300 truncate">
-                      {isIOS ? 'iPhone: Compartir (⎋) → Pantalla de inicio' : 'Instalar acceso directo en celular'}
-                    </span>
+                  <div className="flex items-center gap-2 text-neutral-300 text-xs font-mono tabular-nums shrink-0 bg-neutral-950 px-3 py-2 rounded-xl border border-neutral-800">
+                    <span className="text-white font-semibold">{selectedCamera.resolution.split(' ')[0]}</span>
+                    <span className="text-neutral-600">·</span>
+                    <span className="text-emerald-400 font-semibold">{selectedCamera.fps} FPS</span>
+                    <span className="text-neutral-600">·</span>
+                    <span className="text-sky-400 font-semibold">{selectedCamera.codec}</span>
                   </div>
-                  {!isIOS && isInstallable && (
-                    <button
-                      onClick={() => install()}
-                      className="px-3 py-1.5 bg-sky-600 hover:bg-sky-500 active:bg-sky-700 text-white text-xs font-semibold rounded-lg shrink-0 active:scale-95 flex items-center gap-1"
-                    >
-                      <Download className="w-3.5 h-3.5" />
-                      <span>Instalar</span>
-                    </button>
-                  )}
                 </div>
-              ) : (
-                <div className="min-h-[48px] px-3.5 py-2 bg-neutral-900/60 border border-neutral-800 rounded-xl flex items-center justify-center gap-2 text-xs text-neutral-400 flex-1">
-                  <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />
-                  <span className="text-xs">Transmisión Segura 24/7</span>
-                </div>
-              )}
-            </div>
+              );
+            })()}
           </div>
         ) : viewMode === 'single' ? (
           /* Multi-Camera View: Focused Player + Clean Camera Selector */
@@ -652,86 +655,54 @@ export const ClientLivePortal: React.FC<ClientLivePortalProps> = ({
                   allowSnapshot={activeShareLink.allowSnapshot}
                   showWatermark={activeShareLink.showWatermark}
                   watermarkText={activeShareLink.clientName}
+                  isClientView={true}
+                  ecoSleepOverrideSec={60}
+                  autoPlay={false}
                 />
               )}
 
-              
-            {selectedCamera && (
-              <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs shadow-md">
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2 mb-1 flex-wrap">
-                    <h2 className="font-bold text-white text-sm sm:text-base truncate">
-                      {selectedCamera.name}
-                    </h2>
-                    <span className="px-2 py-0.5 rounded-md text-[11px] font-mono font-bold bg-sky-950 text-sky-400 border border-sky-800/60 shrink-0">
-                      CH0{selectedCamera.channel}
-                    </span>
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold bg-emerald-950/80 text-emerald-400 border border-emerald-800/60 shrink-0">
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                      EN VIVO
-                    </span>
+              {/* Ficha Oficial de Licitación Ocós o Información de Cámara */}
+              {selectedCamera && (() => {
+                const ocosMeta = getOcosMetadataForCamera(selectedCamera);
+                if (ocosMeta) {
+                  return <OcosTenderPlaque metadata={ocosMeta} className="mt-1" />;
+                }
+                return (
+                  <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs shadow-md">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2 mb-1 flex-wrap">
+                        <h2 className="font-bold text-white text-sm sm:text-base truncate">
+                          {selectedCamera.name}
+                        </h2>
+                        <span className="px-2 py-0.5 rounded-md text-[11px] font-mono font-bold bg-sky-950 text-sky-400 border border-sky-800/60 shrink-0">
+                          CH0{selectedCamera.channel}
+                        </span>
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold bg-emerald-950/80 text-emerald-400 border border-emerald-800/60 shrink-0">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                          EN VIVO
+                        </span>
+                      </div>
+                      <p className="text-neutral-400 text-xs">
+                        {selectedCamera.locationDesc ? `${selectedCamera.locationDesc} · ` : ''}
+                        {selectedCamera.deviceType === 'hikvision_dvr' 
+                          ? 'Hikvision TurboHD DVR' 
+                          : selectedCamera.deviceType === 'hikvision_ip'
+                          ? 'Hikvision Cámara IP POE'
+                          : 'Cámara ONVIF / RTSP'}
+                      </p>
+                    </div>
+
+                    <div className="flex items-center gap-2 text-neutral-300 text-xs font-mono tabular-nums shrink-0 bg-neutral-950 px-3 py-2 rounded-xl border border-neutral-800">
+                      <span className="text-white font-semibold">{selectedCamera.resolution.split(' ')[0]}</span>
+                      <span className="text-neutral-600">·</span>
+                      <span className="text-emerald-400 font-semibold">{selectedCamera.fps} FPS</span>
+                      <span className="text-neutral-600">·</span>
+                      <span className="text-sky-400 font-semibold">{selectedCamera.codec}</span>
+                    </div>
                   </div>
-                  <p className="text-neutral-400 text-xs">
-                    {selectedCamera.locationDesc ? `${selectedCamera.locationDesc} · ` : ''}
-                    {selectedCamera.deviceType === 'hikvision_dvr' 
-                      ? 'Hikvision TurboHD DVR' 
-                      : selectedCamera.deviceType === 'hikvision_ip'
-                      ? 'Hikvision Cámara IP POE'
-                      : 'Cámara ONVIF / RTSP'}
-                  </p>
-                </div>
-
-                <div className="flex items-center gap-2 text-neutral-300 text-xs font-mono tabular-nums shrink-0 bg-neutral-950 px-3 py-2 rounded-xl border border-neutral-800">
-                  <span className="text-white font-semibold">{selectedCamera.resolution.split(' ')[0]}</span>
-                  <span className="text-neutral-600">·</span>
-                  <span className="text-emerald-400 font-semibold">{selectedCamera.fps} FPS</span>
-                  <span className="text-neutral-600">·</span>
-                  <span className="text-sky-400 font-semibold">{selectedCamera.codec}</span>
-                </div>
-              </div>
-            )}
-
-            {/* Acciones Rápidas Táctiles: WhatsApp + PWA en Celular */}
-            <div className="flex flex-col sm:flex-row gap-3 mt-1">
-              <a
-                href={buildWhatsAppUrl({
-                  text: `Hola, estoy viendo la transmisión en vivo de la cámara "${selectedCamera?.name || 'Cámara'}" (Canal ${selectedCamera?.channel || 1}) y deseo reportar una novedad:`,
-                  phone: project?.clientPhone || null,
-                })}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="min-h-[48px] px-4 py-3 bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 text-white font-bold rounded-xl text-xs transition-all flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/20 active:scale-95 flex-1"
-              >
-                <MessageSquare className="w-4 h-4 shrink-0" />
-                <span>Reportar Novedad por WhatsApp</span>
-              </a>
-
-              {(!isInstalled && isInstallable) || (!isInstalled && isIOS) ? (
-                <div className="min-h-[48px] px-3.5 py-2.5 bg-neutral-900 border border-neutral-800 rounded-xl flex items-center justify-between gap-2 text-xs flex-1">
-                  <div className="flex items-center gap-2 min-w-0">
-                    <Smartphone className="w-4 h-4 text-sky-400 shrink-0" />
-                    <span className="text-xs text-neutral-300 truncate">
-                      {isIOS ? 'iPhone: Compartir (⎋) → Pantalla de inicio' : 'Instalar acceso directo en celular'}
-                    </span>
-                  </div>
-                  {!isIOS && isInstallable && (
-                    <button
-                      onClick={() => install()}
-                      className="px-3 py-1.5 bg-sky-600 hover:bg-sky-500 active:bg-sky-700 text-white text-xs font-semibold rounded-lg shrink-0 active:scale-95 flex items-center gap-1"
-                    >
-                      <Download className="w-3.5 h-3.5" />
-                      <span>Instalar</span>
-                    </button>
-                  )}
-                </div>
-              ) : (
-                <div className="min-h-[48px] px-3.5 py-2 bg-neutral-900/60 border border-neutral-800 rounded-xl flex items-center justify-center gap-2 text-xs text-neutral-400 flex-1">
-                  <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />
-                  <span className="text-xs">Transmisión Segura 24/7</span>
-                </div>
-              )}
+                );
+              })()}
             </div>
-</div>
 
             {/* Camera Switcher Sidebar */}
             <div className="lg:col-span-1 flex flex-col gap-2">
@@ -783,46 +754,56 @@ export const ClientLivePortal: React.FC<ClientLivePortalProps> = ({
         ) : (
           /* Multi-Camera Grid View */
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-5xl mx-auto w-full">
-            {allowedCameras.map((cam) => (
-              <div key={cam.id} className="flex flex-col bg-neutral-900 border border-neutral-800 hover:border-neutral-700 transition-all duration-200 rounded-2xl overflow-hidden shadow-xl shadow-black/50 ring-1 ring-white/5 hover:shadow-2xl">
-                {/* Cabecera con Nombre Completo y Estado */}
-                <div className="px-4 py-3 bg-neutral-950/95 border-b border-neutral-800 flex items-center justify-between gap-2.5">
-                  <div className="flex items-center gap-2 min-w-0 flex-1">
-                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse shrink-0" />
-                    <span className="font-bold text-white text-sm sm:text-base tracking-tight leading-snug break-words">
-                      {cam.name}
+            {allowedCameras.map((cam) => {
+              const ocosMeta = getOcosMetadataForCamera(cam);
+              return (
+                <div key={cam.id} className="flex flex-col bg-neutral-900 border border-neutral-800 hover:border-neutral-700 transition-all duration-200 rounded-2xl overflow-hidden shadow-xl shadow-black/50 ring-1 ring-white/5 hover:shadow-2xl">
+                  {/* Cabecera con Nombre Completo y Estado */}
+                  <div className="px-4 py-3 bg-neutral-950/95 border-b border-neutral-800 flex items-center justify-between gap-2.5">
+                    <div className="flex items-center gap-2 min-w-0 flex-1">
+                      <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse shrink-0" />
+                      <span className="font-bold text-white text-sm sm:text-base tracking-tight leading-snug break-words">
+                        {cam.name}
+                      </span>
+                    </div>
+                    <span className="font-mono text-[10px] uppercase font-bold px-2.5 py-0.5 rounded-full bg-emerald-950/80 border border-emerald-500/40 text-emerald-400 shrink-0 flex items-center gap-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                      {isCamera4gDevice(cam) ? '4G LTE' : 'En Vivo'}
                     </span>
                   </div>
-                  <span className="font-mono text-[10px] uppercase font-bold px-2.5 py-0.5 rounded-full bg-emerald-950/80 border border-emerald-500/40 text-emerald-400 shrink-0 flex items-center gap-1">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                    {isCamera4gDevice(cam) ? '4G LTE' : 'En Vivo'}
-                  </span>
-                </div>
 
-                {/* Video Viewport 16:9 */}
-                <div className="aspect-video w-full overflow-hidden bg-black">
-                  <LiveCameraPlayer
-                    camera={cam}
-                    allowPtz={activeShareLink.allowPtz}
-                    allowAudio={activeShareLink.allowAudio}
-                    allowSnapshot={activeShareLink.allowSnapshot}
-                    showWatermark={activeShareLink.showWatermark}
-                    watermarkText={activeShareLink.clientName}
-                    isCompact={true}
-                  />
-                </div>
+                  {/* Video Viewport 16:9 */}
+                  <div className="aspect-video w-full overflow-hidden bg-black">
+                    <LiveCameraPlayer
+                      camera={cam}
+                      allowPtz={activeShareLink.allowPtz}
+                      allowAudio={activeShareLink.allowAudio}
+                      allowSnapshot={activeShareLink.allowSnapshot}
+                      showWatermark={activeShareLink.showWatermark}
+                      watermarkText={activeShareLink.clientName}
+                      isCompact={true}
+                      isClientView={true}
+                      ecoSleepOverrideSec={60}
+                      autoPlay={false}
+                    />
+                  </div>
 
-                {/* Pie con Ubicación y Calidad */}
-                <div className="px-4 py-2.5 bg-neutral-950/95 border-t border-neutral-800 flex items-center justify-between text-xs text-neutral-400">
-                  <span className="truncate text-neutral-300 text-xs">
-                    📍 {cam.locationDesc || 'Ocós, San Marcos'}
-                  </span>
-                  <span className="font-mono text-[11px] text-sky-300 shrink-0 font-semibold">
-                    {cam.resolution.split(' ')[0]}
-                  </span>
+                  {/* Placa Oficial de Licitación Ocós si corresponde, o pie con ubicación */}
+                  {ocosMeta ? (
+                    <OcosTenderPlaque metadata={ocosMeta} compact={true} className="border-t-2 border-x-0 border-b-0" />
+                  ) : (
+                    <div className="px-4 py-2.5 bg-neutral-950/95 border-t border-neutral-800 flex items-center justify-between text-xs text-neutral-400">
+                      <span className="truncate text-neutral-300 text-xs">
+                        📍 {cam.locationDesc || 'Calle del Cementerio'}
+                      </span>
+                      <span className="font-mono text-[11px] text-sky-300 shrink-0 font-semibold">
+                        {cam.resolution.split(' ')[0]}
+                      </span>
+                    </div>
+                  )}
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </main>

@@ -266,7 +266,7 @@ const CameraFeedCard: React.FC<CameraFeedCardProps> = ({
 
           {/* Insignia de Estado */}
           <div className="shrink-0 pt-0.5">
-            {camera.status === 'offline' || camera.status === 'error' ? (
+            {camera.status === 'offline' ? (
               <span className="inline-flex items-center gap-1.5 text-red-400 text-[11px] font-mono font-semibold bg-red-950/60 px-2.5 py-0.5 rounded-full border border-red-800/60 shadow-xs">
                 <span className="w-1.5 h-1.5 rounded-full bg-red-400 animate-ping" />
                 Sin Señal

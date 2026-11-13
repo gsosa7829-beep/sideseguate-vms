@@ -68,6 +68,8 @@ interface LiveCameraPlayerProps {
   isPlaying?: boolean;
   onPlayStateChange?: (playing: boolean) => void;
   posterUrl?: string;
+  isClientView?: boolean;
+  ecoSleepOverrideSec?: number;
 }
 
 // Persistencia en LocalStorage para arranque instantáneo (0ms) sin pantalla negra al cambiar entre secciones
@@ -283,10 +285,15 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
   isPlaying: externalIsPlaying,
   onPlayStateChange,
   posterUrl,
+  isClientView = false,
+  ecoSleepOverrideSec,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+
+  const is4gCamera = isCamera4gDevice(camera);
+  const shouldStart4gPaused = is4gCamera && (isClientView || isCompact || !autoPlay);
 
   const [isTheaterMode, setIsTheaterMode] = useState<boolean>(() => {
     if (typeof window !== 'undefined' && window.location.search.includes('theater=1')) {
@@ -300,6 +307,7 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
 
   const [internalPlaying, setInternalPlaying] = useState<boolean>(() => {
     if (externalIsPlaying !== undefined) return externalIsPlaying;
+    if (shouldStart4gPaused) return false;
     return autoPlay;
   });
 
@@ -464,7 +472,6 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
   const [reconnectVersion, setReconnectVersion] = useState(0);
   const hlsReloadHandled = useRef(0);
   const [autoplayBlocked, setAutoplayBlocked] = useState(false);
-  const is4gCamera = isCamera4gDevice(camera);
 
   const isCementerioCamera = Boolean(
     camera.deviceSerial === 'F31700438' ||
@@ -496,12 +503,12 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
 
   // =========================================================================
   // MODO ULTRA-AHORRO DE DATOS SIM 4G (PROYECTO OCOS - FF9363270)
-  // - En Mosaico (isCompact): inicia en Espera (0 KB/s) bajo demanda para no gastar datos al abrir el panel.
-  // - Auto-Sleep a los 90 segundos de reproducción continua para evitar consumo infinito si dejan la pantalla encendida.
-  // - Suspensión total (0 KB/s) al minimizar pestaña o cambiar de aplicación.
+  // - En Mosaico o Enlaces de Cliente: inicia en Espera (0 KB/s) bajo demanda para no gastar datos.
+  // - Auto-Sleep al 1 minuto (60s) en enlaces de cliente o configurable en panel admin.
+  // - Suspensión instantánea (0 KB/s) al minimizar pestaña, cambiar de aplicación o salir del enlace.
   // =========================================================================
-  const [is4gEcoPaused, setIs4gEcoPaused] = useState<boolean>(() => is4gCamera && isCompact);
-  const is4gEcoPausedRef = useRef<boolean>(is4gCamera && isCompact);
+  const [is4gEcoPaused, setIs4gEcoPaused] = useState<boolean>(() => shouldStart4gPaused);
+  const is4gEcoPausedRef = useRef<boolean>(shouldStart4gPaused);
   useEffect(() => {
     is4gEcoPausedRef.current = is4gEcoPaused;
   }, [is4gEcoPaused]);
@@ -510,11 +517,13 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
     if (!is4gCamera) return;
     return subscribeOcos4gState(setOcosTelemetry);
   }, [is4gCamera]);
-  const ecoSleepSec = ocosTelemetry.ecoSleepSec;
+  const ecoSleepSec = isClientView && is4gCamera
+    ? (ecoSleepOverrideSec || 60)
+    : (ecoSleepOverrideSec !== undefined ? ecoSleepOverrideSec : ocosTelemetry.ecoSleepSec);
   const camSessionBytes = is4gCamera ? getCamera4gSessionBytes(ocosTelemetry, camera.id) : 0;
   const camAccumulatedBytes = is4gCamera ? getCamera4gAccumulatedBytes(ocosTelemetry, camera.id) : 0;
   const camRateKBs = Math.max(8, Math.round(((camera.bitrateKbps || 512) * 1000) / 8 / 1024));
-  const [ecoRemainingSec, setEcoRemainingSec] = useState<number>(() => getOcos4gState().ecoSleepSec || 60);
+  const [ecoRemainingSec, setEcoRemainingSec] = useState<number>(() => ecoSleepSec || 60);
   const ecoDeadline = useRef(0);
   const canLoadVideo = canLoadInViewport && !is4gEcoPaused && isStreamPlaying;
   const channel = clampCameraChannel(camera.channel);
@@ -620,7 +629,7 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
   }, [camera.id, camera.channel, camera.deviceSerial, ezuikitContainerId]);
 
   const resume4gStream = useCallback(() => {
-    const targetSec = getOcos4gState().ecoSleepSec;
+    const targetSec = ecoSleepSec;
     if (targetSec > 0) {
       ecoDeadline.current = Date.now() + targetSec * 1000;
       setEcoRemainingSec(targetSec);
@@ -634,7 +643,7 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
     setIs4gEcoPaused(false);
     is4gEcoPausedRef.current = false;
     setCamera4gStreamingStatus(camera.id, true, camera.bitrateKbps || 512);
-  }, [camera.id, camera.bitrateKbps]);
+  }, [camera.id, camera.bitrateKbps, ecoSleepSec]);
 
   const handleToggleStream = useCallback((play: boolean) => {
     setInternalPlaying(play);
@@ -648,31 +657,30 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
     }
   }, [is4gCamera, onPlayStateChange, pause4gStreamForDataSaving, resume4gStream]);
 
-  // Suspensión al minimizar pestaña o bloquear el celular en cámara 4G (con margen de 3.5s para evitar cortes al abrir Pantalla Completa)
+  // Suspensión estricta al minimizar pestaña, cambiar de aplicación o salir del enlace en cámara 4G (0 KB/s)
   useEffect(() => {
     if (!is4gCamera) return;
-    let hiddenTimer: ReturnType<typeof setTimeout> | null = null;
     const handleVisibility = () => {
       if (document.hidden) {
-        if (!hiddenTimer) {
-          hiddenTimer = setTimeout(() => {
-            hiddenTimer = null;
-            if (document.hidden) {
-              pause4gStreamForDataSaving();
-              setInternalPlaying(false);
-              onPlayStateChange?.(false);
-            }
-          }, 3500);
-        }
-      } else if (hiddenTimer) {
-        clearTimeout(hiddenTimer);
-        hiddenTimer = null;
+        // Pausa instantánea para proteger datos de la tarjeta SIM 4G
+        pause4gStreamForDataSaving();
+        setInternalPlaying(false);
+        onPlayStateChange?.(false);
       }
     };
+    const handlePageExit = () => {
+      pause4gStreamForDataSaving();
+      setInternalPlaying(false);
+      onPlayStateChange?.(false);
+    };
+
     document.addEventListener('visibilitychange', handleVisibility);
+    window.addEventListener('pagehide', handlePageExit);
+    window.addEventListener('beforeunload', handlePageExit);
     return () => {
-      if (hiddenTimer) clearTimeout(hiddenTimer);
       document.removeEventListener('visibilitychange', handleVisibility);
+      window.removeEventListener('pagehide', handlePageExit);
+      window.removeEventListener('beforeunload', handlePageExit);
     };
   }, [is4gCamera, onPlayStateChange, pause4gStreamForDataSaving]);
 
@@ -1145,8 +1153,8 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
   let shortStatus = 'RECONECTAR';
   let fullStatus = 'RECONECTAR SEÑAL';
   if (is4gEcoPaused) {
-    shortStatus = 'AHORRO 4G · 0 KB/S';
-    fullStatus = 'MODO AHORRO 4G · 0 KB/S';
+    shortStatus = isClientView ? 'EN PAUSA' : 'AHORRO 4G · 0 KB/S';
+    fullStatus = isClientView ? 'TRANSMISIÓN EN PAUSA · 0 KB/S' : 'MODO AHORRO 4G · 0 KB/S';
   } else if (!canLoadInViewport) {
     shortStatus = 'EN ESPERA';
     fullStatus = 'CÁMARA EN ESPERA';
@@ -1154,14 +1162,14 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
     shortStatus = 'CONECTANDO…';
     fullStatus = 'RECONECTANDO…';
   } else if (isContinuousLive) {
-    if (serverControlsQuality) {
+    if (serverControlsQuality || isClientView) {
       shortStatus = fullStatus = 'EN VIVO';
     } else {
       shortStatus = streamQuality === '1' ? '1080p FHD' : 'SD FLUIDO';
       fullStatus = 'EN VIVO · ' + (is4gCamera && streamQuality === '2' ? 'SD MEJORADO (512 kbps)' : shortStatus);
     }
   } else if (nativeP2pReady) {
-    shortStatus = fullStatus = 'VISTA PREVIA';
+    shortStatus = fullStatus = isClientView ? 'EN PAUSA' : 'VISTA PREVIA';
   }
   const reconnectDelay = useRef(2_000);
 
@@ -1740,14 +1748,23 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
                 onPlayStateChange?.(false);
               }}
               className="flex items-center gap-1 bg-emerald-950/90 hover:bg-emerald-900 border border-emerald-500/50 text-emerald-300 px-2 sm:px-2.5 py-1 rounded-full text-[10px] sm:text-[11px] font-mono font-bold shadow-lg transition active:scale-95 cursor-pointer whitespace-nowrap"
-              title="Pausar transmisión ahora para ahorrar datos de la tarjeta SIM 4G"
+              title="Pausar transmisión ahora para no consumir datos"
             >
-              <span className="sm:hidden">
-                ⏸ {formatEcoCountdown(ecoRemainingSec, ecoSleepSec)}
-              </span>
-              <span className="hidden sm:inline">
-                ⏸ Ahorro 4G ({formatEcoCountdown(ecoRemainingSec, ecoSleepSec)}) · {formatMobileDataUsage(camSessionBytes)}
-              </span>
+              {isClientView ? (
+                <span className="flex items-center gap-1 font-mono">
+                  <span>⏱️</span>
+                  <span>{formatEcoCountdown(ecoRemainingSec, ecoSleepSec)}</span>
+                </span>
+              ) : (
+                <>
+                  <span className="sm:hidden">
+                    ⏸ {formatEcoCountdown(ecoRemainingSec, ecoSleepSec)}
+                  </span>
+                  <span className="hidden sm:inline">
+                    ⏸ Ahorro 4G ({formatEcoCountdown(ecoRemainingSec, ecoSleepSec)}) · {formatMobileDataUsage(camSessionBytes)}
+                  </span>
+                </>
+              )}
             </button>
           )}
           <div className="flex items-center gap-1 bg-black/65 backdrop-blur-md px-2 sm:px-2.5 py-1 rounded-full border border-white/10 text-[10px] sm:text-[11px] font-mono tabular-nums text-neutral-200 whitespace-nowrap shadow-lg">
@@ -1804,18 +1821,22 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
               >
                 <Play className="w-4 h-4 fill-current shrink-0" />
                 <span className="truncate">
-                  {is4gCamera
+                  {isClientView
+                    ? (is4gEcoPaused ? 'Reanudar Transmisión' : 'Ver Transmisión en Vivo')
+                    : is4gCamera
                     ? `Ver en Vivo · ${camera.name.replace(/^Cámara\s*\d+\s*·\s*/i, '').replace(/\s*\(CH\d+\)$/i, '')}`
                     : `Ver en Vivo · Cámara ${camera.channel}`}
                 </span>
               </button>
 
-              <p className="text-[11px] text-neutral-400 font-mono">
-                {is4gCamera
+              <p className="text-[11px] text-neutral-300 font-medium">
+                {isClientView
+                  ? (is4gCamera ? 'Transmisión en vivo · 1 minuto de video' : 'Transmisión en vivo · Cero lag')
+                  : is4gCamera
                   ? `Transmisión 4G bajo demanda · Auto-pausa: ${ecoSleepSec === 0 ? 'Continuo' : `${ecoSleepSec / 60} min`}`
                   : 'Transmisión bajo demanda · Cero lag'}
               </p>
-              {is4gCamera && camSessionBytes > 0 && (
+              {!isClientView && is4gCamera && camSessionBytes > 0 && (
                 <span className="mt-1.5 px-2.5 py-0.5 rounded-full bg-emerald-950/80 border border-emerald-500/30 text-[10px] font-mono text-emerald-300">
                   Consumo estimado: {formatMobileDataUsage(camSessionBytes)} (0 KB/s en reposo)
                 </span>
@@ -2184,8 +2205,8 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
             )}
           </button>
 
-          {/* Botón Calidad (HD / SD) - Sólo disponible si la cámara no es Ocós 4G (fija en SD) */}
-          {!is4gCamera && (
+          {/* Botón Calidad (HD / SD) - Sólo en panel administrativo si la cámara no es 4G */}
+          {!isClientView && !is4gCamera && (
             <button
               type="button"
               disabled={serverControlsQuality}
@@ -2244,21 +2265,23 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
             </button>
           )}
 
-          {/* Botón Ajustes */}
-          <button
-            type="button"
-            aria-label="Ajustes de video y visión"
-            onClick={() => setShowAdvancedMenu(!showAdvancedMenu)}
-            className={`h-[38px] min-h-[38px] sm:min-h-[46px] sm:h-[46px] px-1 sm:px-2.5 rounded-lg sm:rounded-xl border text-[10px] sm:text-xs transition-all flex items-center justify-center gap-1 active:scale-95 flex-1 min-w-0 max-w-[120px] ${
-              showAdvancedMenu
-                ? 'bg-sky-600/30 border-sky-500 text-sky-300 shadow-sm'
-                : 'bg-neutral-900 border-neutral-800 text-neutral-400 hover:text-white'
-            }`}
-            title="Ajustes de cámara"
-          >
-            <Sliders className="w-3.5 h-3.5 shrink-0" />
-            <span className="hidden sm:inline text-xs font-medium">Ajustes</span>
-          </button>
+          {/* Botón Ajustes - Sólo en panel administrativo */}
+          {!isClientView && (
+            <button
+              type="button"
+              aria-label="Ajustes de video y visión"
+              onClick={() => setShowAdvancedMenu(!showAdvancedMenu)}
+              className={`h-[38px] min-h-[38px] sm:min-h-[46px] sm:h-[46px] px-1 sm:px-2.5 rounded-lg sm:rounded-xl border text-[10px] sm:text-xs transition-all flex items-center justify-center gap-1 active:scale-95 flex-1 min-w-0 max-w-[120px] ${
+                showAdvancedMenu
+                  ? 'bg-sky-600/30 border-sky-500 text-sky-300 shadow-sm'
+                  : 'bg-neutral-900 border-neutral-800 text-neutral-400 hover:text-white'
+              }`}
+              title="Ajustes de cámara"
+            >
+              <Sliders className="w-3.5 h-3.5 shrink-0" />
+              <span className="hidden sm:inline text-xs font-medium">Ajustes</span>
+            </button>
+          )}
 
           {/* Botón Ampliar (Modo Teatro con fondo desenfocado) */}
           <button
@@ -2279,7 +2302,7 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
       </div>
 
       {/* Panel Desplegable de Ajustes (Limpio, con botón cerrar y opciones 2x2 táctiles) */}
-      {showAdvancedMenu && (
+      {!isClientView && showAdvancedMenu && (
         <div className="relative z-20 bg-neutral-900 border-t border-neutral-800 p-3 sm:p-4 text-xs animate-in fade-in duration-150">
           <div className="flex items-center justify-between pb-2 mb-2.5 border-b border-neutral-800">
             <span className="font-bold text-white flex items-center gap-1.5">

@@ -28,7 +28,7 @@ interface WhatsAppTimedShareModalProps {
   defaultProjectId?: string | null;
 }
 
-type TimeUnit = 'minutes' | 'hours' | 'days';
+type TimeUnit = 'minutes' | 'hours' | 'days' | 'weeks' | 'months';
 
 export const WhatsAppTimedShareModal: React.FC<WhatsAppTimedShareModalProps> = ({
   isOpen,
@@ -58,10 +58,8 @@ export const WhatsAppTimedShareModal: React.FC<WhatsAppTimedShareModalProps> = (
   });
 
   // Temporizador Personalizado ("Yo decido cuánto tiempo dura")
-  const [timerMode, setTimerMode] = useState<'preset' | 'custom'>('preset');
-  const [presetMinutes, setPresetMinutes] = useState<number>(120); // 2 horas por defecto
-  const [customValue, setCustomValue] = useState<number>(45);
-  const [customUnit, setCustomUnit] = useState<TimeUnit>('minutes');
+  const [customValue, setCustomValue] = useState<number>(7);
+  const [customUnit, setCustomUnit] = useState<TimeUnit>('days');
   const [isPermanent, setIsPermanent] = useState(false);
 
   // PIN de Seguridad Opcional
@@ -111,12 +109,18 @@ export const WhatsAppTimedShareModal: React.FC<WhatsAppTimedShareModalProps> = (
   // Cálculo de duración en milisegundos
   const durationMs = useMemo(() => {
     if (isPermanent) return null;
-    if (timerMode === 'preset') {
-      return presetMinutes * 60 * 1000;
-    }
-    const multiplier = customUnit === 'minutes' ? 60 * 1000 : customUnit === 'hours' ? 60 * 60 * 1000 : 24 * 60 * 60 * 1000;
+    const multiplier =
+      customUnit === 'minutes'
+        ? 60 * 1000
+        : customUnit === 'hours'
+        ? 60 * 60 * 1000
+        : customUnit === 'days'
+        ? 24 * 60 * 60 * 1000
+        : customUnit === 'weeks'
+        ? 7 * 24 * 60 * 60 * 1000
+        : 30 * 24 * 60 * 60 * 1000;
     return Math.max(1, customValue) * multiplier;
-  }, [isPermanent, timerMode, presetMinutes, customValue, customUnit]);
+  }, [isPermanent, customValue, customUnit]);
 
   // Fecha y hora calculada de expiración
   const expiresAtDate = useMemo(() => {
@@ -360,27 +364,10 @@ export const WhatsAppTimedShareModal: React.FC<WhatsAppTimedShareModalProps> = (
               <div className="flex items-center gap-1 bg-neutral-900 p-0.5 rounded-lg border border-neutral-800">
                 <button
                   type="button"
-                  onClick={() => {
-                    setIsPermanent(false);
-                    setTimerMode('preset');
-                  }}
-                  className={`px-2 py-1 rounded-md text-[11px] font-medium transition ${
-                    !isPermanent && timerMode === 'preset'
-                      ? 'bg-sky-600 text-white shadow-sm'
-                      : 'text-neutral-400 hover:text-white'
-                  }`}
-                >
-                  Rápido
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIsPermanent(false);
-                    setTimerMode('custom');
-                  }}
-                  className={`px-2 py-1 rounded-md text-[11px] font-medium transition ${
-                    !isPermanent && timerMode === 'custom'
-                      ? 'bg-sky-600 text-white shadow-sm'
+                  onClick={() => setIsPermanent(false)}
+                  className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition cursor-pointer ${
+                    !isPermanent
+                      ? 'bg-emerald-600 text-white shadow-sm'
                       : 'text-neutral-400 hover:text-white'
                   }`}
                 >
@@ -389,7 +376,7 @@ export const WhatsAppTimedShareModal: React.FC<WhatsAppTimedShareModalProps> = (
                 <button
                   type="button"
                   onClick={() => setIsPermanent(true)}
-                  className={`px-2 py-1 rounded-md text-[11px] font-medium transition ${
+                  className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition cursor-pointer ${
                     isPermanent ? 'bg-sky-600 text-white shadow-sm' : 'text-neutral-400 hover:text-white'
                   }`}
                 >
@@ -398,44 +385,8 @@ export const WhatsAppTimedShareModal: React.FC<WhatsAppTimedShareModalProps> = (
               </div>
             </div>
 
-            {/* Selector de Presets Rápidos */}
-            {!isPermanent && timerMode === 'preset' && (
-              <div className="grid grid-cols-3 sm:grid-cols-6 gap-1.5">
-                {[
-                  { label: '15 min', mins: 15 },
-                  { label: '30 min', mins: 30 },
-                  { label: '1 hora', mins: 60 },
-                  { label: '2 horas', mins: 120 },
-                  { label: '4 horas', mins: 240 },
-                  { label: '12 horas', mins: 720 },
-                  { label: '24 horas', mins: 1440 },
-                  { label: '3 días', mins: 4320 },
-                  { label: '7 días', mins: 10080 },
-                  { label: '15 días', mins: 21600 },
-                  { label: '30 días', mins: 43200 },
-                  { label: '60 días', mins: 86400 },
-                ].map((p) => {
-                  const isActive = presetMinutes === p.mins;
-                  return (
-                    <button
-                      type="button"
-                      key={p.mins}
-                      onClick={() => setPresetMinutes(p.mins)}
-                      className={`py-2 px-1 rounded-xl text-center font-medium transition-all ${
-                        isActive
-                          ? 'bg-emerald-600 border border-emerald-500 text-white shadow-md shadow-emerald-600/30 font-bold'
-                          : 'bg-neutral-900 border border-neutral-800 text-neutral-300 hover:bg-neutral-850 hover:text-white'
-                      }`}
-                    >
-                      {p.label}
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-
             {/* Selector de Temporizador Personalizado Exacto */}
-            {!isPermanent && timerMode === 'custom' && (
+            {!isPermanent && (
               <div className="flex items-center gap-2 p-2 bg-neutral-900 rounded-xl border border-neutral-800">
                 <span className="text-neutral-400 pl-1">Duración exacta:</span>
                 <input
@@ -449,11 +400,13 @@ export const WhatsAppTimedShareModal: React.FC<WhatsAppTimedShareModalProps> = (
                 <select
                   value={customUnit}
                   onChange={(e) => setCustomUnit(e.target.value as TimeUnit)}
-                  className="bg-neutral-950 border border-neutral-700 rounded-lg px-3 py-1.5 text-white font-medium focus:outline-none focus:border-emerald-500 text-xs"
+                  className="bg-neutral-950 border border-neutral-700 rounded-lg px-3 py-1.5 text-white font-medium focus:outline-none focus:border-emerald-500 text-xs cursor-pointer"
                 >
                   <option value="minutes">Minutos</option>
                   <option value="hours">Horas</option>
                   <option value="days">Días</option>
+                  <option value="weeks">Semanas</option>
+                  <option value="months">Meses</option>
                 </select>
               </div>
             )}

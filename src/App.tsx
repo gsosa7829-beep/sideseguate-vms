@@ -272,7 +272,9 @@ function AppShell() {
   });
 
   // Modals state
-  const [isShareModalOpen, setIsShareModalOpen] = useState(false);
+  const [isShareModalOpen, setIsShareModalOpen] = useState(
+    () => typeof window !== 'undefined' && window.location.search.includes('openShare=1')
+  );
   const [isWhatsAppTimedModalOpen, setIsWhatsAppTimedModalOpen] = useState(false);
   const [whatsAppTimedTargetLink, setWhatsAppTimedTargetLink] = useState<ShareLink | null>(null);
   const [editingShareLink, setEditingShareLink] = useState<ShareLink | null>(null);
