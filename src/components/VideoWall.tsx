@@ -312,8 +312,8 @@ const CameraFeedCard: React.FC<CameraFeedCardProps> = ({
         </div>
       </div>
 
-      {/* Viewport Panorámico 16:9 */}
-      <div className="flex-1 bg-black aspect-video overflow-hidden relative">
+      {/* Viewport Panorámico 16:9 con Controles */}
+      <div className="flex-1 bg-black relative">
         <LiveCameraPlayer
           camera={camera}
           allowPtz={!is4g}

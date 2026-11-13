@@ -2178,14 +2178,14 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
       </div>
 
       {/* Bottom Control Bar: 1 Fila Perfecta en Móvil y Escritorio */}
-      <div className="relative z-20 bg-neutral-950 border-t border-neutral-800/90 px-2 sm:px-4 py-2 text-neutral-300">
-        <div className="live-player-actions flex items-center justify-center gap-2 sm:gap-2 max-w-xl mx-auto">
+      <div className="relative z-20 bg-neutral-950 border-t border-neutral-800/90 px-2 sm:px-3 py-2 text-neutral-300">
+        <div className="live-player-actions flex items-center justify-center gap-1.5 sm:gap-2 max-w-xl mx-auto">
           {/* Botón Conectar / Pausar Transmisión (Bajo Demanda Independiente) */}
           <button
             type="button"
             aria-label={isStreamPlaying ? 'Pausar transmisión de video' : 'Conectar video en vivo'}
             onClick={() => handleToggleStream(!isStreamPlaying)}
-            className={`h-[38px] min-h-[38px] sm:min-h-[46px] sm:h-[46px] px-1.5 sm:px-3 rounded-lg sm:rounded-xl border text-[10px] sm:text-xs font-semibold transition-all flex items-center justify-center gap-1 sm:gap-1.5 active:scale-95 flex-1 min-w-0 max-w-[125px] cursor-pointer shadow-xs ${
+            className={`h-[38px] min-h-[38px] sm:min-h-[42px] sm:h-[42px] px-1.5 sm:px-2.5 rounded-lg sm:rounded-xl border text-[10px] sm:text-xs font-semibold transition-all flex items-center justify-center gap-1 sm:gap-1.5 active:scale-95 flex-1 min-w-0 max-w-[130px] cursor-pointer shadow-xs ${
               isStreamPlaying
                 ? 'bg-neutral-900 hover:bg-neutral-850 border-neutral-800 text-neutral-300 hover:text-white'
                 : 'bg-gradient-to-r from-sky-600 to-sky-500 hover:from-sky-500 hover:to-sky-400 text-white border-sky-400 shadow-md shadow-sky-950/60'
@@ -2195,12 +2195,12 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
             {isStreamPlaying ? (
               <>
                 <Pause className="w-3.5 h-3.5 text-neutral-400 shrink-0" />
-                <span className="text-[10px] sm:text-[11px] font-bold truncate">Pausar</span>
+                <span className="text-[10px] sm:text-xs font-bold whitespace-nowrap">Pausar</span>
               </>
             ) : (
               <>
                 <Play className="w-3.5 h-3.5 fill-current text-white shrink-0" />
-                <span className="text-[10px] sm:text-[11px] font-bold truncate">Conectar</span>
+                <span className="text-[10px] sm:text-xs font-bold whitespace-nowrap">Conectar</span>
               </>
             )}
           </button>
