@@ -244,6 +244,9 @@ export const ClientLivePortal: React.FC<ClientLivePortalProps> = ({
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search);
       const camParam = params.get('cam') || params.get('camera') || params.get('serial');
+      const path = window.location.pathname.toLowerCase();
+
+      // 1. Por query param
       if (camParam) {
         const found = allowedCameras.find(
           (c) =>
@@ -253,13 +256,39 @@ export const ClientLivePortal: React.FC<ClientLivePortalProps> = ({
         );
         if (found) return found.id;
       }
+
+      // 2. Por NOG de Guatecompras o palabras clave en la ruta
+      if (path.includes('31778720') || path.includes('instituto')) {
+        const found = allowedCameras.find((c) => c.deviceSerial === 'FF9363270' || c.name.toLowerCase().includes('instituto'));
+        if (found) return found.id;
+      }
+      if (path.includes('31826717') || path.includes('tabernaculo') || path.includes('iglesia')) {
+        const found = allowedCameras.find((c) => c.deviceSerial === 'FF9363192' || c.name.toLowerCase().includes('tabernaculo'));
+        if (found) return found.id;
+      }
+      if (path.includes('31798322') || path.includes('mezquital')) {
+        const found = allowedCameras.find((c) => c.deviceSerial === 'FF9363285' || c.name.toLowerCase().includes('mezquital'));
+        if (found) return found.id;
+      }
+      if (path.includes('31822029') || path.includes('campo') || path.includes('futbol')) {
+        const found = allowedCameras.find((c) => c.deviceSerial === 'FF9363276' || c.name.toLowerCase().includes('campo'));
+        if (found) return found.id;
+      }
     }
     return allowedCameras[0]?.id || '';
   });
   const [viewMode, setViewMode] = useState<'single' | 'grid'>(() => {
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search);
-      if (params.get('mode') === 'grid' || params.get('grid') === '1' || params.get('mosaico') === '1') {
+      const path = window.location.pathname.toLowerCase();
+      if (
+        params.get('mode') === 'grid' ||
+        params.get('grid') === '1' ||
+        params.get('mosaico') === '1' ||
+        path.includes('mosaico') ||
+        path.includes('grid') ||
+        path === '/ocos'
+      ) {
         return 'grid';
       }
     }
@@ -270,6 +299,9 @@ export const ClientLivePortal: React.FC<ClientLivePortalProps> = ({
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search);
       const camParam = params.get('cam') || params.get('camera') || params.get('serial');
+      const path = window.location.pathname.toLowerCase();
+
+      let targetCameraId: string | null = null;
       if (camParam) {
         const found = allowedCameras.find(
           (c) =>
@@ -277,10 +309,24 @@ export const ClientLivePortal: React.FC<ClientLivePortalProps> = ({
             c.deviceSerial?.toUpperCase() === camParam.toUpperCase() ||
             c.name.toLowerCase().includes(camParam.toLowerCase())
         );
-        if (found && found.id !== selectedCameraId) {
-          setSelectedCameraId(found.id);
-          return;
-        }
+        if (found) targetCameraId = found.id;
+      } else if (path.includes('31778720') || path.includes('instituto')) {
+        const found = allowedCameras.find((c) => c.deviceSerial === 'FF9363270' || c.name.toLowerCase().includes('instituto'));
+        if (found) targetCameraId = found.id;
+      } else if (path.includes('31826717') || path.includes('tabernaculo') || path.includes('iglesia')) {
+        const found = allowedCameras.find((c) => c.deviceSerial === 'FF9363192' || c.name.toLowerCase().includes('tabernaculo'));
+        if (found) targetCameraId = found.id;
+      } else if (path.includes('31798322') || path.includes('mezquital')) {
+        const found = allowedCameras.find((c) => c.deviceSerial === 'FF9363285' || c.name.toLowerCase().includes('mezquital'));
+        if (found) targetCameraId = found.id;
+      } else if (path.includes('31822029') || path.includes('campo') || path.includes('futbol')) {
+        const found = allowedCameras.find((c) => c.deviceSerial === 'FF9363276' || c.name.toLowerCase().includes('campo'));
+        if (found) targetCameraId = found.id;
+      }
+
+      if (targetCameraId && targetCameraId !== selectedCameraId) {
+        setSelectedCameraId(targetCameraId);
+        return;
       }
     }
     if (allowedCameras.length > 0 && !allowedCameras.some((c) => c.id === selectedCameraId)) {

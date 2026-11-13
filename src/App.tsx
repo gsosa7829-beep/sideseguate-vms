@@ -263,7 +263,7 @@ function AppShell() {
   // Se resuelven de forma síncrona en el primer render para nunca mostrar destello del Login Admin a un cliente.
   const [clientTokenView, setClientTokenView] = useState<string | null>(() => {
     if (typeof window === 'undefined') return null;
-    return extractTokenFromUrl(window.location.search, window.location.hash);
+    return extractTokenFromUrl(window.location.search, window.location.hash, window.location.pathname);
   });
   const [clientOnboardingProjectId, setClientOnboardingProjectId] = useState<string | null>(() => {
     if (typeof window === 'undefined') return null;

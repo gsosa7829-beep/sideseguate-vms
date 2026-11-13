@@ -199,10 +199,14 @@ export function buildPublicShareUrl(token: string): string {
 }
 
 /**
- * Extrae y limpia el token de una URL o hash, removiendo slashes residuales de WhatsApp
- * y soportando formatos hash como #token=..., #/token=..., #?token=..., y query params ?token=... / ?share=...
+ * Extrae y limpia el token de una URL, hash o pathname (Guatecompras clean URLs),
+ * removiendo slashes residuales de WhatsApp y soportando formatos hash y query params.
  */
-export function extractTokenFromUrl(searchStr: string = '', hashStr: string = ''): string | null {
+export function extractTokenFromUrl(
+  searchStr: string = '',
+  hashStr: string = '',
+  pathnameStr: string = ''
+): string | null {
   if (searchStr) {
     const params = new URLSearchParams(searchStr);
     const raw = params.get('token') || params.get('share');
@@ -227,6 +231,42 @@ export function extractTokenFromUrl(searchStr: string = '', hashStr: string = ''
     if (match && match[1]) {
       const clean = decodeURIComponent(match[1]).trim().replace(/\/+$/, '');
       if (clean) return clean;
+    }
+  }
+
+  if (pathnameStr) {
+    const cleanPath = pathnameStr.trim().toLowerCase().replace(/\/+$/, '');
+    
+    // 1. Prefijos de ruta directa: /token/xyz, /enlace/xyz, /t/xyz, /share/xyz
+    const tokenMatch = pathnameStr.match(/\/(?:token|enlace|share|t)\/([^/?#]+)/i);
+    if (tokenMatch && tokenMatch[1]) {
+      const clean = decodeURIComponent(tokenMatch[1]).trim().replace(/\/+$/, '');
+      if (clean) return clean;
+    }
+
+    // 2. Soporte por Números de Operación Guatecompras (NOG)
+    if (
+      cleanPath.includes('31778720') ||
+      cleanPath.includes('31826717') ||
+      cleanPath.includes('31798322') ||
+      cleanPath.includes('31822029')
+    ) {
+      return 'proyecto-ocos';
+    }
+
+    // 3. Soporte por nombres de calles o proyectos
+    if (
+      cleanPath.includes('instituto') ||
+      cleanPath.includes('tabernaculo') ||
+      cleanPath.includes('mezquital') ||
+      cleanPath.includes('campo') ||
+      cleanPath.includes('ocos')
+    ) {
+      return 'proyecto-ocos';
+    }
+
+    if (cleanPath.includes('cementerio')) {
+      return 'calle-del-cementerio';
     }
   }
 
