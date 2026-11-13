@@ -1205,7 +1205,7 @@ import {
 } from './publicUrl.ts';
 
 test('sin window (SSR/Node) el enlace nunca se marca como accesible por el cliente', () => {
-  const info = getPublicUrlInfo();
+  const info = resolvePublicUrl({});
   assert.equal(info.isReachableByClient, false);
   assert.equal(info.source, 'preview');
 });
