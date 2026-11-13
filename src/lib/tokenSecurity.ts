@@ -176,6 +176,9 @@ export function formatExpirationText(expiresAt: string | null, nowMs: number = D
 
   if (diffDays >= 1) {
     const remHours = diffHours % 24;
+    if (diffDays >= 75 && diffDays <= 95) {
+      return `Válido por 3 meses (${diffDays} días)`;
+    }
     return `Expira en ${diffDays} día${diffDays > 1 ? 's' : ''}${remHours > 0 ? ` y ${remHours}h` : ''}`;
   } else {
     const remMinutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));

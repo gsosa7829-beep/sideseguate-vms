@@ -244,24 +244,21 @@ export function extractTokenFromUrl(
       if (clean) return clean;
     }
 
-    // 2. Soporte por Números de Operación Guatecompras (NOG)
-    if (
-      cleanPath.includes('31778720') ||
-      cleanPath.includes('31826717') ||
-      cleanPath.includes('31798322') ||
-      cleanPath.includes('31822029')
-    ) {
-      return 'proyecto-ocos';
+    // 2. Soporte por Números de Operación Guatecompras (NOG) y calles individuales
+    if (cleanPath.includes('31778720') || cleanPath.includes('instituto')) {
+      return '31778720';
+    }
+    if (cleanPath.includes('31826717') || cleanPath.includes('tabernaculo')) {
+      return '31826717';
+    }
+    if (cleanPath.includes('31798322') || cleanPath.includes('mezquital')) {
+      return '31798322';
+    }
+    if (cleanPath.includes('31822029') || cleanPath.includes('campo')) {
+      return '31822029';
     }
 
-    // 3. Soporte por nombres de calles o proyectos
-    if (
-      cleanPath.includes('instituto') ||
-      cleanPath.includes('tabernaculo') ||
-      cleanPath.includes('mezquital') ||
-      cleanPath.includes('campo') ||
-      cleanPath.includes('ocos')
-    ) {
+    if (cleanPath.includes('ocos') || cleanPath.includes('mosaico')) {
       return 'proyecto-ocos';
     }
 

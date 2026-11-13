@@ -1032,23 +1032,35 @@ function AppShell() {
 
     if (!matchedShareLink) {
       const lower = clientTokenView.toLowerCase();
-      const isOcos =
-        lower.includes('ocos') ||
-        lower.includes('ff9363') ||
-        lower.includes('31778720') ||
-        lower.includes('31826717') ||
-        lower.includes('31798322') ||
-        lower.includes('31822029') ||
-        lower.includes('instituto') ||
-        lower.includes('mezquital') ||
-        lower.includes('tabernaculo') ||
-        lower.includes('campo') ||
-        lower === 'cam-ocos-ch1';
-
-      if (isOcos) {
+      if (lower.includes('31778720') || lower.includes('instituto') || lower.includes('ff9363270')) {
+        matchedShareLink = INITIAL_SHARE_LINKS.find((l) => l.id === 'link-ocos-instituto') || null;
+      } else if (lower.includes('31826717') || lower.includes('tabernaculo') || lower.includes('ff9363192')) {
+        matchedShareLink = INITIAL_SHARE_LINKS.find((l) => l.id === 'link-ocos-tabernaculo') || null;
+      } else if (lower.includes('31798322') || lower.includes('mezquital') || lower.includes('ff9363285')) {
+        matchedShareLink = INITIAL_SHARE_LINKS.find((l) => l.id === 'link-ocos-mezquital') || null;
+      } else if (lower.includes('31822029') || lower.includes('campo') || lower.includes('ff9363276')) {
+        matchedShareLink = INITIAL_SHARE_LINKS.find((l) => l.id === 'link-ocos-campo') || null;
+      } else if (lower.includes('ocos') || lower === 'cam-ocos-ch1') {
         matchedShareLink = INITIAL_SHARE_LINKS.find((l) => l.id === 'link-proyecto-ocos') || null;
       } else if (lower.includes('cementerio') || lower === 'f31700438' || lower.includes('hilook')) {
         matchedShareLink = INITIAL_SHARE_LINKS.find((l) => l.id === 'link-calle-del-cementerio') || null;
+      }
+    }
+
+    // Si viene un parámetro explícito de cámara (por ejemplo desde TinyURL o enlace de canal)
+    if (typeof window !== 'undefined') {
+      const p = new URLSearchParams(window.location.search);
+      const cam = p.get('camera') || p.get('cam') || p.get('serial');
+      if (cam) {
+        if (cam.includes('FF9363270') || cam.toLowerCase().includes('instituto')) {
+          matchedShareLink = INITIAL_SHARE_LINKS.find((l) => l.id === 'link-ocos-instituto') || matchedShareLink;
+        } else if (cam.includes('FF9363192') || cam.toLowerCase().includes('tabernaculo')) {
+          matchedShareLink = INITIAL_SHARE_LINKS.find((l) => l.id === 'link-ocos-tabernaculo') || matchedShareLink;
+        } else if (cam.includes('FF9363285') || cam.toLowerCase().includes('mezquital')) {
+          matchedShareLink = INITIAL_SHARE_LINKS.find((l) => l.id === 'link-ocos-mezquital') || matchedShareLink;
+        } else if (cam.includes('FF9363276') || cam.toLowerCase().includes('campo')) {
+          matchedShareLink = INITIAL_SHARE_LINKS.find((l) => l.id === 'link-ocos-campo') || matchedShareLink;
+        }
       }
     }
     const matchedProject = projects.find((p) => p.id === matchedShareLink?.projectId) ||

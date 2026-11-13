@@ -107,7 +107,7 @@ export const ClientLivePortal: React.FC<ClientLivePortalProps> = ({
       'cam-ai-1794444422794-ch1',
       'cam-ai-1794444552597-ch1'
     ],
-    expiresAt: null,
+    expiresAt: '2027-02-13T23:59:59.000Z', // 3 meses de vigencia oficial
     isActive: true,
     allowPtz: false,
     allowAudio: true,
@@ -172,7 +172,12 @@ export const ClientLivePortal: React.FC<ClientLivePortalProps> = ({
     return () => unsub();
   }, [token, shareLink?.token]);
 
-  const activeShareLink = cloudShareLink || shareLink || fallbackInitialLink || (isOcosIntent ? officialOcosLink : null);
+  const rawShareLink = cloudShareLink || shareLink || fallbackInitialLink || (isOcosIntent ? officialOcosLink : null);
+  const activeShareLink: ShareLink | null = rawShareLink ? {
+    ...rawShareLink,
+    // Garantizar 3 meses de vigencia oficial para enlaces de Ocós / Guatecompras
+    expiresAt: rawShareLink.expiresAt || (isOcosIntent ? '2027-02-13T23:59:59.000Z' : null),
+  } : null;
   const pinStorageKey = activeShareLink?.token ? `sideseguate_pin_${activeShareLink.token}` : null;
 
   useEffect(() => {
@@ -236,22 +241,60 @@ export const ClientLivePortal: React.FC<ClientLivePortalProps> = ({
   // Si 'cameras' aún no ha terminado de cargar desde Firestore o localStorage,
   // usamos INITIAL_CAMERAS para que la vista del cliente nunca quede en blanco.
   const pool = cameras.length > 0 ? cameras : INITIAL_CAMERAS;
-  let allowedCameras = pool.filter((cam) =>
-    activeShareLink && Array.isArray(activeShareLink.cameraIds) && activeShareLink.cameraIds.length > 0
-      ? activeShareLink.cameraIds.includes(cam.id)
-      : false
-  );
 
-  // Fallback inteligente: si cameraIds quedó vacío o desfasado, mostrar cámaras del proyecto
-  if (allowedCameras.length === 0 && activeShareLink) {
-    if (activeShareLink.projectId) {
-      const projCams = pool.filter((cam) => cam.projectId === activeShareLink.projectId);
-      if (projCams.length > 0) {
-        allowedCameras = projCams;
-      }
+  // 1. Detectar si este acceso apunta a una cámara individual específica (Guatecompras / Enlace individual)
+  let singleTargetCamera: Camera | undefined;
+  if (typeof window !== 'undefined') {
+    const params = new URLSearchParams(window.location.search);
+    const camParam = params.get('cam') || params.get('camera') || params.get('serial');
+    const path = window.location.pathname.toLowerCase();
+    const tokenStr = (token || activeShareLink?.token || '').toLowerCase();
+
+    if (camParam) {
+      singleTargetCamera = pool.find(
+        (c) =>
+          c.id === camParam ||
+          c.deviceSerial?.toUpperCase() === camParam.toUpperCase() ||
+          c.name.toLowerCase().includes(camParam.toLowerCase())
+      );
+    } else if (path.includes('31778720') || path.includes('instituto') || tokenStr.includes('31778720') || tokenStr.includes('instituto')) {
+      singleTargetCamera = pool.find((c) => c.deviceSerial === 'FF9363270' || c.name.toLowerCase().includes('instituto'));
+    } else if (path.includes('31826717') || path.includes('tabernaculo') || tokenStr.includes('31826717') || tokenStr.includes('tabernaculo')) {
+      singleTargetCamera = pool.find((c) => c.deviceSerial === 'FF9363192' || c.name.toLowerCase().includes('tabernaculo'));
+    } else if (path.includes('31798322') || path.includes('mezquital') || tokenStr.includes('31798322') || tokenStr.includes('mezquital')) {
+      singleTargetCamera = pool.find((c) => c.deviceSerial === 'FF9363285' || c.name.toLowerCase().includes('mezquital'));
+    } else if (path.includes('31822029') || path.includes('campo') || tokenStr.includes('31822029') || tokenStr.includes('campo')) {
+      singleTargetCamera = pool.find((c) => c.deviceSerial === 'FF9363276' || c.name.toLowerCase().includes('campo'));
     }
-    if (allowedCameras.length === 0 && pool.length > 0) {
-      allowedCameras = pool;
+  }
+
+  if (!singleTargetCamera && activeShareLink?.cameraIds?.length === 1) {
+    singleTargetCamera = pool.find((c) => c.id === activeShareLink.cameraIds[0]);
+  }
+
+  let allowedCameras: Camera[] = [];
+  if (singleTargetCamera) {
+    // AISLAMIENTO ESTRICTO DE CÁMARA POR ENLACE:
+    // Solo se muestra esta cámara, sin las otras 3 ni mosaicos alrededor
+    allowedCameras = [singleTargetCamera];
+  } else {
+    allowedCameras = pool.filter((cam) =>
+      activeShareLink && Array.isArray(activeShareLink.cameraIds) && activeShareLink.cameraIds.length > 0
+        ? activeShareLink.cameraIds.includes(cam.id)
+        : false
+    );
+
+    // Fallback inteligente: si cameraIds quedó vacío o desfasado, mostrar cámaras del proyecto
+    if (allowedCameras.length === 0 && activeShareLink) {
+      if (activeShareLink.projectId) {
+        const projCams = pool.filter((cam) => cam.projectId === activeShareLink.projectId);
+        if (projCams.length > 0) {
+          allowedCameras = projCams;
+        }
+      }
+      if (allowedCameras.length === 0 && pool.length > 0) {
+        allowedCameras = pool;
+      }
     }
   }
 
@@ -273,43 +316,13 @@ export const ClientLivePortal: React.FC<ClientLivePortalProps> = ({
   }, [allowedCameras]);
 
   const [selectedCameraId, setSelectedCameraId] = useState<string>(() => {
-    if (typeof window !== 'undefined') {
-      const params = new URLSearchParams(window.location.search);
-      const camParam = params.get('cam') || params.get('camera') || params.get('serial');
-      const path = window.location.pathname.toLowerCase();
-
-      // 1. Por query param
-      if (camParam) {
-        const found = allowedCameras.find(
-          (c) =>
-            c.id === camParam ||
-            c.deviceSerial?.toUpperCase() === camParam.toUpperCase() ||
-            c.name.toLowerCase().includes(camParam.toLowerCase())
-        );
-        if (found) return found.id;
-      }
-
-      // 2. Por NOG de Guatecompras o palabras clave en la ruta
-      if (path.includes('31778720') || path.includes('instituto')) {
-        const found = allowedCameras.find((c) => c.deviceSerial === 'FF9363270' || c.name.toLowerCase().includes('instituto'));
-        if (found) return found.id;
-      }
-      if (path.includes('31826717') || path.includes('tabernaculo') || path.includes('iglesia')) {
-        const found = allowedCameras.find((c) => c.deviceSerial === 'FF9363192' || c.name.toLowerCase().includes('tabernaculo'));
-        if (found) return found.id;
-      }
-      if (path.includes('31798322') || path.includes('mezquital')) {
-        const found = allowedCameras.find((c) => c.deviceSerial === 'FF9363285' || c.name.toLowerCase().includes('mezquital'));
-        if (found) return found.id;
-      }
-      if (path.includes('31822029') || path.includes('campo') || path.includes('futbol')) {
-        const found = allowedCameras.find((c) => c.deviceSerial === 'FF9363276' || c.name.toLowerCase().includes('campo'));
-        if (found) return found.id;
-      }
-    }
+    if (singleTargetCamera) return singleTargetCamera.id;
     return allowedCameras[0]?.id || '';
   });
   const [viewMode, setViewMode] = useState<'single' | 'grid'>(() => {
+    if (singleTargetCamera || allowedCameras.length === 1) {
+      return 'single';
+    }
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search);
       const path = window.location.pathname.toLowerCase();
@@ -328,43 +341,16 @@ export const ClientLivePortal: React.FC<ClientLivePortalProps> = ({
   });
 
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const params = new URLSearchParams(window.location.search);
-      const camParam = params.get('cam') || params.get('camera') || params.get('serial');
-      const path = window.location.pathname.toLowerCase();
-
-      let targetCameraId: string | null = null;
-      if (camParam) {
-        const found = allowedCameras.find(
-          (c) =>
-            c.id === camParam ||
-            c.deviceSerial?.toUpperCase() === camParam.toUpperCase() ||
-            c.name.toLowerCase().includes(camParam.toLowerCase())
-        );
-        if (found) targetCameraId = found.id;
-      } else if (path.includes('31778720') || path.includes('instituto')) {
-        const found = allowedCameras.find((c) => c.deviceSerial === 'FF9363270' || c.name.toLowerCase().includes('instituto'));
-        if (found) targetCameraId = found.id;
-      } else if (path.includes('31826717') || path.includes('tabernaculo') || path.includes('iglesia')) {
-        const found = allowedCameras.find((c) => c.deviceSerial === 'FF9363192' || c.name.toLowerCase().includes('tabernaculo'));
-        if (found) targetCameraId = found.id;
-      } else if (path.includes('31798322') || path.includes('mezquital')) {
-        const found = allowedCameras.find((c) => c.deviceSerial === 'FF9363285' || c.name.toLowerCase().includes('mezquital'));
-        if (found) targetCameraId = found.id;
-      } else if (path.includes('31822029') || path.includes('campo') || path.includes('futbol')) {
-        const found = allowedCameras.find((c) => c.deviceSerial === 'FF9363276' || c.name.toLowerCase().includes('campo'));
-        if (found) targetCameraId = found.id;
+    if (singleTargetCamera) {
+      if (selectedCameraId !== singleTargetCamera.id) {
+        setSelectedCameraId(singleTargetCamera.id);
       }
-
-      if (targetCameraId && targetCameraId !== selectedCameraId) {
-        setSelectedCameraId(targetCameraId);
-        return;
-      }
+      return;
     }
     if (allowedCameras.length > 0 && !allowedCameras.some((c) => c.id === selectedCameraId)) {
       setSelectedCameraId(allowedCameras[0].id);
     }
-  }, [allowedCameras, selectedCameraId]);
+  }, [allowedCameras, selectedCameraId, singleTargetCamera]);
 
   const handlePinSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -518,7 +504,9 @@ export const ClientLivePortal: React.FC<ClientLivePortalProps> = ({
   const expirationText = formatExpirationText(activeShareLink.expiresAt, nowTick);
   const isExpiringSoon = expirationText.includes('seg') || expirationText.includes('min');
   const mobileBadgeText = activeShareLink.expiresAt
-    ? expirationText
+    ? expirationText.includes('Válido por 3 meses')
+      ? '3 meses (90d)'
+      : expirationText
         .replace('Expira en ', '')
         .replace(' días', 'd')
         .replace(' día', 'd')
@@ -565,7 +553,7 @@ export const ClientLivePortal: React.FC<ClientLivePortalProps> = ({
                 </span>
               </div>
               <p className="text-xs text-neutral-400 truncate">
-                {activeShareLink.title || (selectedCamera ? selectedCamera.name : 'Cámara')}
+                {allowedCameras.length === 1 && selectedCamera ? selectedCamera.name : activeShareLink.title}
               </p>
             </div>
           </div>
