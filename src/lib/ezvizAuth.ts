@@ -35,7 +35,7 @@ export interface TokenHealthInfo {
 
 export const EZVIZ_AUTH_STORAGE_KEY = 'sideseguate_ezviz_auth_v2';
 export const EZVIZ_DEVICE_CODES_KEY = 'sideseguate_device_codes_v1';
-export const DEFAULT_FALLBACK_TOKEN = 'at.1pzo6ehydxokb80xcx3rdhk7ah6z025w-8z7cnhbby8-1kgt1vp-j2bvrfxms';
+export const DEFAULT_FALLBACK_TOKEN = 'at.dw0j6l0mc8iltishdqp82b6v91w62mt0-6t7ybvn2iq-1sl45m4-yb5utk7cf';
 // Vigencia estimada del token actual (7 días desde su emisión del 06 nov 2026)
 export const DEFAULT_FALLBACK_EXPIRE_MS = Date.parse('2026-11-14T05:51:00.000Z');
 
@@ -80,7 +80,7 @@ export function loadEzvizAuth(): EzvizAuthConfig {
       if (raw) {
         const parsed = JSON.parse(raw);
         let activeToken = String(parsed.accessToken || DEFAULT_FALLBACK_TOKEN);
-        if (activeToken === 'at.b1exbqau80l85aox2k6x3487cw0byh2s-51eyws3m7n-0ii5ze3-uuk9pufag' || !activeToken) {
+        if (activeToken === 'at.dw0j6l0mc8iltishdqp82b6v91w62mt0-6t7ybvn2iq-1sl45m4-yb5utk7cf' || !activeToken) {
           activeToken = DEFAULT_FALLBACK_TOKEN;
         }
         const rawExpireTime = typeof parsed.expireTime === 'number' ? parsed.expireTime : 0;
@@ -149,7 +149,7 @@ export function syncEzvizAuthFromRemote(remote: {
   if (!remote || !remote.accessToken) return;
   let cleanToken = remote.accessToken.trim();
   if (!cleanToken) return;
-  if (cleanToken === 'at.b1exbqau80l85aox2k6x3487cw0byh2s-51eyws3m7n-0ii5ze3-uuk9pufag') {
+  if (cleanToken === 'at.dw0j6l0mc8iltishdqp82b6v91w62mt0-6t7ybvn2iq-1sl45m4-yb5utk7cf') {
     cleanToken = DEFAULT_FALLBACK_TOKEN;
   }
 
@@ -201,7 +201,7 @@ export function extractEzvizTokenFromCamera(
   }
 
   if (token) {
-    if (token === 'at.b1exbqau80l85aox2k6x3487cw0byh2s-51eyws3m7n-0ii5ze3-uuk9pufag') {
+    if (token === 'at.dw0j6l0mc8iltishdqp82b6v91w62mt0-6t7ybvn2iq-1sl45m4-yb5utk7cf') {
       token = DEFAULT_FALLBACK_TOKEN;
       expireTime = Date.now() + 7 * 86400 * 1000;
     }

@@ -22,10 +22,13 @@ const projectRoot = path.resolve(__dirname, '..');
 const LOG_CANDIDATES = [
   'C:/Program Files/HiLookVision Station/HiLookVision/HiLookVision Client/log/opensdk/opensdk.log',
   'C:/Program Files (x86)/HiLookVision Station/HiLookVision/HiLookVision Client/log/opensdk/opensdk.log',
+  'C:/Program Files (x86)/iVMS-4200 Site/iVMS-4200 Client/Client/log/opensdk/opensdk.log',
 ];
 
 const EXE_CANDIDATES = [
+  'C:/Program Files/HiLookVision Station/HiLookVision/HiLookVision Client/HiLookVision.exe',
   'C:/Program Files/HiLookVision Station/HiLookVision/HiLookVision Client/HiLookVision Client.exe',
+  'C:/Program Files (x86)/HiLookVision Station/HiLookVision/HiLookVision Client/HiLookVision.exe',
   'C:/Program Files (x86)/HiLookVision Station/HiLookVision/HiLookVision Client/HiLookVision Client.exe',
 ];
 
@@ -151,18 +154,135 @@ function is4gOrP2pCarrier(cam) {
     notes.includes('4G') ||
     name.includes('4g') ||
     name.includes('ocos') ||
-    name.includes('ocós')
+    name.includes('ocós') ||
+    serial === 'F31700438' ||
+    id.includes('cementerio') ||
+    id.includes('hilook') ||
+    name.includes('cementerio')
   );
+}
+
+async function syncTokenToFirestoreAndFiles(token, check, dryRun = false) {
+  const expireMs = Date.now() + 7 * 86400 * 1000;
+  const nextDateStr = new Date(expireMs).toLocaleDateString('es-GT', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+
+  console.log(`✓ Token válido confirmado en EZVIZ Cloud (${check.name || 'FF9363270'})`);
+  console.log(`✓ Próxima fecha de renovación estimada: ${nextDateStr}`);
+
+  console.log('Verificando y desbloqueando cifrado de video en cámaras conocidas...');
+  await autoUnlockKnownCameras(token);
+
+  // 1. Actualizar archivos locales src/lib/initialData.ts y src/lib/ezvizAuth.ts
+  try {
+    const initialDataPath = path.join(projectRoot, 'src', 'lib', 'initialData.ts');
+    if (fs.existsSync(initialDataPath)) {
+      let content = fs.readFileSync(initialDataPath, 'utf8');
+      content = content.replace(/at\.[a-zA-Z0-9_-]{20,}/g, token);
+      fs.writeFileSync(initialDataPath, content, 'utf8');
+      console.log('  ✓ initialData.ts actualizado con nuevo token');
+    }
+    const ezvizAuthPath = path.join(projectRoot, 'src', 'lib', 'ezvizAuth.ts');
+    if (fs.existsSync(ezvizAuthPath)) {
+      let content = fs.readFileSync(ezvizAuthPath, 'utf8');
+      content = content.replace(/at\.[a-zA-Z0-9_-]{20,}/g, token);
+      fs.writeFileSync(ezvizAuthPath, content, 'utf8');
+      console.log('  ✓ ezvizAuth.ts actualizado con nuevo token');
+    }
+  } catch (err) {
+    console.warn('  ⚠️ No se pudieron actualizar archivos de código:', err?.message);
+  }
+
+  // 2. Actualizar Firestore
+  const configPath = path.join(projectRoot, 'firebase-applet-config.json');
+  const firebaseConfig = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+  const app = initializeApp(firebaseConfig);
+  const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
+
+  try {
+    const q = query(collection(db, 'cloud_cameras'), where('ownerId', '==', 'sideseguate_cloud_v1'));
+    const snap = await getDocs(q);
+
+    const allDocs = [];
+    snap.forEach((docSnap) => {
+      allDocs.push({ id: docSnap.id, data: docSnap.data() });
+    });
+
+    let targets = allDocs.filter((entry) => is4gOrP2pCarrier(entry.data));
+    if (targets.length === 0) {
+      targets = allDocs.filter((entry) => Boolean(entry.data.deviceSerial));
+    }
+
+    if (targets.length === 0) {
+      console.log('⚠️ No se encontraron cámaras 4G/P2P registradas en Cloud Firestore.');
+      await terminate(db);
+      return;
+    }
+
+    if (dryRun) {
+      console.log(`[dry-run] Cámaras que se actualizarían (${targets.length}): ${targets.map((t) => t.id).join(', ')}`);
+      await terminate(db);
+      return;
+    }
+
+    for (const target of targets) {
+      const nextNotes = formatUpdatedNotes(target.data.notes, token, expireMs);
+      await updateDoc(doc(db, 'cloud_cameras', target.id), {
+        cloudId: token,
+        notes: nextNotes,
+        updatedAt: serverTimestamp(),
+      });
+      console.log(`  → Firestore actualizado: ${target.data.name || target.id} (${target.id})`);
+    }
+
+    console.log('');
+    console.log(`✅ ¡Listo! ${targets.length} cámara(s) 4G sincronizada(s) en la nube hasta ${nextDateStr}.`);
+    console.log('   Tus celulares y enlaces compartidos tomarán el token automáticamente al abrir la web.');
+    await terminate(db);
+  } catch (err) {
+    console.error('❌ Error al actualizar Firestore:', err?.message || err);
+    try {
+      await terminate(db);
+    } catch {}
+  }
 }
 
 async function main() {
   const args = new Set(process.argv.slice(2));
   const autoOpen = args.has('--auto-open');
   const dryRun = args.has('--dry-run');
+  const watchMode = args.has('--watch');
 
   console.log('==============================================================');
   console.log(' SIDESEGUATE · Sincronizador de Token 4G (HiLookVision -> Nube)');
   console.log('==============================================================');
+
+  let explicitToken = null;
+  for (const arg of process.argv.slice(2)) {
+    if (arg.startsWith('at.')) {
+      explicitToken = arg.trim();
+      break;
+    } else if (arg.startsWith('--token=')) {
+      explicitToken = arg.split('=')[1].trim();
+      break;
+    }
+  }
+
+  if (explicitToken) {
+    console.log(`Verificando token provisto: ${explicitToken.slice(0, 15)}...`);
+    const check = await verifyTokenLive(explicitToken);
+    if (!check.valid) {
+      console.error(`❌ Token inválido según EZVIZ: ${check.code} - ${check.msg}`);
+      process.exit(1);
+    }
+    await syncTokenToFirestoreAndFiles(explicitToken, check, dryRun);
+    process.exit(0);
+  }
 
   let logPath = findExistingPath(LOG_CANDIDATES);
   let resolved = await findFirstValidToken(logPath);
@@ -188,79 +308,31 @@ async function main() {
     }
   }
 
+  if (resolved) {
+    await syncTokenToFirestoreAndFiles(resolved.token, resolved.check, dryRun);
+    if (!watchMode) {
+      process.exit(0);
+    }
+  }
+
+  if (watchMode) {
+    console.log('Modo Watch activado: esperando inicio de sesión en HiLookVision...');
+    let lastSeen = resolved ? resolved.token : null;
+    while (true) {
+      await new Promise((r) => setTimeout(r, 2500));
+      logPath = findExistingPath(LOG_CANDIDATES);
+      const current = await findFirstValidToken(logPath);
+      if (current && current.token !== lastSeen) {
+        console.log(`\n🎉 ¡Nuevo token detectado en tiempo real! (${current.token.slice(0, 15)}...)`);
+        lastSeen = current.token;
+        await syncTokenToFirestoreAndFiles(current.token, current.check, dryRun);
+      }
+    }
+  }
+
   if (!resolved) {
     console.error('❌ No se encontró un AccessToken vigente en HiLookVision Client.');
     console.error('   Abre HiLookVision Client en esta PC, espera 5 segundos a que carguen las cámaras y vuelve a ejecutar este script.');
-    process.exit(1);
-  }
-
-  const { token, check } = resolved;
-  const expireMs = Date.now() + 7 * 86400 * 1000;
-  const nextDateStr = new Date(expireMs).toLocaleDateString('es-GT', {
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
-
-  console.log(`✓ Token válido confirmado en EZVIZ Cloud (${check.name || 'FF9363270'})`);
-  console.log(`✓ Próxima fecha de renovación estimada: ${nextDateStr}`);
-
-  console.log('Verificando y desbloqueando cifrado de video en cámaras conocidas...');
-  await autoUnlockKnownCameras(token);
-
-  const configPath = path.join(projectRoot, 'firebase-applet-config.json');
-  const firebaseConfig = JSON.parse(fs.readFileSync(configPath, 'utf8'));
-  const app = initializeApp(firebaseConfig);
-  const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
-
-  try {
-    const q = query(collection(db, 'cloud_cameras'), where('ownerId', '==', 'sideseguate_cloud_v1'));
-    const snap = await getDocs(q);
-
-    const allDocs = [];
-    snap.forEach((docSnap) => {
-      allDocs.push({ id: docSnap.id, data: docSnap.data() });
-    });
-
-    let targets = allDocs.filter((entry) => is4gOrP2pCarrier(entry.data));
-    if (targets.length === 0) {
-      targets = allDocs.filter((entry) => Boolean(entry.data.deviceSerial));
-    }
-
-    if (targets.length === 0) {
-      console.log('⚠️ No se encontraron cámaras 4G/P2P registradas en Cloud Firestore.');
-      await terminate(db);
-      process.exit(0);
-    }
-
-    if (dryRun) {
-      console.log(`[dry-run] Cámaras que se actualizarían (${targets.length}): ${targets.map((t) => t.id).join(', ')}`);
-      await terminate(db);
-      process.exit(0);
-    }
-
-    for (const target of targets) {
-      const nextNotes = formatUpdatedNotes(target.data.notes, token, expireMs);
-      await updateDoc(doc(db, 'cloud_cameras', target.id), {
-        cloudId: token,
-        notes: nextNotes,
-        updatedAt: serverTimestamp(),
-      });
-      console.log(`  → Firestore actualizado: ${target.data.name || target.id} (${target.id})`);
-    }
-
-    console.log('');
-    console.log(`✅ ¡Listo! ${targets.length} cámara(s) 4G sincronizada(s) en la nube hasta ${nextDateStr}.`);
-    console.log('   Tus celulares y enlaces compartidos tomarán el token automáticamente al abrir la web.');
-    await terminate(db);
-    process.exit(0);
-  } catch (err) {
-    console.error('❌ Error al actualizar Firestore:', err?.message || err);
-    try {
-      await terminate(db);
-    } catch {}
     process.exit(1);
   }
 }

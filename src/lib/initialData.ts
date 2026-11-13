@@ -82,8 +82,8 @@ export const INITIAL_CAMERAS: Camera[] = [
     ptzSupported: false,
     nightVision: false,
     deviceSerial: 'FF9363192',
-    cloudId: 'at.1pzo6ehydxokb80xcx3rdhk7ah6z025w-8z7cnhbby8-1kgt1vp-j2bvrfxms',
-    notes: 'Cámara 4G Hikvision FF9363192 | Código: WZRIKO | Modo Ultra-Ahorro Datos 4G Activo [EZVIZ_TOKEN:at.1pzo6ehydxokb80xcx3rdhk7ah6z025w-8z7cnhbby8-1kgt1vp-j2bvrfxms|1794638047000]'
+    cloudId: 'at.dw0j6l0mc8iltishdqp82b6v91w62mt0-6t7ybvn2iq-1sl45m4-yb5utk7cf',
+    notes: 'Cámara 4G Hikvision FF9363192 | Código: WZRIKO | Modo Ultra-Ahorro Datos 4G Activo [EZVIZ_TOKEN:at.dw0j6l0mc8iltishdqp82b6v91w62mt0-6t7ybvn2iq-1sl45m4-yb5utk7cf|1794638047000]'
   },
   {
     id: 'cam-ai-1794439784940-ch1',
@@ -110,8 +110,8 @@ export const INITIAL_CAMERAS: Camera[] = [
     ptzSupported: false,
     nightVision: false,
     deviceSerial: 'FF9363276',
-    cloudId: 'at.1pzo6ehydxokb80xcx3rdhk7ah6z025w-8z7cnhbby8-1kgt1vp-j2bvrfxms',
-    notes: 'Cámara 4G Hikvision FF9363276 | Código: PZHQVT | Modo Ultra-Ahorro Datos 4G Activo [EZVIZ_TOKEN:at.1pzo6ehydxokb80xcx3rdhk7ah6z025w-8z7cnhbby8-1kgt1vp-j2bvrfxms|1794638047000]'
+    cloudId: 'at.dw0j6l0mc8iltishdqp82b6v91w62mt0-6t7ybvn2iq-1sl45m4-yb5utk7cf',
+    notes: 'Cámara 4G Hikvision FF9363276 | Código: PZHQVT | Modo Ultra-Ahorro Datos 4G Activo [EZVIZ_TOKEN:at.dw0j6l0mc8iltishdqp82b6v91w62mt0-6t7ybvn2iq-1sl45m4-yb5utk7cf|1794638047000]'
   },
   {
     id: 'cam-ai-1794444422794-ch1',
@@ -138,8 +138,8 @@ export const INITIAL_CAMERAS: Camera[] = [
     ptzSupported: false,
     nightVision: false,
     deviceSerial: 'FF9363285',
-    cloudId: 'at.1pzo6ehydxokb80xcx3rdhk7ah6z025w-8z7cnhbby8-1kgt1vp-j2bvrfxms',
-    notes: 'Cámara 4G Hikvision FF9363285 | Código: UFYQQQ | Modo Ultra-Ahorro Datos 4G Activo [EZVIZ_TOKEN:at.1pzo6ehydxokb80xcx3rdhk7ah6z025w-8z7cnhbby8-1kgt1vp-j2bvrfxms|1794638047000]'
+    cloudId: 'at.dw0j6l0mc8iltishdqp82b6v91w62mt0-6t7ybvn2iq-1sl45m4-yb5utk7cf',
+    notes: 'Cámara 4G Hikvision FF9363285 | Código: UFYQQQ | Modo Ultra-Ahorro Datos 4G Activo [EZVIZ_TOKEN:at.dw0j6l0mc8iltishdqp82b6v91w62mt0-6t7ybvn2iq-1sl45m4-yb5utk7cf|1794638047000]'
   },
   {
     id: 'cam-ai-1794444552597-ch1',
@@ -166,8 +166,8 @@ export const INITIAL_CAMERAS: Camera[] = [
     ptzSupported: false,
     nightVision: false,
     deviceSerial: 'FF9363270',
-    cloudId: 'at.1pzo6ehydxokb80xcx3rdhk7ah6z025w-8z7cnhbby8-1kgt1vp-j2bvrfxms',
-    notes: 'Cámara 4G Hikvision FF9363270 | Código: LBNZYU | Modo Ultra-Ahorro Datos 4G Activo [EZVIZ_TOKEN:at.1pzo6ehydxokb80xcx3rdhk7ah6z025w-8z7cnhbby8-1kgt1vp-j2bvrfxms|1794638047000]'
+    cloudId: 'at.dw0j6l0mc8iltishdqp82b6v91w62mt0-6t7ybvn2iq-1sl45m4-yb5utk7cf',
+    notes: 'Cámara 4G Hikvision FF9363270 | Código: LBNZYU | Modo Ultra-Ahorro Datos 4G Activo [EZVIZ_TOKEN:at.dw0j6l0mc8iltishdqp82b6v91w62mt0-6t7ybvn2iq-1sl45m4-yb5utk7cf|1794638047000]'
   },
   {
     id: 'cam-hilook-ch1',
@@ -194,7 +194,7 @@ export const INITIAL_CAMERAS: Camera[] = [
     ptzSupported: true,
     nightVision: false,
     deviceSerial: 'F31700438',
-    cloudId: 'at.1pzo6ehydxokb80xcx3rdhk7ah6z025w-8z7cnhbby8-1kgt1vp-j2bvrfxms',
+    cloudId: 'at.dw0j6l0mc8iltishdqp82b6v91w62mt0-6t7ybvn2iq-1sl45m4-yb5utk7cf',
     notes: 'DVR HiLook F31700438 | HiLookVision P2P / EZopen Directo | Canal 1 Activo en vivo'
   },
   {
@@ -222,7 +222,7 @@ export const INITIAL_CAMERAS: Camera[] = [
     ptzSupported: true,
     nightVision: false,
     deviceSerial: 'F31700438',
-    cloudId: 'at.1pzo6ehydxokb80xcx3rdhk7ah6z025w-8z7cnhbby8-1kgt1vp-j2bvrfxms',
+    cloudId: 'at.dw0j6l0mc8iltishdqp82b6v91w62mt0-6t7ybvn2iq-1sl45m4-yb5utk7cf',
     notes: 'DVR HiLook F31700438 | HiLookVision P2P / EZopen Directo | Canal 2 Activo en vivo'
   }
 ];
