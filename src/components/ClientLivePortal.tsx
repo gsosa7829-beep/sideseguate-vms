@@ -504,7 +504,11 @@ export const ClientLivePortal: React.FC<ClientLivePortalProps> = ({
               </div>
             </div>
 
-            <div className={allowedCameras.length <= 2 ? 'grid grid-cols-2 gap-2' : 'flex items-center gap-2 overflow-x-auto p-0.5 scrollbar-none snap-x'}>
+            <div className={
+              allowedCameras.length <= 2
+                ? 'grid grid-cols-2 gap-2.5'
+                : 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5'
+            }>
               {allowedCameras.map((cam) => {
                 const isSelected = cam.id === selectedCameraId && viewMode === 'single';
                 const cleanName = cam.name.replace(/^Cámara\s*\d+\s*·\s*/i, '');
@@ -516,21 +520,19 @@ export const ClientLivePortal: React.FC<ClientLivePortalProps> = ({
                       setSelectedCameraId(cam.id);
                       setViewMode('single');
                     }}
-                    className={`min-h-[46px] px-3 py-2 rounded-xl text-xs font-bold flex items-center justify-between gap-2 transition-all shadow-sm active:scale-95 ${
-                      allowedCameras.length > 2 ? 'snap-start shrink-0 min-w-[150px]' : 'w-full'
-                    } ${
+                    className={`min-h-[48px] px-3.5 py-2.5 rounded-xl text-xs font-bold flex items-center justify-between gap-2.5 transition-all shadow-sm active:scale-95 w-full ${
                       isSelected
                         ? 'bg-sky-600 text-white ring-2 ring-sky-400 shadow-sky-600/30'
                         : 'bg-neutral-950 border border-neutral-800 text-neutral-300 hover:bg-neutral-850 hover:text-white'
                     }`}
                   >
-                    <div className="flex items-center gap-2 min-w-0">
+                    <div className="flex items-center gap-2 min-w-0 flex-1">
                       <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${isSelected ? 'bg-emerald-300 animate-pulse' : 'bg-emerald-500'}`} />
-                      <span className="truncate font-semibold text-left">
+                      <span className="font-semibold text-left text-xs sm:text-sm leading-snug break-words">
                         {cleanName}
                       </span>
                     </div>
-                    <span className="text-[10px] font-mono opacity-85 bg-black/40 px-1.5 py-0.5 rounded shrink-0">
+                    <span className="text-[10px] font-mono opacity-85 bg-black/40 px-2 py-0.5 rounded shrink-0">
                       CH0{cam.channel}
                     </span>
                   </button>
@@ -749,11 +751,11 @@ export const ClientLivePortal: React.FC<ClientLivePortalProps> = ({
                           : 'bg-neutral-900 border-neutral-800 text-neutral-300 hover:bg-neutral-850 hover:border-neutral-700'
                       }`}
                     >
-                      <div className="flex items-center justify-between w-full">
-                        <span className="font-semibold text-xs truncate max-w-[180px]">
+                      <div className="flex items-start justify-between w-full gap-2">
+                        <span className="font-bold text-xs sm:text-sm text-white leading-snug break-words flex-1">
                           {cam.name}
                         </span>
-                        <span className={`w-2 h-2 rounded-full ${
+                        <span className={`w-2 h-2 rounded-full shrink-0 mt-0.5 ${
                           cam.status === 'online' ? 'bg-emerald-500' : 'bg-amber-500'
                         }`} />
                       </div>
@@ -780,10 +782,25 @@ export const ClientLivePortal: React.FC<ClientLivePortalProps> = ({
           </div>
         ) : (
           /* Multi-Camera Grid View */
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-5xl mx-auto w-full">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-5xl mx-auto w-full">
             {allowedCameras.map((cam) => (
-              <div key={cam.id} className="flex flex-col gap-1.5 bg-neutral-900 border border-neutral-800 rounded-2xl overflow-hidden shadow-lg p-2 sm:p-2.5">
-                <div className="aspect-video w-full rounded-xl overflow-hidden bg-black">
+              <div key={cam.id} className="flex flex-col bg-neutral-900 border border-neutral-800 hover:border-neutral-700 transition-all duration-200 rounded-2xl overflow-hidden shadow-xl shadow-black/50 ring-1 ring-white/5 hover:shadow-2xl">
+                {/* Cabecera con Nombre Completo y Estado */}
+                <div className="px-4 py-3 bg-neutral-950/95 border-b border-neutral-800 flex items-center justify-between gap-2.5">
+                  <div className="flex items-center gap-2 min-w-0 flex-1">
+                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse shrink-0" />
+                    <span className="font-bold text-white text-sm sm:text-base tracking-tight leading-snug break-words">
+                      {cam.name}
+                    </span>
+                  </div>
+                  <span className="font-mono text-[10px] uppercase font-bold px-2.5 py-0.5 rounded-full bg-emerald-950/80 border border-emerald-500/40 text-emerald-400 shrink-0 flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                    {isCamera4gDevice(cam) ? '4G LTE' : 'En Vivo'}
+                  </span>
+                </div>
+
+                {/* Video Viewport 16:9 */}
+                <div className="aspect-video w-full overflow-hidden bg-black">
                   <LiveCameraPlayer
                     camera={cam}
                     allowPtz={activeShareLink.allowPtz}
@@ -794,9 +811,15 @@ export const ClientLivePortal: React.FC<ClientLivePortalProps> = ({
                     isCompact={true}
                   />
                 </div>
-                <div className="flex items-center justify-between px-2 py-0.5 text-xs text-neutral-400">
-                  <span className="font-semibold text-white truncate text-xs">{cam.name}</span>
-                  <span className="font-mono text-[11px] text-sky-400 shrink-0">{cam.resolution.split(' ')[0]}</span>
+
+                {/* Pie con Ubicación y Calidad */}
+                <div className="px-4 py-2.5 bg-neutral-950/95 border-t border-neutral-800 flex items-center justify-between text-xs text-neutral-400">
+                  <span className="truncate text-neutral-300 text-xs">
+                    📍 {cam.locationDesc || 'Ocós, San Marcos'}
+                  </span>
+                  <span className="font-mono text-[11px] text-sky-300 shrink-0 font-semibold">
+                    {cam.resolution.split(' ')[0]}
+                  </span>
                 </div>
               </div>
             ))}

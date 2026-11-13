@@ -139,8 +139,8 @@ function getCameraPoster(cam: Camera): string | undefined {
 
 function getProjectGridClass(count: number): string {
   if (count === 1) return 'max-w-2xl mx-auto';
-  if (count <= 4) return 'grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-5 max-w-5xl mx-auto';
-  return 'grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-5 max-w-6xl mx-auto';
+  if (count <= 4) return 'grid grid-cols-1 md:grid-cols-2 gap-6 lg:gap-7 max-w-5xl mx-auto';
+  return 'grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 lg:gap-7 max-w-6xl mx-auto';
 }
 
 function buildProjectBuckets(projects: Project[], cameras: Camera[]): ProjectBucket[] {
@@ -239,60 +239,81 @@ const CameraFeedCard: React.FC<CameraFeedCardProps> = ({
   const TitleTag = headingAs;
 
   return (
-    <article className="bg-neutral-900 border border-neutral-800 hover:border-neutral-700 transition rounded-2xl overflow-hidden flex flex-col shadow-lg">
-      {/* Franja Superior */}
-      <div className="px-4 py-2.5 bg-neutral-950/95 border-b border-neutral-800 flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-xs">
-        <div className="flex items-center gap-2 min-w-[140px] flex-1">
-          <span
-            className={`w-2 h-2 rounded-full shrink-0 ${
-              isPlaying ? 'bg-emerald-400 animate-pulse' : 'bg-neutral-500'
-            }`}
-          />
-          <span className={`font-mono text-xs font-bold shrink-0 ${is4g ? 'text-emerald-400' : 'text-sky-400'}`}>
-            {formatChannelBadge(camera.channel)}
-          </span>
-          <span className="text-neutral-600 shrink-0" aria-hidden="true">·</span>
-          <TitleTag className="font-semibold text-white truncate text-xs sm:text-sm">
-            {camera.name}
-          </TitleTag>
-        </div>
-
-        <div className="flex items-center gap-1.5 text-neutral-400 text-[11px] font-mono tabular-nums shrink-0">
-          {camera.status === 'offline' || camera.status === 'error' ? (
-            <span className="inline-flex items-center gap-1 text-red-400 font-semibold bg-red-950/40 px-2 py-0.5 rounded-md border border-red-800/40">
-              <span className="w-1.5 h-1.5 rounded-full bg-red-400 animate-ping" />
-              Sin Señal
+    <article className="group bg-neutral-900/95 border border-neutral-800 hover:border-neutral-700 transition-all duration-200 rounded-2xl overflow-hidden flex flex-col shadow-xl shadow-black/50 ring-1 ring-white/5 hover:shadow-2xl">
+      {/* Franja Superior: Cabecera con Nombre Destacado Completo y Telemetría */}
+      <div className="px-4 py-3 bg-neutral-950/95 border-b border-neutral-800 flex flex-col gap-2">
+        {/* Fila 1: Indicador En Vivo + Canal + Título Completo */}
+        <div className="flex items-start justify-between gap-3 min-w-0">
+          <div className="flex items-center gap-2 min-w-0 flex-1">
+            <span
+              className={`w-2.5 h-2.5 rounded-full shrink-0 ${
+                isPlaying ? 'bg-emerald-400 animate-pulse' : 'bg-neutral-500'
+              }`}
+            />
+            <span
+              className={`font-mono text-[11px] font-bold px-2 py-0.5 rounded-md border shrink-0 ${
+                is4g
+                  ? 'bg-emerald-950/70 border-emerald-500/40 text-emerald-300'
+                  : 'bg-sky-950/70 border-sky-500/40 text-sky-300'
+              }`}
+            >
+              {formatChannelBadge(camera.channel)}
             </span>
-          ) : is4g ? (
-            <>
-              <span className="inline-flex items-center gap-1 text-emerald-400 font-semibold">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+            <TitleTag className="font-bold text-white text-sm sm:text-base tracking-tight leading-snug break-words">
+              {camera.name}
+            </TitleTag>
+          </div>
+
+          {/* Insignia de Estado */}
+          <div className="shrink-0 pt-0.5">
+            {camera.status === 'offline' || camera.status === 'error' ? (
+              <span className="inline-flex items-center gap-1.5 text-red-400 text-[11px] font-mono font-semibold bg-red-950/60 px-2.5 py-0.5 rounded-full border border-red-800/60 shadow-xs">
+                <span className="w-1.5 h-1.5 rounded-full bg-red-400 animate-ping" />
+                Sin Señal
+              </span>
+            ) : is4g ? (
+              <span className="inline-flex items-center gap-1.5 text-emerald-400 text-[11px] font-mono font-semibold bg-emerald-950/60 px-2.5 py-0.5 rounded-full border border-emerald-500/40 shadow-xs">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
                 4G LTE
               </span>
-              <span aria-hidden="true">·</span>
-              <span>{camera.codec || 'H.265'} SD</span>
-              <span aria-hidden="true">·</span>
-              <span className="text-sky-300 font-semibold">~{camera.bitrateKbps || 512} kbps</span>
-              <span aria-hidden="true">·</span>
-              <span className="text-emerald-400 font-semibold">{formatMobileDataUsage(camBytes)}</span>
-            </>
-          ) : (
-            <>
-              <span className="inline-flex items-center gap-1 text-sky-400 font-semibold">
+            ) : (
+              <span className="inline-flex items-center gap-1.5 text-sky-400 text-[11px] font-mono font-semibold bg-sky-950/60 px-2.5 py-0.5 rounded-full border border-sky-500/40 shadow-xs">
                 <span className="w-1.5 h-1.5 rounded-full bg-sky-400" />
                 TurboHD
               </span>
-              <span aria-hidden="true">·</span>
-              <span>{camera.resolution.split(' ')[0]}</span>
-              <span className="hidden sm:inline" aria-hidden="true">·</span>
-              <span className="hidden sm:inline">{camera.fps || 25} FPS</span>
-            </>
-          )}
+            )}
+          </div>
+        </div>
+
+        {/* Fila 2: Sub-info técnica espaciosa */}
+        <div className="flex items-center justify-between gap-2 text-[11px] font-mono text-neutral-400 pt-1 border-t border-neutral-900/80">
+          <div className="truncate text-neutral-400 flex items-center gap-1 min-w-0">
+            <span className="text-neutral-500 shrink-0">📍</span>
+            <span className="truncate text-neutral-300">{camera.locationDesc || `Canal ${camera.channel}`}</span>
+          </div>
+
+          <div className="flex items-center gap-1.5 shrink-0 tabular-nums text-neutral-400">
+            {is4g ? (
+              <>
+                <span>{camera.codec || 'H.265'} SD</span>
+                <span className="text-neutral-600">·</span>
+                <span className="text-sky-300 font-semibold">~{camera.bitrateKbps || 512} kbps</span>
+                <span className="text-neutral-600">·</span>
+                <span className="text-emerald-400 font-semibold">{formatMobileDataUsage(camBytes)}</span>
+              </>
+            ) : (
+              <>
+                <span>{camera.resolution.split(' ')[0]}</span>
+                <span className="text-neutral-600">·</span>
+                <span>{camera.fps || 25} FPS</span>
+              </>
+            )}
+          </div>
         </div>
       </div>
 
-      {/* Viewport */}
-      <div className="flex-1 bg-black aspect-video overflow-hidden">
+      {/* Viewport Panorámico 16:9 */}
+      <div className="flex-1 bg-black aspect-video overflow-hidden relative">
         <LiveCameraPlayer
           camera={camera}
           allowPtz={!is4g}
@@ -306,17 +327,18 @@ const CameraFeedCard: React.FC<CameraFeedCardProps> = ({
         />
       </div>
 
-      {/* Franja Inferior */}
-      <div className="px-4 py-3 bg-neutral-950/95 border-t border-neutral-800 flex items-center justify-between gap-2.5 text-xs">
-        <div className="text-neutral-400 truncate text-xs min-w-0">
-          <span className="text-neutral-300">{camera.locationDesc}</span>
+      {/* Franja Inferior: Serie / P2P + Acciones */}
+      <div className="px-4 py-3 bg-neutral-950/95 border-t border-neutral-800 flex items-center justify-between gap-3 text-xs">
+        <div className="flex items-center gap-2 text-neutral-400 font-mono text-[11px] truncate">
+          <span className="text-neutral-500 uppercase">SN:</span>
+          <span className="text-neutral-300 font-bold tracking-wider">{camera.deviceSerial || camera.host}</span>
         </div>
 
         <div className="flex items-center gap-2 shrink-0">
           <button
             type="button"
             onClick={() => onSelectCamera(camera.id)}
-            className="h-8 sm:h-[38px] min-h-[32px] sm:min-h-[38px] px-2.5 sm:px-3.5 bg-neutral-900 hover:bg-neutral-850 active:bg-neutral-800 text-neutral-200 border border-neutral-800 rounded-lg sm:rounded-xl transition flex items-center gap-1.5 font-medium cursor-pointer text-xs"
+            className="h-8 px-3 bg-neutral-900 hover:bg-neutral-850 active:bg-neutral-800 text-neutral-200 border border-neutral-700/80 rounded-xl transition flex items-center gap-1.5 font-medium cursor-pointer text-xs shadow-xs"
             title="Inspeccionar cámara en vista completa"
           >
             <Eye className="w-3.5 h-3.5 text-neutral-300 shrink-0" />
@@ -326,10 +348,10 @@ const CameraFeedCard: React.FC<CameraFeedCardProps> = ({
           <button
             type="button"
             onClick={() => onGenerateLink(camera)}
-            className="h-8 sm:h-[38px] min-h-[32px] sm:min-h-[38px] px-2.5 sm:px-3.5 bg-neutral-800 hover:bg-neutral-700 active:bg-neutral-600 text-white border border-neutral-700 rounded-lg sm:rounded-xl transition flex items-center gap-1.5 font-semibold cursor-pointer shadow-sm text-xs"
+            className="h-8 px-3.5 bg-sky-600 hover:bg-sky-500 active:bg-sky-700 text-white border border-sky-400/30 rounded-xl transition flex items-center gap-1.5 font-semibold cursor-pointer shadow-sm text-xs"
             title="Generar enlace privado temporal para cliente"
           >
-            <Link2 className="w-3.5 h-3.5 text-neutral-300 shrink-0" />
+            <Link2 className="w-3.5 h-3.5 text-white shrink-0" />
             <span>Compartir</span>
           </button>
         </div>
@@ -1228,7 +1250,7 @@ export const VideoWall: React.FC<VideoWallProps> = ({
                       </button>
                     </div>
                   ) : (
-                    <div className={getProjectGridClass(bucket.cameras.length)}>
+                    <div className={`pt-2 pb-8 ${getProjectGridClass(bucket.cameras.length)}`}>
                       {bucket.cameras.map((cam) => (
                         <CameraFeedCard
                           key={cam.id}

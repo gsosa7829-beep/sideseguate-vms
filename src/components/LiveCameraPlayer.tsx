@@ -1800,9 +1800,14 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
                   e.stopPropagation();
                   handleToggleStream(true);
                 }}
-                className="min-h-[44px] px-6 py-2 bg-sky-600 hover:bg-sky-500 active:scale-95 text-white font-semibold text-xs sm:text-sm rounded-xl transition shadow-xl border border-sky-400/40 mb-2 cursor-pointer"
+                className="min-h-[44px] px-6 py-2.5 bg-sky-600 hover:bg-sky-500 active:scale-95 text-white font-semibold text-xs sm:text-sm rounded-xl transition shadow-xl border border-sky-400/40 mb-2 cursor-pointer flex items-center justify-center gap-2 max-w-xs mx-auto"
               >
-                <span>{`Reproducir Cámara ${camera.channel}`}</span>
+                <Play className="w-4 h-4 fill-current shrink-0" />
+                <span className="truncate">
+                  {is4gCamera
+                    ? `Ver en Vivo · ${camera.name.replace(/^Cámara\s*\d+\s*·\s*/i, '').replace(/\s*\(CH\d+\)$/i, '')}`
+                    : `Ver en Vivo · Cámara ${camera.channel}`}
+                </span>
               </button>
 
               <p className="text-[11px] text-neutral-400 font-mono">
