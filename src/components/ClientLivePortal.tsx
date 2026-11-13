@@ -119,10 +119,10 @@ export const ClientLivePortal: React.FC<ClientLivePortalProps> = ({
   };
 
   const isOcosIntent = Boolean(
-    (token && /oc[oó]s|ff9363|31778720|31826717|31798322|31822029|instituto|mezquital|tabernaculo|campo/i.test(token)) ||
+    (token && /oc[oó]s|ff9363|31778720|31826717|31798322|31822029|instituto|mezquital|tabernaculo|campo|proyecto|sdg_/i.test(token)) ||
     (typeof window !== 'undefined' &&
-      (/ff9363|oc[oó]s|31778720|31826717|31798322|31822029|instituto|mezquital|tabernaculo|campo/i.test(window.location.search) ||
-       /ff9363|oc[oó]s|31778720|31826717|31798322|31822029|instituto|mezquital|tabernaculo|campo/i.test(window.location.pathname)))
+      (/ff9363|oc[oó]s|31778720|31826717|31798322|31822029|instituto|mezquital|tabernaculo|campo|proyecto|sdg_/i.test(window.location.search) ||
+       /ff9363|oc[oó]s|31778720|31826717|31798322|31822029|instituto|mezquital|tabernaculo|campo|proyecto/i.test(window.location.pathname)))
   );
 
   const fallbackInitialLink =

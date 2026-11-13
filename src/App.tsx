@@ -1040,7 +1040,7 @@ function AppShell() {
         matchedShareLink = INITIAL_SHARE_LINKS.find((l) => l.id === 'link-ocos-mezquital') || null;
       } else if (lower.includes('31822029') || lower.includes('campo') || lower.includes('ff9363276')) {
         matchedShareLink = INITIAL_SHARE_LINKS.find((l) => l.id === 'link-ocos-campo') || null;
-      } else if (lower.includes('ocos') || lower === 'cam-ocos-ch1') {
+      } else if (lower.includes('ocos') || lower.includes('proyecto') || lower.startsWith('sdg_') || lower === 'cam-ocos-ch1') {
         matchedShareLink = INITIAL_SHARE_LINKS.find((l) => l.id === 'link-proyecto-ocos') || null;
       } else if (lower.includes('cementerio') || lower === 'f31700438' || lower.includes('hilook')) {
         matchedShareLink = INITIAL_SHARE_LINKS.find((l) => l.id === 'link-calle-del-cementerio') || null;
