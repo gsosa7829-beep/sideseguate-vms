@@ -89,18 +89,53 @@ export const ClientLivePortal: React.FC<ClientLivePortalProps> = ({
   isCloudLoading = false,
   onClientAddCameras,
 }) => {
-  const deletedTokens = storage.getDeletedShareTokens();
-  const isTokenDeleted = Boolean(token && deletedTokens.has(token));
-  const fallbackInitialLink = isTokenDeleted
-    ? null
-    : INITIAL_SHARE_LINKS.find(
-        (l) =>
-          !deletedTokens.has(l.id) &&
-          !deletedTokens.has(l.token) &&
-          (l.token === token ||
-            (token && token.toLowerCase().includes('ocos') && l.id === 'link-proyecto-ocos') ||
-            (token && token.toLowerCase().includes('cementerio') && l.id === 'link-calle-del-cementerio'))
-      ) || null;
+  // Recuperar enlaces guardados en localStorage
+  const localSavedLink = typeof window !== 'undefined'
+    ? storage.getShareLinks().find((l) => l.token === token || (token && l.id === token)) || null
+    : null;
+
+  // Enlace oficial de Ocós (siempre disponible para licitaciones y Guatecompras)
+  const officialOcosLink: ShareLink = {
+    id: 'link-proyecto-ocos',
+    projectId: 'proj-ocos',
+    token: 'proyecto-ocos',
+    title: 'PROYECTO OCOS - Transmisión en Vivo',
+    clientName: 'Municipalidad de Ocós / Contraloría',
+    cameraIds: [
+      'cam-ai-1794439370109-ch1',
+      'cam-ai-1794439784940-ch1',
+      'cam-ai-1794444422794-ch1',
+      'cam-ai-1794444552597-ch1'
+    ],
+    expiresAt: null,
+    isActive: true,
+    allowPtz: false,
+    allowAudio: true,
+    allowSnapshot: true,
+    showWatermark: true,
+    maxConcurrentViewers: 100,
+    accessCount: 0,
+    createdAt: new Date().toISOString()
+  };
+
+  const isOcosIntent = Boolean(
+    (token && /oc[oó]s|ff9363|31778720|31826717|31798322|31822029|instituto|mezquital|tabernaculo|campo/i.test(token)) ||
+    (typeof window !== 'undefined' &&
+      (/ff9363|oc[oó]s|31778720|31826717|31798322|31822029|instituto|mezquital|tabernaculo|campo/i.test(window.location.search) ||
+       /ff9363|oc[oó]s|31778720|31826717|31798322|31822029|instituto|mezquital|tabernaculo|campo/i.test(window.location.pathname)))
+  );
+
+  const fallbackInitialLink =
+    shareLink ||
+    localSavedLink ||
+    INITIAL_SHARE_LINKS.find(
+      (l) =>
+        l.token === token ||
+        (token && token.toLowerCase().includes('ocos') && l.id === 'link-proyecto-ocos') ||
+        (token && token.toLowerCase().includes('cementerio') && l.id === 'link-calle-del-cementerio')
+    ) ||
+    (isOcosIntent ? officialOcosLink : null) ||
+    (token && /cementerio|f317/i.test(token) ? INITIAL_SHARE_LINKS.find((l) => l.id === 'link-calle-del-cementerio') : null);
 
   const [cloudShareLink, setCloudShareLink] = useState<ShareLink | null>(null);
   const [directTokenLoading, setDirectTokenLoading] = useState<boolean>(Boolean(token && !shareLink && !fallbackInitialLink));
@@ -128,10 +163,7 @@ export const ClientLivePortal: React.FC<ClientLivePortalProps> = ({
     }
 
     const unsub = subscribeToSingleShareLinkByToken(activeToken, (remoteLink, loading) => {
-      const currentDeleted = storage.getDeletedShareTokens();
-      if (remoteLink && (currentDeleted.has(remoteLink.token) || currentDeleted.has(remoteLink.id))) {
-        setCloudShareLink(null);
-      } else {
+      if (remoteLink) {
         setCloudShareLink(remoteLink);
       }
       setDirectTokenLoading(loading);
@@ -140,7 +172,7 @@ export const ClientLivePortal: React.FC<ClientLivePortalProps> = ({
     return () => unsub();
   }, [token, shareLink?.token]);
 
-  const activeShareLink = isTokenDeleted ? null : cloudShareLink || shareLink || fallbackInitialLink;
+  const activeShareLink = cloudShareLink || shareLink || fallbackInitialLink || (isOcosIntent ? officialOcosLink : null);
   const pinStorageKey = activeShareLink?.token ? `sideseguate_pin_${activeShareLink.token}` : null;
 
   useEffect(() => {

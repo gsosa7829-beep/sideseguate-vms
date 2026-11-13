@@ -1025,29 +1025,30 @@ function AppShell() {
 
   // If in Client Portal View directly (client opening private token link)
   if (clientTokenView) {
-    const deletedTokens = storage.getDeletedShareTokens();
-    const isDeleted = deletedTokens.has(clientTokenView);
-    let matchedShareLink = isDeleted
-      ? null
-      : shareLinks.find((l) => l.token === clientTokenView && !deletedTokens.has(l.id)) || null;
-    if (!matchedShareLink && !isDeleted) {
-      matchedShareLink =
-        INITIAL_SHARE_LINKS.find(
-          (l) => l.token === clientTokenView && !deletedTokens.has(l.id) && !deletedTokens.has(l.token)
-        ) || null;
-    }
-    if (!matchedShareLink && !isDeleted) {
+    let matchedShareLink =
+      shareLinks.find((l) => l.token === clientTokenView) ||
+      INITIAL_SHARE_LINKS.find((l) => l.token === clientTokenView) ||
+      null;
+
+    if (!matchedShareLink) {
       const lower = clientTokenView.toLowerCase();
-      if (lower.includes('ocos') || lower === 'ff9363270' || lower === 'cam-ocos-ch1') {
-        matchedShareLink =
-          INITIAL_SHARE_LINKS.find(
-            (l) => l.id === 'link-proyecto-ocos' && !deletedTokens.has(l.id) && !deletedTokens.has(l.token)
-          ) || null;
+      const isOcos =
+        lower.includes('ocos') ||
+        lower.includes('ff9363') ||
+        lower.includes('31778720') ||
+        lower.includes('31826717') ||
+        lower.includes('31798322') ||
+        lower.includes('31822029') ||
+        lower.includes('instituto') ||
+        lower.includes('mezquital') ||
+        lower.includes('tabernaculo') ||
+        lower.includes('campo') ||
+        lower === 'cam-ocos-ch1';
+
+      if (isOcos) {
+        matchedShareLink = INITIAL_SHARE_LINKS.find((l) => l.id === 'link-proyecto-ocos') || null;
       } else if (lower.includes('cementerio') || lower === 'f31700438' || lower.includes('hilook')) {
-        matchedShareLink =
-          INITIAL_SHARE_LINKS.find(
-            (l) => l.id === 'link-calle-del-cementerio' && !deletedTokens.has(l.id) && !deletedTokens.has(l.token)
-          ) || null;
+        matchedShareLink = INITIAL_SHARE_LINKS.find((l) => l.id === 'link-calle-del-cementerio') || null;
       }
     }
     const matchedProject = projects.find((p) => p.id === matchedShareLink?.projectId) ||
