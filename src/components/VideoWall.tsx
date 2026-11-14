@@ -327,33 +327,20 @@ const CameraFeedCard: React.FC<CameraFeedCardProps> = ({
         />
       </div>
 
-      {/* Franja Inferior: Serie / P2P + Acciones */}
+      {/* Franja Inferior: Serie / P2P */}
       <div className="px-4 py-3 bg-neutral-950/95 border-t border-neutral-800 flex items-center justify-between gap-3 text-xs">
         <div className="flex items-center gap-2 text-neutral-400 font-mono text-[11px] truncate">
           <span className="text-neutral-500 uppercase">SN:</span>
           <span className="text-neutral-300 font-bold tracking-wider">{camera.deviceSerial || camera.host}</span>
         </div>
 
-        <div className="flex items-center gap-2 shrink-0">
-          <button
-            type="button"
-            onClick={() => onSelectCamera(camera.id)}
-            className="h-8 px-3 bg-neutral-900 hover:bg-neutral-850 active:bg-neutral-800 text-neutral-200 border border-neutral-700/80 rounded-xl transition flex items-center gap-1.5 font-medium cursor-pointer text-xs shadow-xs"
-            title="Inspeccionar cámara en vista completa"
-          >
-            <Eye className="w-3.5 h-3.5 text-neutral-300 shrink-0" />
-            <span>Detalle</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => onGenerateLink(camera)}
-            className="h-8 px-3.5 bg-sky-600 hover:bg-sky-500 active:bg-sky-700 text-white border border-sky-400/30 rounded-xl transition flex items-center gap-1.5 font-semibold cursor-pointer shadow-sm text-xs"
-            title="Generar enlace privado temporal para cliente"
-          >
-            <Link2 className="w-3.5 h-3.5 text-white shrink-0" />
-            <span>Compartir</span>
-          </button>
+        <div className="flex items-center gap-2 font-mono text-[11px] text-neutral-400 shrink-0">
+          <span className="px-2 py-0.5 rounded bg-neutral-900 border border-neutral-800 text-sky-400 font-semibold">
+            {camera.resolution || '1080p'}
+          </span>
+          <span className="px-2 py-0.5 rounded bg-neutral-900 border border-neutral-800 text-emerald-400 font-semibold">
+            {camera.codec || 'H.265'}
+          </span>
         </div>
       </div>
     </article>
@@ -776,14 +763,11 @@ export const VideoWall: React.FC<VideoWallProps> = ({
               <span className="mx-2 text-neutral-600">·</span>
               <span className="font-mono text-neutral-500">{focusedCamera.host}</span>
             </div>
-            <button
-              type="button"
-              onClick={() => onGenerateLink(focusedCamera)}
-              className="min-h-[44px] px-3.5 bg-neutral-800 hover:bg-neutral-700 text-white border border-neutral-700 rounded-xl transition flex items-center gap-1.5 font-semibold cursor-pointer shadow-sm"
-            >
-              <Link2 className="w-3.5 h-3.5 text-neutral-300" />
-              <span>Compartir con Cliente</span>
-            </button>
+            <div className="flex items-center gap-2 font-mono text-[11px] text-neutral-400">
+              <span className="px-2.5 py-1 rounded bg-neutral-900 border border-neutral-800 text-sky-400 font-semibold">
+                {focusedCamera.resolution || '1080p'}
+              </span>
+            </div>
           </div>
         </div>
       ) : layoutMode === 'grid' ? (

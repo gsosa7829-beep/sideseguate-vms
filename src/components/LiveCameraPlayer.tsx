@@ -369,7 +369,6 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
   const [ptzTilt, setPtzTilt] = useState(0); // -50 to 50
   const [ptzZoom, setPtzZoom] = useState(1);
   const [showPtzControls, setShowPtzControls] = useState(false);
-  const [showAdvancedMenu, setShowAdvancedMenu] = useState(false);
   const [tapFeedback, setTapFeedback] = useState<string | null>(null);
   const lastTapRef = useRef<number>(0);
   const pinchStartDistRef = useRef<number | null>(null);
@@ -1153,27 +1152,6 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
   const serverControlsQuality = Boolean(directHlsUrl && !isEzopenDevice);
   const isContinuousLive = hasHls || (canLoadVideo && ezuikitLiveReady);
   const hasImage = isContinuousLive || nativeP2pReady;
-  let shortStatus = 'RECONECTAR';
-  let fullStatus = 'RECONECTAR SEÑAL';
-  if (is4gEcoPaused) {
-    shortStatus = isClientView ? 'EN PAUSA' : 'AHORRO 4G · 0 KB/S';
-    fullStatus = isClientView ? 'TRANSMISIÓN EN PAUSA · 0 KB/S' : 'MODO AHORRO 4G · 0 KB/S';
-  } else if (!canLoadInViewport) {
-    shortStatus = 'EN ESPERA';
-    fullStatus = 'CÁMARA EN ESPERA';
-  } else if (isReconnecting) {
-    shortStatus = 'CONECTANDO…';
-    fullStatus = 'RECONECTANDO…';
-  } else if (isContinuousLive) {
-    if (serverControlsQuality || isClientView) {
-      shortStatus = fullStatus = 'EN VIVO';
-    } else {
-      shortStatus = streamQuality === '1' ? '1080p FHD' : 'SD FLUIDO';
-      fullStatus = 'EN VIVO · ' + (is4gCamera && streamQuality === '2' ? 'SD MEJORADO (512 kbps)' : shortStatus);
-    }
-  } else if (nativeP2pReady) {
-    shortStatus = fullStatus = (isClientView && (!isStreamPlaying || is4gEcoPaused)) ? 'EN PAUSA' : 'EN VIVO';
-  }
   const reconnectDelay = useRef(2_000);
 
   useEffect(() => {
@@ -1705,92 +1683,6 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
         className={`relative w-full bg-neutral-950 flex items-center justify-center overflow-hidden select-none cursor-pointer aspect-video sm:${isFullscreen ? "flex-1 min-h-0" : "aspect-video"}`}
         title="Doble toque o doble clic para Pantalla Completa · Pellizca para Zoom"
       >
-        {/* Top Floating Telemetry Scrim (Píldoras Flotantes Discretas) */}
-      <div className="absolute top-2.5 inset-x-2.5 z-20 flex items-center justify-between gap-2 pointer-events-none">
-        <button
-          type="button"
-          onClick={() => (is4gEcoPaused ? resume4gStream() : handleForceReconnect(true))}
-          className="pointer-events-auto flex items-center gap-1.5 bg-black/75 hover:bg-black/90 active:bg-black backdrop-blur-md px-2.5 py-1 rounded-full border border-white/15 hover:border-sky-500/50 shadow-lg transition active:scale-95 cursor-pointer"
-          title="Toca para reconectar o refrescar señal de video al instante"
-        >
-          <span
-            className={`w-2 h-2 rounded-full shrink-0 ${
-              is4gEcoPaused
-                ? 'bg-emerald-400'
-                : isReconnecting
-                ? 'bg-sky-400 animate-spin'
-                : hasImage
-                ? 'bg-emerald-400 animate-pulse'
-                : 'bg-amber-400 animate-ping'
-            }`}
-          />
-          <span
-            className={`text-[10px] sm:text-[11px] font-mono font-bold tracking-wider whitespace-nowrap shrink-0 flex items-center gap-1 ${
-              is4gEcoPaused ? 'text-sky-300' : hasImage ? 'text-emerald-400' : 'text-amber-400'
-            }`}
-          >
-            <span className="sm:hidden">{shortStatus}</span>
-            <span className="hidden sm:inline">{fullStatus}</span>
-            <RefreshCw className={`w-2.5 h-2.5 opacity-80 ${isReconnecting ? 'animate-spin text-sky-400' : ''}`} />
-          </span>
-          {!isCompact && hasImage && (
-            <span className="hidden md:inline-flex items-center gap-1.5 text-xs font-medium text-white truncate drop-shadow">
-              <span className="text-neutral-500 text-xs">·</span>
-              <span className="truncate max-w-[160px]">{camera.name}</span>
-            </span>
-          )}
-        </button>
-
-        <div className="flex items-center gap-1 sm:gap-1.5 pointer-events-auto shrink-0">
-          {is4gCamera && !is4gEcoPaused && (
-            <button
-              type="button"
-              onClick={() => {
-                pause4gStreamForDataSaving();
-                setInternalPlaying(false);
-                onPlayStateChange?.(false);
-              }}
-              className="flex items-center gap-1 bg-emerald-950/90 hover:bg-emerald-900 border border-emerald-500/50 text-emerald-300 px-2 sm:px-2.5 py-1 rounded-full text-[10px] sm:text-[11px] font-mono font-bold shadow-lg transition active:scale-95 cursor-pointer whitespace-nowrap"
-              title="Pausar transmisión ahora para no consumir datos"
-            >
-              {isClientView ? (
-                <span className="flex items-center gap-1 font-mono">
-                  <span>⏱️</span>
-                  <span>{formatEcoCountdown(ecoRemainingSec, ecoSleepSec)}</span>
-                </span>
-              ) : (
-                <>
-                  <span className="sm:hidden">
-                    ⏸ {formatEcoCountdown(ecoRemainingSec, ecoSleepSec)}
-                  </span>
-                  <span className="hidden sm:inline">
-                    ⏸ Ahorro 4G ({formatEcoCountdown(ecoRemainingSec, ecoSleepSec)}) · {formatMobileDataUsage(camSessionBytes)}
-                  </span>
-                </>
-              )}
-            </button>
-          )}
-          <div className="flex items-center gap-1 bg-black/65 backdrop-blur-md px-2 sm:px-2.5 py-1 rounded-full border border-white/10 text-[10px] sm:text-[11px] font-mono tabular-nums text-neutral-200 whitespace-nowrap shadow-lg">
-            <span className="hidden sm:inline font-bold text-sky-300 font-mono">
-              {camera.codec || 'H.265'}
-              <span className="text-neutral-500 mx-1">·</span>
-            </span>
-            <span className="text-emerald-400 font-semibold font-mono">
-              {is4gEcoPaused ? '0 FPS' : isContinuousLive ? `${metrics.fps} FPS` : '4G P2P'}
-            </span>
-            <span className="hidden sm:inline text-neutral-500 mx-1">·</span>
-            <span className="hidden sm:inline text-sky-300 font-semibold font-mono">
-              {is4gEcoPaused ? '0 kbps' : isContinuousLive ? `${metrics.bitrate} kbps` : 'DIRECTO'}
-            </span>
-            {nightVision && (
-              <>
-                <span className="text-neutral-500 mx-1">·</span>
-                <span className="text-emerald-300 font-semibold">IR</span>
-              </>
-            )}
-          </div>
-        </div>
-      </div>
         {/* Overlay de Reposo / Video en Espera (0 KB/s · Reproducción Bajo Demanda) */}
         {(!isStreamPlaying || (is4gCamera && is4gEcoPaused)) && (
           <div className="absolute inset-0 z-30 flex flex-col items-center justify-center p-4 bg-neutral-950/90 backdrop-blur-xs text-center select-none overflow-hidden">
@@ -1872,13 +1764,6 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
             </div>
           </div>
         )}
-        {/* Subtle VMS Broadcast Viewfinder Corner Reticles */}
-        <div className="pointer-events-none absolute inset-3 z-10 opacity-40">
-          <div className="absolute top-0 left-0 w-3 h-3 border-t border-l border-sky-400/70" />
-          <div className="absolute top-0 right-0 w-3 h-3 border-t border-r border-sky-400/70" />
-          <div className="absolute bottom-0 left-0 w-3 h-3 border-b border-l border-sky-400/70" />
-          <div className="absolute bottom-0 right-0 w-3 h-3 border-b border-r border-sky-400/70" />
-        </div>
 
         {/* Indicador ligero de sintonización inicial (0.4s), desbloqueo por cifrado o Reconexión cuando está offline */}
         {canLoadVideo && !autoplayBlocked && (!hasImage || isOffline) && (
@@ -2180,276 +2065,60 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
         )}
       </div>
 
-      {/* Bottom Control Bar: 1 Fila Perfecta en Móvil y Escritorio */}
-      <div className="relative z-20 bg-neutral-950 border-t border-neutral-800/90 px-2 sm:px-3 py-2 text-neutral-300">
-        <div className="live-player-actions flex items-center justify-center gap-1.5 sm:gap-2 max-w-xl mx-auto">
-          {/* Botón Conectar / Pausar Transmisión (Bajo Demanda Independiente) */}
+      {/* Barra de Controles: Espaciosa y Limpia (Solo Pausa/Reanudar y Ampliar) */}
+      <div className="relative z-20 bg-neutral-950/95 border-t border-neutral-800/90 px-4 py-2.5 sm:py-3 text-neutral-300">
+        <div className="flex items-center justify-center gap-4 sm:gap-6 max-w-md mx-auto">
+          {/* Botón Pausa / Reanudar */}
           <button
             type="button"
-            aria-label={isStreamPlaying ? 'Pausar transmisión de video' : 'Conectar video en vivo'}
+            aria-label={isStreamPlaying ? 'Pausar transmisión de video' : 'Reanudar transmisión en vivo'}
             onClick={() => handleToggleStream(!isStreamPlaying)}
-            className={`h-[38px] min-h-[38px] sm:min-h-[42px] sm:h-[42px] px-1.5 sm:px-2.5 rounded-lg sm:rounded-xl border text-[10px] sm:text-xs font-semibold transition-all flex items-center justify-center gap-1 sm:gap-1.5 active:scale-95 flex-1 min-w-0 max-w-[130px] cursor-pointer shadow-xs ${
+            className={`flex-1 h-11 min-h-[44px] px-5 rounded-xl border text-xs sm:text-sm font-semibold transition-all flex items-center justify-center gap-2 active:scale-95 cursor-pointer shadow-sm ${
               isStreamPlaying
-                ? 'bg-neutral-900 hover:bg-neutral-850 border-neutral-800 text-neutral-300 hover:text-white'
-                : 'bg-gradient-to-r from-sky-600 to-sky-500 hover:from-sky-500 hover:to-sky-400 text-white border-sky-400 shadow-md shadow-sky-950/60'
+                ? 'bg-neutral-900 hover:bg-neutral-850 border-neutral-700/80 text-neutral-200 hover:text-white'
+                : 'bg-sky-600 hover:bg-sky-500 border-sky-400 text-white shadow-md shadow-sky-950/50'
             }`}
-            title={isStreamPlaying ? 'Pausar transmisión (En reposo)' : 'Conectar video en vivo'}
+            title={isStreamPlaying ? 'Pausar transmisión' : 'Reanudar transmisión'}
           >
             {isStreamPlaying ? (
               <>
-                <Pause className="w-3.5 h-3.5 text-neutral-400 shrink-0" />
-                <span className="text-[10px] sm:text-xs font-bold whitespace-nowrap">Pausar</span>
+                <Pause className="w-4 h-4 text-neutral-300 shrink-0" />
+                <span className="font-bold whitespace-nowrap">Pausar</span>
               </>
             ) : (
               <>
-                <Play className="w-3.5 h-3.5 fill-current text-white shrink-0" />
-                <span className="text-[10px] sm:text-xs font-bold whitespace-nowrap">Conectar</span>
+                <Play className="w-4 h-4 fill-current text-white shrink-0" />
+                <span className="font-bold whitespace-nowrap">Reanudar</span>
               </>
             )}
           </button>
 
-          {/* Botón Calidad (HD / SD) - Sólo en panel administrativo si la cámara no es 4G */}
-          {!isClientView && !is4gCamera && (
-            <button
-              type="button"
-              disabled={serverControlsQuality}
-              aria-label={serverControlsQuality ? 'Calidad gestionada por el servidor' : streamQuality === '1' ? 'Cambiar a calidad fluida SD' : 'Cambiar a calidad alta definición 1080p HD'}
-              onClick={() => {
-                setIsSwitchingQuality(true);
-                setStreamQuality((q) => (q === '1' ? '2' : '1'));
-              }}
-              className={`h-[38px] min-h-[38px] sm:min-h-[46px] sm:h-[46px] px-1.5 sm:px-3 rounded-lg sm:rounded-xl border text-[10px] sm:text-xs font-bold transition-all flex items-center justify-center gap-1 sm:gap-1.5 active:scale-95 flex-1 min-w-0 max-w-[120px] ${
-                streamQuality === '1'
-                  ? 'bg-sky-950/80 border-sky-500/80 text-sky-300 shadow-sm shadow-sky-950/50'
-                  : 'bg-neutral-900 border-neutral-800 text-neutral-400 hover:text-white'
-              }`}
-              title={serverControlsQuality ? 'Calidad gestionada por el servidor' : streamQuality === '1' ? 'Calidad HD 1080p activa' : 'Calidad SD fluida activa'}
-            >
-              <Sparkles className={`w-3.5 h-3.5 text-sky-400 shrink-0 ${isSwitchingQuality ? 'animate-spin' : ''}`} />
-              <span className="font-mono text-[10px] sm:text-xs font-bold truncate">{serverControlsQuality ? 'AUTO' : streamQuality === '1' ? 'HD' : 'SD'}</span>
-            </button>
-          )}
-
-          {/* Botón Audio - Sólo si la cámara o permiso lo permite */}
-          {allowAudio && (
-            <button
-              type="button"
-              aria-label={isMuted ? 'Activar sonido ambiental' : 'Silenciar audio'}
-              onClick={handleToggleAudio}
-              className={`h-[38px] min-h-[38px] sm:min-h-[46px] sm:h-[46px] px-2.5 sm:px-2.5 rounded-lg sm:rounded-xl border text-[10px] sm:text-xs transition-all flex items-center justify-center gap-1 active:scale-95 shrink-0 sm:flex-1 max-w-[120px] ${
-                isMuted 
-                  ? 'bg-neutral-900 border-neutral-800 text-neutral-400 hover:text-white' 
-                  : 'bg-emerald-950/90 border-emerald-500/80 text-emerald-300 shadow-sm shadow-emerald-950/50'
-              }`}
-              title={isMuted ? 'Audio silenciado · Toca para activar' : 'Sonido ambiental activo · Toca para silenciar'}
-            >
-              {isMuted ? (
-                <VolumeX className="w-3.5 h-3.5 text-neutral-400 shrink-0" />
-              ) : (
-                <Volume2 className="w-3.5 h-3.5 text-emerald-400 shrink-0 animate-pulse" />
-              )}
-              <span className={`text-[10px] sm:text-[11px] font-bold font-mono truncate ${isMuted ? 'text-neutral-400' : 'text-emerald-300'}`}>
-                {isMuted ? 'Mute' : 'Audio'}
-              </span>
-            </button>
-          )}
-
-          {/* Botón Foto - Sólo si está habilitado */}
-          {allowSnapshot && (
-            <button
-              type="button"
-              aria-label="Guardar foto o captura"
-              onClick={handleTakeSnapshot}
-              className="h-[38px] min-h-[38px] sm:min-h-[46px] sm:h-[46px] px-1 sm:px-2.5 bg-neutral-900 hover:bg-neutral-850 active:bg-neutral-800 border border-neutral-800 text-neutral-200 hover:text-white rounded-lg sm:rounded-xl transition-all flex items-center justify-center gap-1 active:scale-95 flex-1 min-w-0 max-w-[120px]"
-              title="Descargar Foto / Captura JPG"
-            >
-              <CameraIcon className="w-3.5 h-3.5 text-sky-400 shrink-0" />
-              <span className="hidden sm:inline text-xs font-medium">Foto</span>
-            </button>
-          )}
-
-          {/* Botón Ajustes - Sólo en panel administrativo */}
-          {!isClientView && (
-            <button
-              type="button"
-              aria-label="Ajustes de video y visión"
-              onClick={() => setShowAdvancedMenu(!showAdvancedMenu)}
-              className={`h-[38px] min-h-[38px] sm:min-h-[46px] sm:h-[46px] px-1 sm:px-2.5 rounded-lg sm:rounded-xl border text-[10px] sm:text-xs transition-all flex items-center justify-center gap-1 active:scale-95 flex-1 min-w-0 max-w-[120px] ${
-                showAdvancedMenu
-                  ? 'bg-sky-600/30 border-sky-500 text-sky-300 shadow-sm'
-                  : 'bg-neutral-900 border-neutral-800 text-neutral-400 hover:text-white'
-              }`}
-              title="Ajustes de cámara"
-            >
-              <Sliders className="w-3.5 h-3.5 shrink-0" />
-              <span className="hidden sm:inline text-xs font-medium">Ajustes</span>
-            </button>
-          )}
-
-          {/* Botón Ampliar (Modo Teatro con fondo desenfocado) */}
+          {/* Botón Ampliar (Pantalla Completa / Modo Teatro) */}
           <button
             type="button"
-            aria-label={isFullscreen ? 'Salir de pantalla ampliada' : 'Modo teatro ampliado'}
+            aria-label={isFullscreen ? 'Salir de pantalla completa' : 'Ampliar video'}
             onClick={toggleFullscreen}
-            className={`h-[38px] min-h-[38px] sm:min-h-[46px] sm:h-[46px] px-1 sm:px-3 rounded-lg sm:rounded-xl border transition-all flex items-center justify-center gap-1 active:scale-95 font-medium flex-1 min-w-0 max-w-[120px] ${
-              isFullscreen 
-                ? 'bg-neutral-800 border-neutral-700 text-white' 
+            className={`flex-1 h-11 min-h-[44px] px-5 rounded-xl border text-xs sm:text-sm font-semibold transition-all flex items-center justify-center gap-2 active:scale-95 cursor-pointer shadow-sm ${
+              isFullscreen
+                ? 'bg-neutral-800 hover:bg-neutral-750 border-neutral-700 text-white'
                 : 'bg-sky-600/25 hover:bg-sky-600/35 border-sky-500/60 text-sky-200 shadow-sm'
             }`}
-            title={isFullscreen ? 'Salir de modo teatro' : 'Ampliar en Modo Teatro'}
+            title={isFullscreen ? 'Salir de modo ampliado' : 'Ampliar video'}
           >
-            {isFullscreen ? <Minimize2 className="w-3.5 h-3.5 shrink-0" /> : <Maximize2 className="w-3.5 h-3.5 text-sky-400 shrink-0" />}
-            <span className="hidden sm:inline text-xs font-bold">{isFullscreen ? 'Salir' : 'Ampliar'}</span>
+            {isFullscreen ? (
+              <>
+                <Minimize2 className="w-4 h-4 text-neutral-300 shrink-0" />
+                <span className="font-bold whitespace-nowrap">Salir</span>
+              </>
+            ) : (
+              <>
+                <Maximize2 className="w-4 h-4 text-sky-400 shrink-0" />
+                <span className="font-bold whitespace-nowrap">Ampliar</span>
+              </>
+            )}
           </button>
         </div>
       </div>
-
-      {/* Panel Desplegable de Ajustes (Limpio, con botón cerrar y opciones 2x2 táctiles) */}
-      {!isClientView && showAdvancedMenu && (
-        <div className="relative z-20 bg-neutral-900 border-t border-neutral-800 p-3 sm:p-4 text-xs animate-in fade-in duration-150">
-          <div className="flex items-center justify-between pb-2 mb-2.5 border-b border-neutral-800">
-            <span className="font-bold text-white flex items-center gap-1.5">
-              <Sliders className="w-3.5 h-3.5 text-sky-400" />
-              <span>Ajustes de Transmisión</span>
-            </span>
-            <button
-              type="button"
-              onClick={() => setShowAdvancedMenu(false)}
-              className="text-neutral-400 hover:text-white px-2 py-0.5 rounded-lg border border-neutral-800 hover:bg-neutral-800"
-              title="Cerrar ajustes"
-            >
-              Cerrar ✕
-            </button>
-          </div>
-
-          {/* Card Especial de Ahorro y Consumo de Datos Móviles 4G (Proyecto Ocós) */}
-          {is4gCamera && (
-            <div className="mb-2.5 p-3 rounded-xl bg-sky-950/40 border border-sky-500/30 text-xs space-y-2.5">
-              <div className="flex items-center justify-between gap-2">
-                <span className="font-bold text-sky-300 flex items-center gap-1.5">
-                  <Sparkles className="w-3.5 h-3.5 text-sky-400 shrink-0" />
-                  <span className="truncate">Control SIM 4G · {camera.deviceSerial || camera.name}</span>
-                </span>
-                <span className="font-mono text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-2 py-0.5 rounded-full font-bold shrink-0">
-                  {isStreamPlaying && !is4gEcoPaused ? `~${camRateKBs} KB/s` : '0 KB/s en Reposo'}
-                </span>
-              </div>
-
-              {/* Medidor de Consumo de Datos Móviles (MB/GB) */}
-              <div className="grid grid-cols-2 gap-2 text-[10px] font-mono">
-                <div className="bg-black/60 p-2 rounded-lg border border-neutral-800 flex flex-col justify-between">
-                  <span className="text-neutral-400 block">Consumo en sesión:</span>
-                  <span className="text-emerald-400 font-bold text-xs mt-0.5">
-                    {formatMobileDataUsage(camSessionBytes)}
-                  </span>
-                </div>
-                <div className="bg-black/60 p-2 rounded-lg border border-neutral-800 flex items-center justify-between gap-1">
-                  <div>
-                    <span className="text-neutral-400 block">Acumulado SIM:</span>
-                    <span className="text-sky-300 font-bold text-xs mt-0.5 block">
-                      {formatMobileDataUsage(camAccumulatedBytes)}
-                    </span>
-                  </div>
-                  {camAccumulatedBytes > 0 && (
-                    <button
-                      type="button"
-                      onClick={() => resetOcosDataUsage([camera.id])}
-                      className="px-2 py-1 rounded bg-neutral-900 hover:bg-neutral-800 text-neutral-300 hover:text-white border border-neutral-700 text-[10px] transition cursor-pointer shrink-0"
-                      title="Reiniciar contador acumulado de datos móviles (ej. tras recargar SIM)"
-                    >
-                      Reiniciar
-                    </button>
-                  )}
-                </div>
-              </div>
-
-              {/* Selector de Tiempo de Reposo Inteligente */}
-              <div className="bg-black/50 p-2 rounded-lg border border-neutral-800 space-y-1.5">
-                <div className="flex items-center justify-between text-[11px]">
-                  <span className="text-neutral-300 font-semibold">⏱️ Auto-pausa de Reposo Inteligente:</span>
-                  <span className="font-mono text-[10px] text-emerald-400">
-                    {ecoSleepSec === 0 ? 'Sin límite (Continuo)' : `Corta a los ${ecoSleepSec / 60} min`}
-                  </span>
-                </div>
-                <div className="grid grid-cols-4 gap-1.5">
-                  {ECO_SLEEP_OPTIONS.map((opt) => {
-                    const active = ecoSleepSec === opt.value;
-                    return (
-                      <button
-                        key={opt.value}
-                        type="button"
-                        onClick={() => setOcosEcoSleepOption(opt.value)}
-                        className={`h-8 rounded-lg font-mono text-[11px] font-bold border transition cursor-pointer ${
-                          active
-                            ? 'bg-emerald-600/30 border-emerald-400 text-emerald-200 shadow-xs'
-                            : 'bg-neutral-900 hover:bg-neutral-800 border-neutral-800 text-neutral-400 hover:text-white'
-                        }`}
-                        title={opt.description}
-                      >
-                        {opt.label}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            </div>
-          )}
-
-          <div className="grid grid-cols-2 gap-2">
-            <button
-              type="button"
-              onClick={() => setNightVision(!nightVision)}
-              className={`min-h-[44px] px-3 rounded-xl border text-xs font-medium transition flex items-center justify-center gap-2 active:scale-95 ${
-                nightVision ? 'bg-emerald-950 border-emerald-600 text-emerald-300' : 'bg-neutral-950 border-neutral-800 text-neutral-300 hover:text-white'
-              }`}
-            >
-              {nightVision ? <Moon className="w-4 h-4 text-emerald-400" /> : <Sun className="w-4 h-4 text-neutral-400" />}
-              <span>{nightVision ? 'Modo IR' : 'Modo Color'}</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => handleForceReconnect(true)}
-              className="min-h-[44px] px-3 rounded-xl border border-sky-500/50 bg-sky-950/80 hover:bg-sky-900 text-sky-200 text-xs font-semibold transition flex items-center justify-center gap-2 active:scale-95 shadow-sm"
-            >
-              <RefreshCw className={`w-4 h-4 ${isReconnecting ? 'animate-spin' : ''}`} />
-              <span>{isReconnecting ? 'Conectando…' : 'Reconectar'}</span>
-            </button>
-
-          {!isContinuousLive && (
-            <div className="col-span-2 p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/25 text-amber-300 text-[11px] leading-relaxed flex items-start gap-2 mb-1">
-              <Info className="w-4 h-4 shrink-0 text-amber-400 mt-0.5" />
-              <div>
-                <span className="font-semibold">Modo Ráfaga 4G:</span> Transmitiendo instantáneas directas desde la antena celular de la cámara mientras se sincroniza el video continuo.
-              </div>
-            </div>
-          )}
-
-          <div className="min-h-[44px] px-2.5 rounded-xl border border-neutral-800 bg-neutral-950 flex items-center justify-between text-xs">
-              <span className="text-neutral-400 font-medium pl-1">Zoom:</span>
-              <div className="flex items-center gap-1 font-mono">
-                <button
-                  type="button"
-                  disabled={digitalZoom <= 1}
-                  onClick={() => setDigitalZoom((z) => Math.max(1, +(z - 0.5).toFixed(1)))}
-                  className="w-8 h-8 rounded-lg bg-neutral-900 border border-neutral-800 flex items-center justify-center text-neutral-300 disabled:opacity-30 active:scale-90"
-                >
-                  <ZoomOut className="w-3.5 h-3.5" />
-                </button>
-                <span className="text-xs px-1.5 text-white font-bold">{digitalZoom}x</span>
-                <button
-                  type="button"
-                  disabled={digitalZoom >= 3}
-                  onClick={() => setDigitalZoom((z) => Math.min(3, +(z + 0.5).toFixed(1)))}
-                  className="w-8 h-8 rounded-lg bg-neutral-900 border border-neutral-800 flex items-center justify-center text-neutral-300 disabled:opacity-30 active:scale-90"
-                >
-                  <ZoomIn className="w-3.5 h-3.5" />
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
       </div>
     </div>
     </>
