@@ -1,0 +1,39 @@
+###############################################
+# MediaMTX Configuration for Video Streaming VMS
+###############################################
+
+logLevel: info
+logDestinations: [stdout]
+
+# RTSP (Ingest & Playback)
+rtsp: yes
+protocols: [tcp]
+rtspAddress: :8554
+
+# RTMP (Ingest & Playback)
+rtmp: yes
+rtmpAddress: :1935
+
+# HLS (HTTP Live Streaming)
+hls: yes
+hlsAddress: :8888
+hlsAlwaysRemux: yes
+hlsVariant: mpegts
+hlsSegmentCount: 5
+hlsSegmentDuration: 2s
+hlsPartDuration: 500ms
+hlsAllowOrigin: '*'
+
+# WebRTC (WHEP - Ultra Low Latency)
+webrtc: yes
+webrtcAddress: :8889
+webrtcAllowOrigin: '*'
+webrtcLocalUDPAddress: :8889
+webrtcLocalTCPAddress: ""
+webrtcIPsFromInterfaces: yes
+webrtcAdditionalHosts:
+  - "162.243.55.220"
+  - "162-243-55-220.sslip.io"
+
+paths:
+  all_others:

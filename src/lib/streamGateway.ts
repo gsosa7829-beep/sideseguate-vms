@@ -29,11 +29,17 @@ export interface StreamGateway {
 export const STORAGE_KEY_STREAM_GATEWAY = 'sideseguate_stream_gateway_v1';
 export const DEFAULT_HLS_PORT = 8888;
 export const DEFAULT_WEBRTC_PORT = 8889;
+export const PRODUCTION_STREAM_GATEWAY_URL = 'https://162-243-55-220.sslip.io';
 
 const LOCAL_HOSTS = ['localhost', '127.0.0.1', '0.0.0.0', '[::1]'];
 
 export function emptyGateway(): StreamGateway {
-  return { baseUrl: '', updatedAt: new Date().toISOString() };
+  return {
+    baseUrl: PRODUCTION_STREAM_GATEWAY_URL,
+    webrtcBaseUrl: PRODUCTION_STREAM_GATEWAY_URL,
+    publicAppUrl: 'https://proyectos-de-camaras.surge.sh',
+    updatedAt: new Date().toISOString()
+  };
 }
 
 /**
@@ -271,12 +277,15 @@ export function loadGateway(): StreamGateway {
       const raw = localStorage.getItem(STORAGE_KEY_STREAM_GATEWAY);
       if (raw) {
         const parsed = JSON.parse(raw) as Partial<StreamGateway>;
-        return {
-          baseUrl: normalizeGatewayUrl(parsed.baseUrl || ''),
-          webrtcBaseUrl: normalizeGatewayUrl(parsed.webrtcBaseUrl || '') || undefined,
-          publicAppUrl: (parsed.publicAppUrl && !parsed.publicAppUrl.includes('sideseguate')) ? normalizeGatewayUrl(parsed.publicAppUrl) || undefined : undefined,
-          updatedAt: parsed.updatedAt || new Date().toISOString(),
-        };
+        const normalized = normalizeGatewayUrl(parsed.baseUrl || '');
+        if (normalized && !isLocalGateway(normalized) && !normalized.includes('trycloudflare')) {
+          return {
+            baseUrl: normalized,
+            webrtcBaseUrl: normalizeGatewayUrl(parsed.webrtcBaseUrl || '') || undefined,
+            publicAppUrl: (parsed.publicAppUrl && !parsed.publicAppUrl.includes('sideseguate')) ? normalizeGatewayUrl(parsed.publicAppUrl) || undefined : undefined,
+            updatedAt: parsed.updatedAt || new Date().toISOString(),
+          };
+        }
       }
     }
   } catch {
