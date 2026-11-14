@@ -23,7 +23,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({ currentTab, onSelectTab })
       className="md:hidden fixed bottom-0 inset-x-0 z-30 bg-neutral-950/95 backdrop-blur-md border-t border-neutral-800"
       style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
     >
-      <ul className="grid grid-cols-4">
+      <ul className="grid grid-cols-3">
         {NAV_SECTIONS.map((section) => {
           const isActive = section.id === activeSection.id;
           const Icon = section.Icon;

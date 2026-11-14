@@ -721,20 +721,6 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
                     de la infraestructura.
                   </p>
                 )}
-
-                {onSelectTab && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      onSelectTab('windows_server');
-                      setShowCloudModal(false);
-                    }}
-                    className="px-3 py-2 bg-neutral-900 hover:bg-neutral-850 text-neutral-200 border border-neutral-800 rounded-lg font-medium inline-flex items-center gap-1.5 transition"
-                  >
-                    <span>Cambiar el dominio</span>
-                    <ExternalLink className="w-3 h-3" aria-hidden="true" />
-                  </button>
-                )}
               </div>
 
               {/* Detalles técnicos: plegados. El operador no los necesita a la

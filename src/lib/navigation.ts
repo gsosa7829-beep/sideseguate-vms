@@ -2,7 +2,6 @@ import {
   LayoutGrid,
   Send,
   Cctv,
-  SlidersHorizontal,
   type LucideIcon,
 } from 'lucide-react';
 import type { NavigationTab } from './types';
@@ -78,24 +77,6 @@ export const NAV_SECTIONS: NavSection[] = [
         id: 'devices_catalog',
         label: 'Cámaras',
         hint: 'Listado y gestión de todas las cámaras.',
-      },
-    ],
-  },
-  {
-    id: 'settings',
-    label: 'Ajustes',
-    shortLabel: 'Ajustes',
-    Icon: SlidersHorizontal,
-    items: [
-      {
-        id: 'windows_server',
-        label: 'Servidor de video',
-        hint: 'Configuración de dominio, enlace público y estado del servidor.',
-      },
-      {
-        id: 'zero_storage',
-        label: 'Modo cero nube',
-        hint: 'Opera sin guardar nada en la nube.',
       },
     ],
   },

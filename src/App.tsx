@@ -73,13 +73,7 @@ const AccessAuditView = lazy(() =>
 const SadpScannerView = lazy(() =>
   import('./components/SadpScannerView').then((m) => ({ default: m.SadpScannerView }))
 );
-const ZeroStorageView = lazy(() =>
-  import('./components/ZeroStorageView').then((m) => ({ default: m.ZeroStorageView }))
-);
 import { MobileSimulatorModal } from './components/MobileSimulatorModal';
-const ArchitectureTab = lazy(() =>
-  import('./components/ArchitectureTab').then((m) => ({ default: m.ArchitectureTab }))
-);
 import { ClientHandoverCardModal } from './components/ClientHandoverCardModal';
 import { DesktopProgramModal } from './components/DesktopProgramModal';
 import { AdminLoginScreen } from './components/AdminLoginScreen';
@@ -306,7 +300,6 @@ function AppShell() {
       return false;
     }
   });
-  const [showServerNotice, setShowServerNotice] = useState<boolean>(true);
   const latestLogIdRef = useRef<string | null>(null);
   /** Evita republicar cámaras en cada snapshot vacío de Firestore. */
   const cloudRepairAttemptedRef = useRef(false);
@@ -1243,30 +1236,6 @@ function AppShell() {
           }}
         />
 
-        {/* Aviso Sutil: Servidor Activo */}
-        {showServerNotice && (
-          <div className="mx-3 sm:mx-6 mt-3 px-3.5 py-2 rounded-xl bg-neutral-900/80 border border-neutral-800 flex items-center justify-between gap-3 text-xs">
-            <div className="flex items-center gap-2.5 min-w-0">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
-              <div className="flex items-center gap-2 min-w-0 flex-wrap">
-                <span className="font-semibold text-neutral-200">Servidor Activo</span>
-                <span className="text-neutral-600 hidden sm:inline" aria-hidden="true">·</span>
-                <span className="text-neutral-400 font-mono text-[11px] truncate">
-                  {cameras.length} canales sincronizados en tiempo real
-                </span>
-              </div>
-            </div>
-            <button
-              type="button"
-              aria-label="Cerrar aviso de servidor"
-              onClick={() => setShowServerNotice(false)}
-              className="text-neutral-500 hover:text-neutral-300 text-[11px] px-2 py-0.5 rounded-md hover:bg-neutral-800 transition cursor-pointer shrink-0"
-            >
-              Cerrar
-            </button>
-          </div>
-        )}
-
         {/* 3. Main Scrollable Canvas for Active Tab View */}
         <main
           id="contenido"
@@ -1855,21 +1824,6 @@ function AppShell() {
                 );
               })()}
             </div>
-          )}
-
-          {/* VIEW 9: Servidor de video */}
-          {activeTab === 'windows_server' && (
-            <ArchitectureTab
-              cameras={cameras}
-              gateway={streamGateway}
-              onSaveGateway={handleSaveStreamGateway}
-              onShowToast={showToast}
-            />
-          )}
-
-          {/* VIEW 10: Cero Almacenamiento en Nube */}
-          {activeTab === 'zero_storage' && (
-            <ZeroStorageView />
           )}
 
           </div>
