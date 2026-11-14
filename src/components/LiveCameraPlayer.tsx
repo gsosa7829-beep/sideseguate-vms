@@ -293,7 +293,7 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   const is4gCamera = isCamera4gDevice(camera);
-  const shouldStart4gPaused = is4gCamera && (isClientView || isCompact || !autoPlay);
+  const shouldStart4gPaused = is4gCamera && (!autoPlay || (isCompact && !isClientView));
 
   const [isTheaterMode, setIsTheaterMode] = useState<boolean>(() => {
     if (typeof window !== 'undefined' && window.location.search.includes('theater=1')) {
@@ -542,14 +542,17 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
     (gatewayStream.hlsUrl && isPublicGateway(gatewayStream.hlsUrl))
   );
 
-  // Ambas cámaras transmiten vía EZopen (WASM Player) si no hay un túnel público HLS activo
+  // Cámaras 4G y HiLook transmiten vía EZopen (WASM Player / Canvas decodificador H.265)
   const isEzopenDevice = Boolean(
-    !useHlsFallback && !hasRealPublicHls && (
+    !useHlsFallback && (
+      camera.codec === 'H.265' ||
       camera.deviceSerial === 'FF9363270' ||
+      camera.deviceSerial === 'FF9363192' ||
+      camera.deviceSerial === 'FF9363285' ||
+      camera.deviceSerial === 'FF9363276' ||
       camera.deviceSerial === 'F31700438' ||
       camera.notes?.includes('FF9363270') ||
       camera.notes?.includes('F31700438') ||
-      camera.codec === 'H.265' ||
       camera.id?.includes('ocos') ||
       camera.id?.includes('cementerio') ||
       (camera.deviceSerial && camera.verificationCode)
@@ -1169,7 +1172,7 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
       fullStatus = 'EN VIVO · ' + (is4gCamera && streamQuality === '2' ? 'SD MEJORADO (512 kbps)' : shortStatus);
     }
   } else if (nativeP2pReady) {
-    shortStatus = fullStatus = isClientView ? 'EN PAUSA' : 'VISTA PREVIA';
+    shortStatus = fullStatus = (isClientView && (!isStreamPlaying || is4gEcoPaused)) ? 'EN PAUSA' : 'EN VIVO';
   }
   const reconnectDelay = useRef(2_000);
 

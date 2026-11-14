@@ -372,6 +372,9 @@ function AppShell() {
     // Cada cámara deriva su HLS/WHEP del gateway configurado (video continuo real).
     const gatewayAtBoot = loadGateway();
     loadedCameras = loadedCameras.map((cam) => {
+      if (cam.codec === 'H.265' || cam.deviceSerial?.startsWith('FF9') || cam.deviceSerial === 'F31700438') {
+        return { ...cam, hlsStreamUrl: '', webrtcUrl: '' };
+      }
       const { hlsUrl, webrtcUrl } = resolveStreamUrls(cam, gatewayAtBoot);
       return { ...cam, hlsStreamUrl: hlsUrl, webrtcUrl };
     });

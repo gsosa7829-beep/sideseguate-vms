@@ -90,7 +90,7 @@ function setCors(res) {
 }
 
 const server = http.createServer(async (req, res) => {
-  setCors(res);
+  // cors handled by nginx
   if (req.method === 'OPTIONS') {
     res.statusCode = 204;
     return res.end();

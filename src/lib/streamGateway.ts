@@ -35,8 +35,7 @@ const LOCAL_HOSTS = ['localhost', '127.0.0.1', '0.0.0.0', '[::1]'];
 
 export function emptyGateway(): StreamGateway {
   return {
-    baseUrl: PRODUCTION_STREAM_GATEWAY_URL,
-    webrtcBaseUrl: PRODUCTION_STREAM_GATEWAY_URL,
+    baseUrl: '',
     publicAppUrl: 'https://proyectos-de-camaras.surge.sh',
     updatedAt: new Date().toISOString()
   };

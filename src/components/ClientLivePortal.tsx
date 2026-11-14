@@ -662,7 +662,7 @@ export const ClientLivePortal: React.FC<ClientLivePortalProps> = ({
                 watermarkText={activeShareLink.clientName}
                 isClientView={true}
                 ecoSleepOverrideSec={60}
-                autoPlay={false}
+                autoPlay={true}
               />
             )}
 
@@ -723,7 +723,7 @@ export const ClientLivePortal: React.FC<ClientLivePortalProps> = ({
                   watermarkText={activeShareLink.clientName}
                   isClientView={true}
                   ecoSleepOverrideSec={60}
-                  autoPlay={false}
+                  autoPlay={true}
                 />
               )}
 
@@ -850,7 +850,7 @@ export const ClientLivePortal: React.FC<ClientLivePortalProps> = ({
                       isCompact={true}
                       isClientView={true}
                       ecoSleepOverrideSec={60}
-                      autoPlay={false}
+                      autoPlay={true}
                     />
                   </div>
 
