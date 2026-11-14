@@ -675,34 +675,6 @@ export const VideoWall: React.FC<VideoWallProps> = ({
         </div>
       </header>
 
-      {/* Alerta Preventiva de Salud del Token EZVIZ */}
-      {tokenHealth.status !== 'active' && (
-        <div className="flex flex-wrap items-center justify-between gap-3 bg-neutral-900 border border-neutral-800 px-4 py-2.5 rounded-2xl text-xs shadow-sm">
-          <span className="text-amber-400 font-medium flex items-center gap-2">
-            <Key className="w-4 h-4 shrink-0 text-amber-400" />
-            <span>
-              {isRenewingToken
-                ? 'Token EZVIZ: Renovando automáticamente en segundo plano...'
-                : !tokenHealth.canAutoRefresh
-                ? `Token EZVIZ (${tokenHealth.status === 'expiring' ? 'próximo a vencer' : 'requiere renovación'}) · Configura AppKey/AppSecret una sola vez para auto-renovarlo sin botones`
-                : `Token EZVIZ: ${tokenHealth.status === 'expiring' ? 'Próximo a renovar' : 'Requiere renovación'}`}
-            </span>
-          </span>
-          <button
-            type="button"
-            onClick={handleQuickRenew}
-            disabled={isRenewingToken}
-            className="min-h-[36px] px-3 py-1 bg-neutral-800 hover:bg-neutral-700 active:scale-95 text-white font-semibold text-[11px] rounded-xl border border-neutral-700 transition shrink-0 cursor-pointer"
-          >
-            {isRenewingToken
-              ? 'Renovando…'
-              : tokenHealth.canAutoRefresh
-              ? 'Renovar en 1 Clic'
-              : 'Activar Auto-Renovación'}
-          </button>
-        </div>
-      )}
-
       {/* Barra de Retorno cuando se está inspeccionando una cámara individual */}
       {focusedCamera && (
         <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-3 sm:p-4 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 text-xs shadow-sm">
@@ -1157,24 +1129,6 @@ export const VideoWall: React.FC<VideoWallProps> = ({
                             })}
                           </div>
                         </div>
-
-                        {/* Botón discreto de Token y fecha próxima de renovación dentro de la carpeta 4G */}
-                        <button
-                          type="button"
-                          onClick={handleQuickRenew}
-                          disabled={isRenewingToken}
-                          className="h-[38px] px-2.5 py-1.5 rounded-xl bg-neutral-950/90 hover:bg-neutral-800 border border-neutral-800 hover:border-neutral-700 text-neutral-400 hover:text-neutral-200 text-[11px] font-mono transition flex items-center justify-center gap-1.5 cursor-pointer shrink-0"
-                          title={`Token EZVIZ · Próxima renovación: ${tokenHealth.expireDateStr} · Clic para actualizar o ver script de PC`}
-                        >
-                          <Key className="w-3 h-3 text-neutral-500 shrink-0" />
-                          <span>
-                            {isRenewingToken
-                              ? 'Renovando...'
-                              : tokenHealth.status === 'expired'
-                              ? 'Renovar token · Vencido'
-                              : `Renovar token · ${tokenHealth.shortExpireDateStr}`}
-                          </span>
-                        </button>
                       </div>
                     ) : (
                       <div className="flex flex-wrap items-center gap-2 shrink-0 pt-2 md:pt-0 border-t md:border-t-0 border-neutral-800">
