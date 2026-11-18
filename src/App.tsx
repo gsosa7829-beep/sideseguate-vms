@@ -13,8 +13,10 @@ import {
   purgeAllCloudShareLinks,
   seedInitialCloudDataIfEmpty,
   subscribeToCloudState,
-  syncFullCatalogToCloud,
   recordCloudShareLinkAccess,
+  upsertCloudSubUser,
+  deleteCloudSubUser,
+  subscribeToCloudSubUsers,
 } from './lib/firebase';
 import {
   Ocos4gTelemetryState,
@@ -81,8 +83,21 @@ import { ClientHandoverCardModal } from './components/ClientHandoverCardModal';
 import { DesktopProgramModal } from './components/DesktopProgramModal';
 import { AdminLoginScreen } from './components/AdminLoginScreen';
 import { AdminAccountModal } from './components/AdminAccountModal';
+import { SubUsersModal, SubUserSaveOutcome } from './components/SubUsersModal';
 import { AiCameraSetupAssistant } from './components/AiCameraSetupAssistant';
-import { AdminAccount, adminAuthStorage } from './lib/adminAuth';
+import {
+  AdminAccount,
+  CreateSubUserInput,
+  UpdateSubUserInput,
+  adminAuthStorage,
+  canAccessProject,
+  canManageInfrastructure,
+  canManageUsers,
+  createSubUserAccount,
+  isSuperAdminAccount,
+  mergeAdminAccountsWithCloud,
+  updateSubUserAccount,
+} from './lib/adminAuth';
 import { FirstRunSetup } from './components/FirstRunSetup';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { useOnlineStatus } from './lib/usePWAInstall';
@@ -148,6 +163,8 @@ function AppShell() {
   const [isMobileSimulatorOpen, setIsMobileSimulatorOpen] = useState(false);
   const [isDesktopProgramOpen, setIsDesktopProgramOpen] = useState(false);
   const [isSecurityModalOpen, setIsSecurityModalOpen] = useState(false);
+  const [isUsersModalOpen, setIsUsersModalOpen] = useState(false);
+  const [cloudSubUsersWarning, setCloudSubUsersWarning] = useState<string | null>(null);
   const [isAiAssistantOpen, setIsAiAssistantOpen] = useState(false);
 
   // Corporate Admin Accounts & Login Gate State
@@ -309,6 +326,9 @@ function AppShell() {
   const cloudRepairAttemptedRef = useRef(false);
   /** Evita que snapshots previos borren cámaras recién agregadas localmente antes de sincronizar. */
   const pendingLocalCameraIdsRef = useRef<Set<string>>(new Set());
+  /** Sub-usuarios recién guardados pendientes de confirmación en Firestore. */
+  const pendingLocalSubUserIdsRef = useRef<Set<string>>(new Set());
+  const hasCloudSubUsersSnapshotRef = useRef(false);
   /** Cámaras que hay en Firestore ahora mismo (0 si la colección está vacía). */
   const [cloudCameraCount, setCloudCameraCount] = useState<number | null>(null);
   const toastTimerRef = useRef<number | null>(null);
@@ -561,8 +581,66 @@ function AppShell() {
       },
     });
 
-    return () => unsubCloud();
+    const unsubSubUsers = subscribeToCloudSubUsers(
+      (cloudSubs) => {
+        hasCloudSubUsersSnapshotRef.current = true;
+        setCloudSubUsersWarning(null);
+        setAdminAccounts((prev) => {
+          const merged = mergeAdminAccountsWithCloud(
+            prev,
+            cloudSubs,
+            adminAuthStorage.getDeletedSubUserIds(),
+            pendingLocalSubUserIdsRef.current
+          );
+          adminAuthStorage.saveAccounts(merged);
+          return merged;
+        });
+      },
+      (err) => {
+        const msg = err instanceof Error ? err.message : String(err);
+        if (/permission-denied|Missing or insufficient permissions/i.test(msg)) {
+          setCloudSubUsersWarning(
+            'Aún falta desplegar las reglas de Firestore (firestore.rules) para sincronizar sub-usuarios en otros dispositivos.'
+          );
+        }
+      }
+    );
+
+    return () => {
+      unsubCloud();
+      unsubSubUsers();
+    };
   }, []);
+
+  // Si un sub-usuario tiene sesión activa y es pausado/eliminado o editado remotamente, actualizar en vivo
+  useEffect(() => {
+    if (!currentAdminAccount || isSuperAdminAccount(currentAdminAccount)) return;
+    const match = adminAccounts.find((a) => a.id === currentAdminAccount.id);
+    if (!match && hasCloudSubUsersSnapshotRef.current) {
+      adminAuthStorage.saveCurrentSession(null);
+      setCurrentAdminAccount(null);
+      setIsPanelLocked(true);
+      showToast('Tu sesión fue cerrada porque este usuario fue eliminado.');
+      return;
+    }
+    if (match && !match.active) {
+      adminAuthStorage.saveCurrentSession(null);
+      setCurrentAdminAccount(null);
+      setIsPanelLocked(true);
+      showToast('Tu usuario fue pausado por el administrador.');
+      return;
+    }
+    if (
+      match &&
+      (match.role !== currentAdminAccount.role ||
+        match.displayName !== currentAdminAccount.displayName ||
+        JSON.stringify(match.allowedProjectIds || []) !==
+          JSON.stringify(currentAdminAccount.allowedProjectIds || []))
+    ) {
+      setCurrentAdminAccount(match);
+      adminAuthStorage.saveCurrentSession(match);
+    }
+  }, [adminAccounts, currentAdminAccount]);
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
@@ -941,13 +1019,95 @@ function AppShell() {
     showToast(`Carpeta "${target.name}" eliminada`);
   };
 
-  const handleForceCloudSync = async () => {
-    await syncFullCatalogToCloud({
-      projects,
-      cameras,
-      shareLinks,
-    });
-    showToast('Catálogo completo sincronizado en Cloud Firestore');
+  const persistSubUser = async (
+    nextAccounts: AdminAccount[],
+    targetAccount: AdminAccount,
+    successToast: string
+  ): Promise<SubUserSaveOutcome> => {
+    adminAuthStorage.unmarkSubUserDeleted(targetAccount.id);
+    pendingLocalSubUserIdsRef.current.add(targetAccount.id);
+    setAdminAccounts(nextAccounts);
+    adminAuthStorage.saveAccounts(nextAccounts);
+
+    try {
+      await upsertCloudSubUser(targetAccount);
+      pendingLocalSubUserIdsRef.current.delete(targetAccount.id);
+      setCloudSubUsersWarning(null);
+      showToast(successToast);
+      return { ok: true, account: targetAccount, cloudSynced: true };
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (/permission-denied|Missing or insufficient permissions/i.test(msg)) {
+        setCloudSubUsersWarning(
+          'Aún falta desplegar las reglas de Firestore (firestore.rules) para sincronizar sub-usuarios en otros dispositivos.'
+        );
+      }
+      console.warn('Sub-user cloud sync error:', err);
+      showToast(`${successToast} (guardado en este equipo)`);
+      return { ok: true, account: targetAccount, cloudSynced: false };
+    }
+  };
+
+  const handleCreateSubUser = async (input: CreateSubUserInput): Promise<SubUserSaveOutcome> => {
+    const res = await createSubUserAccount(adminAccounts, input);
+    if (!res.valid || !res.account) {
+      return { ok: false, error: res.error || 'No se pudo crear el sub-usuario.' };
+    }
+    const nextAccounts = [...adminAccounts, res.account];
+    return persistSubUser(
+      nextAccounts,
+      res.account,
+      `Sub-usuario "${res.account.displayName}" creado`
+    );
+  };
+
+  const handleUpdateSubUser = async (
+    id: string,
+    input: UpdateSubUserInput
+  ): Promise<SubUserSaveOutcome> => {
+    const res = await updateSubUserAccount(adminAccounts, id, input);
+    if (!res.valid || !res.account) {
+      return { ok: false, error: res.error || 'No se pudo actualizar el sub-usuario.' };
+    }
+    const nextAccounts = adminAccounts.map((a) => (a.id === id ? res.account! : a));
+    return persistSubUser(
+      nextAccounts,
+      res.account,
+      `Sub-usuario "${res.account.displayName}" actualizado`
+    );
+  };
+
+  const handleToggleSubUserActive = async (
+    target: AdminAccount
+  ): Promise<SubUserSaveOutcome> => {
+    if (isSuperAdminAccount(target)) {
+      return { ok: false, error: 'No se puede pausar la cuenta principal.' };
+    }
+    const updatedAcc: AdminAccount = { ...target, active: !target.active };
+    const nextAccounts = adminAccounts.map((a) => (a.id === target.id ? updatedAcc : a));
+    return persistSubUser(
+      nextAccounts,
+      updatedAcc,
+      updatedAcc.active
+        ? `Sub-usuario "${updatedAcc.displayName}" activado`
+        : `Sub-usuario "${updatedAcc.displayName}" pausado`
+    );
+  };
+
+  const handleDeleteSubUser = async (target: AdminAccount): Promise<void> => {
+    if (isSuperAdminAccount(target)) return;
+    pendingLocalSubUserIdsRef.current.delete(target.id);
+    adminAuthStorage.markSubUserDeleted(target.id);
+    const nextAccounts = adminAccounts.filter((a) => a.id !== target.id);
+    setAdminAccounts(nextAccounts);
+    adminAuthStorage.saveAccounts(nextAccounts);
+    try {
+      await deleteCloudSubUser(target.id);
+      showToast(`Sub-usuario "${target.displayName}" eliminado`);
+    } catch (err) {
+      console.warn('Sub-user delete cloud error:', err);
+      showToast(`Sub-usuario "${target.displayName}" eliminado localmente`);
+    }
   };
 
   /**
@@ -1103,13 +1263,23 @@ function AppShell() {
           adminAuthStorage.saveCurrentSession(account);
           setCurrentAdminAccount(account);
           setIsPanelLocked(false);
+          if (!isSuperAdminAccount(account)) {
+            upsertCloudSubUser(account).catch(() => {});
+          }
         }}
       />
     );
   }
 
+  // Alcance por rol y carpetas asignadas del usuario conectado
+  const allowInfraEdit = canManageInfrastructure(currentAdminAccount);
+  const allowUserManagement = canManageUsers(currentAdminAccount);
+  const visibleProjects = projects.filter((p) => canAccessProject(currentAdminAccount, p.id));
+  const visibleCameras = cameras.filter((c) => canAccessProject(currentAdminAccount, c.projectId));
+  const visibleShareLinks = shareLinks.filter((l) => canAccessProject(currentAdminAccount, l.projectId));
+
   // Filtered cameras
-  const filteredCameras = cameras.filter((cam) => {
+  const filteredCameras = visibleCameras.filter((cam) => {
     const query = globalSearchTerm || cameraSearch;
     const matchesSearch = 
       cam.name.toLowerCase().includes(query.toLowerCase()) ||
@@ -1119,9 +1289,7 @@ function AppShell() {
     return matchesSearch && matchesProj;
   });
 
-  const selectedCamera = cameras.find((c) => c.id === selectedCameraId) || cameras[0];
-  const onlineCamerasCount = cameras.filter((c) => c.status === 'online').length;
-  const mediamtxYaml = generateMediaMtxYaml(cameras);
+  const onlineCamerasCount = visibleCameras.filter((c) => c.status === 'online').length;
 
   return (
     <div className="flex h-dvh w-full bg-neutral-950 text-neutral-100 overflow-hidden font-sans">
@@ -1155,10 +1323,10 @@ function AppShell() {
         }}
         isCollapsed={isSidebarCollapsed}
         onToggleCollapse={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
-        camerasCount={cameras.length}
+        camerasCount={visibleCameras.length}
         onlineCount={onlineCamerasCount}
-        shareLinksCount={shareLinks.length}
-        projectsCount={projects.length}
+        shareLinksCount={visibleShareLinks.length}
+        projectsCount={visibleProjects.length}
         onOpenMobilePreview={() => setIsMobileSimulatorOpen(true)}
         onOpenDesktopProgram={() => setIsDesktopProgramOpen(true)}
       />
@@ -1182,10 +1350,8 @@ function AppShell() {
           searchTerm={globalSearchTerm}
           onSearchChange={(val) => setGlobalSearchTerm(val)}
           camerasOnline={onlineCamerasCount}
-          totalCameras={cameras.length}
-          totalLinks={shareLinks.length}
-          cloudSyncStatus={cloudSyncStatus}
-          onForceCloudSync={handleForceCloudSync}
+          totalCameras={visibleCameras.length}
+          totalLinks={visibleShareLinks.length}
           uiTheme={uiTheme}
           onChangeUiTheme={(nextTheme) => {
             setUiTheme(nextTheme);
@@ -1197,7 +1363,7 @@ function AppShell() {
             showToast(`Diseño de interfaz cambiado a: ${names[nextTheme]}`);
           }}
           accessLogs={accessLogs}
-          shareLinks={shareLinks}
+          shareLinks={visibleShareLinks}
           unreadAlertsCount={unreadAlertsCount}
           onClearUnreadAlerts={() => setUnreadAlertsCount(0)}
           onSimulateBuyerAccess={handleSimulateBuyerAccess}
@@ -1210,6 +1376,7 @@ function AppShell() {
           onSelectTab={(tab) => setActiveTab(tab)}
           currentAdminAccount={currentAdminAccount}
           onOpenSecurityModal={() => setIsSecurityModalOpen(true)}
+          onOpenUsersModal={allowUserManagement ? () => setIsUsersModalOpen(true) : undefined}
           onLockPanelNow={() => {
             adminAuthStorage.saveCurrentSession(null);
             setCurrentAdminAccount(null);
@@ -1231,8 +1398,8 @@ function AppShell() {
           {/* VIEW 1: Muro de Video (Matrix Multicámara) - Conexión viva 24/7 sin reinicios al cambiar pestañas */}
           <div className={activeTab === 'videowall' ? 'block' : 'hidden'}>
             <VideoWall
-              projects={projects}
-              cameras={cameras}
+              projects={visibleProjects}
+              cameras={visibleCameras}
               focusedCameraId={focusedCameraId}
               onClearFocus={() => setFocusedCameraId(null)}
               onSelectCamera={(id) => {
@@ -1254,6 +1421,7 @@ function AppShell() {
                 setShareDefaultProjectId(cam.projectId);
                 setIsShareModalOpen(true);
               }}
+              readOnly={!allowInfraEdit}
             />
           </div>
 
@@ -1269,70 +1437,78 @@ function AppShell() {
                     </h2>
                     <span className="text-[11px] font-mono text-emerald-400 flex items-center gap-1.5">
                       <Cloud className="w-3.5 h-3.5 text-sky-400" />
-                      Sincronización en Nube (4G / Wi-Fi)
+                      Sincronización activa (4G / Wi-Fi)
                     </span>
                   </div>
                   <p className="text-xs text-neutral-400 mt-0.5 max-w-2xl leading-relaxed">
-                    Crea un enlace y envíalo en 1 clic por WhatsApp o cópialo directamente. Puedes eliminar cualquier enlace cuando desees.
+                    {allowInfraEdit
+                      ? 'Crea un enlace y envíalo en 1 clic por WhatsApp o cópialo directamente. Puedes eliminar cualquier enlace cuando desees.'
+                      : 'Consulta y comparte por WhatsApp o código QR los enlaces autorizados para tus proyectos.'}
                   </p>
                 </div>
 
-                <div className="flex flex-wrap items-center gap-2 shrink-0">
-                  {shareLinks.length > 0 && (
+                {allowInfraEdit && (
+                  <div className="flex flex-wrap items-center gap-2 shrink-0">
+                    {visibleShareLinks.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={handleExpireAllLinksNow}
+                        className="min-h-[42px] sm:min-h-0 px-3 py-2 bg-red-950/80 hover:bg-red-900 border border-red-800/80 text-red-200 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition whitespace-nowrap cursor-pointer"
+                        title="Eliminar todos los enlaces inmediatamente"
+                      >
+                        <Trash2 className="w-3.5 h-3.5 text-red-400" />
+                        <span>Eliminar Todos</span>
+                      </button>
+                    )}
+
                     <button
                       type="button"
-                      onClick={handleExpireAllLinksNow}
-                      className="min-h-[42px] sm:min-h-0 px-3 py-2 bg-red-950/80 hover:bg-red-900 border border-red-800/80 text-red-200 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition whitespace-nowrap cursor-pointer"
-                      title="Eliminar todos los enlaces inmediatamente"
+                      onClick={() => {
+                        setEditingShareLink(null);
+                        setShareDefaultProjectId(null);
+                        setIsShareModalOpen(true);
+                      }}
+                      className="min-h-[42px] sm:min-h-0 px-4 py-2 bg-sky-600 hover:bg-sky-500 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 shadow-sm transition shrink-0 whitespace-nowrap cursor-pointer"
                     >
-                      <Trash2 className="w-3.5 h-3.5 text-red-400" />
-                      <span>Eliminar Todos</span>
+                      <Plus className="w-4 h-4" />
+                      <span>Nuevo Enlace</span>
                     </button>
-                  )}
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setEditingShareLink(null);
-                      setShareDefaultProjectId(null);
-                      setIsShareModalOpen(true);
-                    }}
-                    className="min-h-[42px] sm:min-h-0 px-4 py-2 bg-sky-600 hover:bg-sky-500 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 shadow-sm transition shrink-0 whitespace-nowrap cursor-pointer"
-                  >
-                    <Plus className="w-4 h-4" />
-                    <span>Nuevo Enlace</span>
-                  </button>
-                </div>
+                  </div>
+                )}
               </div>
 
-              {shareLinks.length === 0 ? (
+              {visibleShareLinks.length === 0 ? (
                 <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-8 text-center flex flex-col items-center justify-center">
                   <div className="w-11 h-11 rounded-2xl bg-neutral-800/80 border border-neutral-700 flex items-center justify-center mb-3 text-sky-400">
                     <Link2 className="w-5 h-5" />
                   </div>
-                  <h3 className="text-sm font-bold text-white mb-1">No hay enlaces creados</h3>
+                  <h3 className="text-sm font-bold text-white mb-1">No hay enlaces disponibles</h3>
                   <p className="text-xs text-neutral-400 max-w-sm mb-4">
-                    Todos los enlaces anteriores fueron eliminados. Crea un enlace nuevo para compartir el acceso a las cámaras por WhatsApp o enlace directo.
+                    {allowInfraEdit
+                      ? 'Crea un enlace nuevo para compartir el acceso a las cámaras por WhatsApp o enlace directo.'
+                      : 'Todavía no hay enlaces asignados a tus carpetas permitidas.'}
                   </p>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setEditingShareLink(null);
-                      setShareDefaultProjectId(null);
-                      setIsShareModalOpen(true);
-                    }}
-                    className="px-4 py-2 bg-sky-600 hover:bg-sky-500 text-white rounded-xl text-xs font-semibold flex items-center gap-1.5 shadow-md transition cursor-pointer"
-                  >
-                    <Plus className="w-4 h-4" />
-                    <span>Crear Primer Enlace</span>
-                  </button>
+                  {allowInfraEdit && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditingShareLink(null);
+                        setShareDefaultProjectId(null);
+                        setIsShareModalOpen(true);
+                      }}
+                      className="px-4 py-2 bg-sky-600 hover:bg-sky-500 text-white rounded-xl text-xs font-semibold flex items-center gap-1.5 shadow-md transition cursor-pointer"
+                    >
+                      <Plus className="w-4 h-4" />
+                      <span>Crear Primer Enlace</span>
+                    </button>
+                  )}
                 </div>
               ) : (
                 /* Links Grid */
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {shareLinks.map((link) => {
-                    const proj = projects.find((p) => p.id === link.projectId);
-                    const assignedCams = cameras.filter((c) =>
+                  {visibleShareLinks.map((link) => {
+                    const proj = visibleProjects.find((p) => p.id === link.projectId);
+                    const assignedCams = visibleCameras.filter((c) =>
                       link.cameraIds && link.cameraIds.length > 0 ? link.cameraIds.includes(c.id) : c.projectId === link.projectId
                     );
                     const isExpired = link.expiresAt ? new Date(link.expiresAt).getTime() <= Date.now() : false;
@@ -1360,46 +1536,48 @@ function AppShell() {
                               </span>
                             </div>
 
-                            <div className="flex items-center gap-1.5">
-                              <button
-                                type="button"
-                                aria-label={link.isActive ? 'Pausar enlace' : 'Activar enlace'}
-                                onClick={() => handleToggleLinkActive(link.id)}
-                                className={`min-h-[36px] sm:min-h-0 px-2.5 sm:px-2 py-1 rounded-lg border text-[11px] font-medium flex items-center gap-1 transition cursor-pointer ${
-                                  link.isActive
-                                    ? 'bg-neutral-950 border-neutral-800 text-neutral-400 hover:text-white'
-                                    : 'bg-emerald-950/80 border-emerald-800 text-emerald-300'
-                                }`}
-                                title={link.isActive ? 'Pausar enlace temporalmente' : 'Reactivar enlace'}
-                              >
-                                <Power className="w-3 h-3" />
-                                <span>{link.isActive ? 'Pausar' : 'Activar'}</span>
-                              </button>
+                            {allowInfraEdit && (
+                              <div className="flex items-center gap-1.5">
+                                <button
+                                  type="button"
+                                  aria-label={link.isActive ? 'Pausar enlace' : 'Activar enlace'}
+                                  onClick={() => handleToggleLinkActive(link.id)}
+                                  className={`min-h-[36px] sm:min-h-0 px-2.5 sm:px-2 py-1 rounded-lg border text-[11px] font-medium flex items-center gap-1 transition cursor-pointer ${
+                                    link.isActive
+                                      ? 'bg-neutral-950 border-neutral-800 text-neutral-400 hover:text-white'
+                                      : 'bg-emerald-950/80 border-emerald-800 text-emerald-300'
+                                  }`}
+                                  title={link.isActive ? 'Pausar enlace temporalmente' : 'Reactivar enlace'}
+                                >
+                                  <Power className="w-3 h-3" />
+                                  <span>{link.isActive ? 'Pausar' : 'Activar'}</span>
+                                </button>
 
-                              <button
-                                type="button"
-                                aria-label="Editar enlace"
-                                onClick={() => {
-                                  setEditingShareLink(link);
-                                  setIsShareModalOpen(true);
-                                }}
-                                className="min-h-[36px] min-w-[36px] sm:min-h-0 sm:min-w-0 p-1.5 bg-neutral-950 hover:bg-neutral-800 border border-neutral-800 text-neutral-400 hover:text-white rounded-lg text-xs flex items-center justify-center transition cursor-pointer"
-                                title="Editar enlace"
-                              >
-                                <Edit3 className="w-3.5 h-3.5" />
-                              </button>
+                                <button
+                                  type="button"
+                                  aria-label="Editar enlace"
+                                  onClick={() => {
+                                    setEditingShareLink(link);
+                                    setIsShareModalOpen(true);
+                                  }}
+                                  className="min-h-[36px] min-w-[36px] sm:min-h-0 sm:min-w-0 p-1.5 bg-neutral-950 hover:bg-neutral-800 border border-neutral-800 text-neutral-400 hover:text-white rounded-lg text-xs flex items-center justify-center transition cursor-pointer"
+                                  title="Editar enlace"
+                                >
+                                  <Edit3 className="w-3.5 h-3.5" />
+                                </button>
 
-                              <button
-                                type="button"
-                                aria-label="Eliminar enlace permanentemente"
-                                onClick={() => handleDeleteShareLink(link.id)}
-                                className="min-h-[36px] sm:min-h-0 px-2.5 sm:px-2 py-1 bg-red-950/60 hover:bg-red-900/90 border border-red-800/60 text-red-300 hover:text-white rounded-lg text-[11px] font-semibold flex items-center gap-1 transition cursor-pointer"
-                                title="Eliminar este enlace permanentemente"
-                              >
-                                <Trash2 className="w-3 h-3" />
-                                <span>Eliminar</span>
-                              </button>
-                            </div>
+                                <button
+                                  type="button"
+                                  aria-label="Eliminar enlace permanentemente"
+                                  onClick={() => handleDeleteShareLink(link.id)}
+                                  className="min-h-[36px] sm:min-h-0 px-2.5 sm:px-2 py-1 bg-red-950/60 hover:bg-red-900/90 border border-red-800/60 text-red-300 hover:text-white rounded-lg text-[11px] font-semibold flex items-center gap-1 transition cursor-pointer"
+                                  title="Eliminar este enlace permanentemente"
+                                >
+                                  <Trash2 className="w-3 h-3" />
+                                  <span>Eliminar</span>
+                                </button>
+                              </div>
+                            )}
                           </div>
 
                           {/* Title & Client */}
@@ -1510,7 +1688,7 @@ function AppShell() {
                   Sólo se evalúa cuando ya llegó el primer snapshot de Firestore
                   (cloudCameraCount !== null); antes no sabemos nada y avisar
                   sería una falsa alarma. */}
-              {cloudCameraCount !== null && (
+              {allowInfraEdit && cloudCameraCount !== null && (
                 <CloudRepairCard
                   localCount={storage.getCameras().length}
                   cloudCount={cloudCameraCount}
@@ -1538,53 +1716,57 @@ function AppShell() {
                     onChange={(e) => setProjectFilter(e.target.value)}
                     className="min-h-[40px] sm:min-h-0 bg-neutral-950 border border-neutral-800 text-xs text-neutral-300 rounded-lg px-3 py-1.5 focus:outline-none"
                   >
-                    <option value="all">Todos los proyectos ({projects.length})</option>
-                    {projects.map((p) => (
+                    <option value="all">Todos los proyectos ({visibleProjects.length})</option>
+                    {visibleProjects.map((p) => (
                       <option key={p.id} value={p.id}>{p.name}</option>
                     ))}
                   </select>
 
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setEditingProject(null);
-                      setIsProjectModalOpen(true);
-                    }}
-                    className="min-h-[40px] sm:min-h-0 px-3 py-1.5 bg-neutral-800 hover:bg-neutral-700 text-white border border-neutral-700 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition shrink-0 cursor-pointer"
-                  >
-                    <FolderPlus className="w-3.5 h-3.5 text-sky-400" />
-                    <span>Nueva Carpeta</span>
-                  </button>
+                  {allowInfraEdit && (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditingProject(null);
+                          setIsProjectModalOpen(true);
+                        }}
+                        className="min-h-[40px] sm:min-h-0 px-3 py-1.5 bg-neutral-800 hover:bg-neutral-700 text-white border border-neutral-700 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition shrink-0 cursor-pointer"
+                      >
+                        <FolderPlus className="w-3.5 h-3.5 text-sky-400" />
+                        <span>Nueva Carpeta</span>
+                      </button>
 
-                  <button
-                    type="button"
-                    onClick={() => setIsAiAssistantOpen(true)}
-                    className="min-h-[40px] sm:min-h-0 px-3.5 py-1.5 bg-sky-600 hover:bg-sky-500 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 transition shadow-sm shrink-0 cursor-pointer"
-                  >
-                    <Sparkles className="w-3.5 h-3.5 text-amber-300" />
-                    <span>Asistente IA</span>
-                  </button>
+                      <button
+                        type="button"
+                        onClick={() => setIsAiAssistantOpen(true)}
+                        className="min-h-[40px] sm:min-h-0 px-3.5 py-1.5 bg-sky-600 hover:bg-sky-500 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 transition shadow-sm shrink-0 cursor-pointer"
+                      >
+                        <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+                        <span>Asistente IA</span>
+                      </button>
 
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setEditingCamera(null);
-                      setCameraModalDefaultProjectId(projectFilter !== 'all' ? projectFilter : null);
-                      setIsCameraModalOpen(true);
-                    }}
-                    className="min-h-[40px] sm:min-h-0 px-3.5 py-1.5 bg-white hover:bg-neutral-100 text-neutral-950 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition shadow-sm shrink-0 cursor-pointer"
-                  >
-                    <Plus className="w-3.5 h-3.5 text-neutral-700" />
-                    <span>Nueva Cámara</span>
-                  </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditingCamera(null);
+                          setCameraModalDefaultProjectId(projectFilter !== 'all' ? projectFilter : null);
+                          setIsCameraModalOpen(true);
+                        }}
+                        className="min-h-[40px] sm:min-h-0 px-3.5 py-1.5 bg-white hover:bg-neutral-100 text-neutral-950 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition shadow-sm shrink-0 cursor-pointer"
+                      >
+                        <Plus className="w-3.5 h-3.5 text-neutral-700" />
+                        <span>Nueva Cámara</span>
+                      </button>
+                    </>
+                  )}
                 </div>
               </div>
 
               {/* Vista Lineal Agrupada por Proyecto (con consumo 4G y eliminación por proyecto) */}
               {(() => {
-                const knownIds = new Set(projects.map((p) => p.id));
+                const knownIds = new Set(visibleProjects.map((p) => p.id));
                 const projectGroups: Array<{ id: string; name: string; location: string; isRealProject: boolean; items: Camera[] }> =
-                  projects
+                  visibleProjects
                     .filter((p) => projectFilter === 'all' || projectFilter === p.id)
                     .map((p) => ({
                       id: p.id,
@@ -1595,7 +1777,7 @@ function AppShell() {
                     }));
 
                 const unassignedCams =
-                  projectFilter === 'all'
+                  projectFilter === 'all' && canAccessProject(currentAdminAccount, '__UNASSIGNED__')
                     ? filteredCameras.filter((c) => !knownIds.has(c.projectId))
                     : [];
                 if (unassignedCams.length > 0) {
@@ -1645,45 +1827,49 @@ function AppShell() {
                               )}
                             </div>
 
-                            <div className="flex items-center gap-2 shrink-0">
-                              {group.items.length > 0 && (
-                                <button
-                                  type="button"
-                                  onClick={() => handleDeleteCamerasByProject(group.id)}
-                                  className="px-3 py-1.5 bg-red-950/60 hover:bg-red-900/80 text-red-300 hover:text-white border border-red-500/30 rounded-lg text-[11px] font-semibold flex items-center gap-1.5 transition cursor-pointer"
-                                >
-                                  <Trash2 className="w-3.5 h-3.5 shrink-0" />
-                                  <span>Eliminar cámaras del proyecto</span>
-                                </button>
-                              )}
-                              {group.isRealProject && group.items.length === 0 && (
-                                <button
-                                  type="button"
-                                  onClick={() => handleDeleteProject(group.id)}
-                                  className="px-3 py-1.5 bg-neutral-900 hover:bg-red-950/70 text-neutral-400 hover:text-red-300 border border-neutral-800 hover:border-red-500/30 rounded-lg text-[11px] font-semibold flex items-center gap-1.5 transition cursor-pointer"
-                                >
-                                  <Trash2 className="w-3.5 h-3.5 shrink-0" />
-                                  <span>Eliminar carpeta</span>
-                                </button>
-                              )}
-                            </div>
+                            {allowInfraEdit && (
+                              <div className="flex items-center gap-2 shrink-0">
+                                {group.items.length > 0 && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDeleteCamerasByProject(group.id)}
+                                    className="px-3 py-1.5 bg-red-950/60 hover:bg-red-900/80 text-red-300 hover:text-white border border-red-500/30 rounded-lg text-[11px] font-semibold flex items-center gap-1.5 transition cursor-pointer"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5 shrink-0" />
+                                    <span>Eliminar cámaras del proyecto</span>
+                                  </button>
+                                )}
+                                {group.isRealProject && group.items.length === 0 && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDeleteProject(group.id)}
+                                    className="px-3 py-1.5 bg-neutral-900 hover:bg-red-950/70 text-neutral-400 hover:text-red-300 border border-neutral-800 hover:border-red-500/30 rounded-lg text-[11px] font-semibold flex items-center gap-1.5 transition cursor-pointer"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5 shrink-0" />
+                                    <span>Eliminar carpeta</span>
+                                  </button>
+                                )}
+                              </div>
+                            )}
                           </div>
 
                           {/* Filas Lineales de Cámaras dentro del Proyecto */}
                           {group.items.length === 0 ? (
                             <div className="px-4 py-5 text-xs text-neutral-500 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                               <span>No hay cámaras asignadas a esta carpeta todavía.</span>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setEditingCamera(null);
-                                  setCameraModalDefaultProjectId(group.id);
-                                  setIsCameraModalOpen(true);
-                                }}
-                                className="px-3 py-1.5 bg-sky-600/20 hover:bg-sky-600/30 text-sky-300 border border-sky-500/30 rounded-lg text-xs font-semibold w-fit cursor-pointer"
-                              >
-                                + Agregar Cámara aquí
-                              </button>
+                              {allowInfraEdit && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setEditingCamera(null);
+                                    setCameraModalDefaultProjectId(group.id);
+                                    setIsCameraModalOpen(true);
+                                  }}
+                                  className="px-3 py-1.5 bg-sky-600/20 hover:bg-sky-600/30 text-sky-300 border border-sky-500/30 rounded-lg text-xs font-semibold w-fit cursor-pointer"
+                                >
+                                  + Agregar Cámara aquí
+                                </button>
+                              )}
                             </div>
                           ) : (
                             <div className="divide-y divide-neutral-800/70">
@@ -1731,7 +1917,7 @@ function AppShell() {
 
                                     {/* Acciones Lineales: Mover Proyecto + Ver + Editar + Eliminar */}
                                     <div className="flex flex-wrap items-center gap-1.5 shrink-0">
-                                      {projects.length > 0 && (
+                                      {allowInfraEdit && visibleProjects.length > 0 && (
                                         <select
                                           aria-label={`Proyecto de ${cam.name}`}
                                           value={knownIds.has(cam.projectId) ? cam.projectId : ''}
@@ -1746,7 +1932,7 @@ function AppShell() {
                                           {!knownIds.has(cam.projectId) && (
                                             <option value="">Sin carpeta asignada</option>
                                           )}
-                                          {projects.map((p) => (
+                                          {visibleProjects.map((p) => (
                                             <option key={p.id} value={p.id}>
                                               📁 {p.name}
                                             </option>
@@ -1769,30 +1955,34 @@ function AppShell() {
                                         <span className="hidden sm:inline">Ver</span>
                                       </button>
 
-                                      <button
-                                        type="button"
-                                        aria-label={`Editar cámara ${cam.name}`}
-                                        onClick={() => {
-                                          setEditingCamera(cam);
-                                          setIsCameraModalOpen(true);
-                                        }}
-                                        className="min-h-[40px] min-w-[40px] sm:min-h-0 sm:min-w-0 px-2.5 py-1.5 bg-neutral-800/90 hover:bg-neutral-700 text-neutral-200 hover:text-white rounded-lg text-[11px] font-medium transition flex items-center justify-center gap-1 cursor-pointer"
-                                        title="Editar"
-                                      >
-                                        <Edit3 className="w-3.5 h-3.5" />
-                                        <span className="hidden sm:inline">Editar</span>
-                                      </button>
+                                      {allowInfraEdit && (
+                                        <>
+                                          <button
+                                            type="button"
+                                            aria-label={`Editar cámara ${cam.name}`}
+                                            onClick={() => {
+                                              setEditingCamera(cam);
+                                              setIsCameraModalOpen(true);
+                                            }}
+                                            className="min-h-[40px] min-w-[40px] sm:min-h-0 sm:min-w-0 px-2.5 py-1.5 bg-neutral-800/90 hover:bg-neutral-700 text-neutral-200 hover:text-white rounded-lg text-[11px] font-medium transition flex items-center justify-center gap-1 cursor-pointer"
+                                            title="Editar"
+                                          >
+                                            <Edit3 className="w-3.5 h-3.5" />
+                                            <span className="hidden sm:inline">Editar</span>
+                                          </button>
 
-                                      <button
-                                        type="button"
-                                        aria-label={`Eliminar cámara ${cam.name}`}
-                                        onClick={() => handleDeleteCamera(cam.id)}
-                                        className="min-h-[40px] min-w-[40px] sm:min-h-0 sm:min-w-0 px-2.5 py-1.5 bg-neutral-800/90 hover:bg-red-950/90 text-neutral-400 hover:text-red-300 border border-transparent hover:border-red-500/30 rounded-lg text-[11px] font-medium transition flex items-center justify-center gap-1 cursor-pointer"
-                                        title="Eliminar"
-                                      >
-                                        <Trash2 className="w-3.5 h-3.5" />
-                                        <span className="hidden sm:inline">Eliminar</span>
-                                      </button>
+                                          <button
+                                            type="button"
+                                            aria-label={`Eliminar cámara ${cam.name}`}
+                                            onClick={() => handleDeleteCamera(cam.id)}
+                                            className="min-h-[40px] min-w-[40px] sm:min-h-0 sm:min-w-0 px-2.5 py-1.5 bg-neutral-800/90 hover:bg-red-950/90 text-neutral-400 hover:text-red-300 border border-transparent hover:border-red-500/30 rounded-lg text-[11px] font-medium transition flex items-center justify-center gap-1 cursor-pointer"
+                                            title="Eliminar"
+                                          >
+                                            <Trash2 className="w-3.5 h-3.5" />
+                                            <span className="hidden sm:inline">Eliminar</span>
+                                          </button>
+                                        </>
+                                      )}
                                     </div>
                                   </div>
                                 );
@@ -1816,9 +2006,9 @@ function AppShell() {
       <MobileSimulatorModal
         isOpen={isMobileSimulatorOpen}
         onClose={() => setIsMobileSimulatorOpen(false)}
-        shareLinks={shareLinks}
-        cameras={cameras}
-        projects={projects}
+        shareLinks={visibleShareLinks}
+        cameras={visibleCameras}
+        projects={visibleProjects}
       />
 
       {/* Persistent Modals */}
@@ -1829,8 +2019,8 @@ function AppShell() {
           setWhatsAppTimedTargetLink(null);
         }}
         onSaveLink={handleSaveShareLink}
-        cameras={cameras}
-        projects={projects}
+        cameras={visibleCameras}
+        projects={visibleProjects}
         existingLink={whatsAppTimedTargetLink}
         defaultProjectId={shareDefaultProjectId || (projectFilter === 'all' ? null : projectFilter)}
       />
@@ -1843,8 +2033,8 @@ function AppShell() {
           setShareDefaultProjectId(null);
         }}
         onSave={handleSaveShareLink}
-        projects={projects}
-        cameras={cameras}
+        projects={visibleProjects}
+        cameras={visibleCameras}
         initialLink={editingShareLink}
         defaultProjectId={shareDefaultProjectId}
       />
@@ -1857,7 +2047,7 @@ function AppShell() {
           setCameraModalDefaultProjectId(null);
         }}
         onSave={handleSaveCamera}
-        projects={projects}
+        projects={visibleProjects}
         initialCamera={editingCamera}
         defaultProjectId={cameraModalDefaultProjectId}
       />
@@ -1876,15 +2066,15 @@ function AppShell() {
         isOpen={!!handoverShareLink}
         onClose={() => setHandoverShareLink(null)}
         shareLink={handoverShareLink}
-        project={projects.find((p) => p.id === handoverShareLink?.projectId)}
-        cameras={cameras}
+        project={visibleProjects.find((p) => p.id === handoverShareLink?.projectId)}
+        cameras={visibleCameras}
         onOpenPortalPreview={(token) => setClientTokenView(token)}
       />
 
       <DesktopProgramModal
         isOpen={isDesktopProgramOpen}
         onClose={() => setIsDesktopProgramOpen(false)}
-        cameras={cameras}
+        cameras={visibleCameras}
         onApplyRemoteTunnel={handleApplyRemoteTunnel}
         onShowToast={showToast}
       />
@@ -1903,6 +2093,9 @@ function AppShell() {
             adminAuthStorage.saveAccounts(updated);
             setCurrentAdminAccount(updatedAccount);
             adminAuthStorage.saveCurrentSession(updatedAccount);
+            if (!isSuperAdminAccount(updatedAccount)) {
+              upsertCloudSubUser(updatedAccount).catch(() => {});
+            }
           }}
           onToggleRequireLoginOnBoot={(req) => {
             setRequireLoginOnBoot(req);
@@ -1922,8 +2115,22 @@ function AppShell() {
         />
       )}
 
+      {allowUserManagement && (
+        <SubUsersModal
+          isOpen={isUsersModalOpen}
+          onClose={() => setIsUsersModalOpen(false)}
+          accounts={adminAccounts}
+          projects={projects}
+          cloudSyncWarning={cloudSubUsersWarning}
+          onCreateSubUser={handleCreateSubUser}
+          onUpdateSubUser={handleUpdateSubUser}
+          onToggleSubUserActive={handleToggleSubUserActive}
+          onDeleteSubUser={handleDeleteSubUser}
+        />
+      )}
+
       {/* Botón Flotante Independiente y Minimalista: Asistente de Cámaras */}
-      {!isAiAssistantOpen && (
+      {allowInfraEdit && !isAiAssistantOpen && (
         <button
           type="button"
           onClick={() => setIsAiAssistantOpen(true)}
@@ -1939,19 +2146,21 @@ function AppShell() {
         </button>
       )}
 
-      <AiCameraSetupAssistant
-        isOpen={isAiAssistantOpen}
-        onClose={() => setIsAiAssistantOpen(false)}
-        projects={projects}
-        cameras={cameras}
-        onAddCamerasBatch={handleClientAddCamerasBatch}
-        onCreateProject={handleSaveProject}
-        onSelectCameraAndGoToWall={(cameraId) => {
-          setSelectedCameraId(cameraId);
-          setFocusedCameraId(cameraId);
-          setActiveTab('videowall');
-        }}
-      />
+      {allowInfraEdit && (
+        <AiCameraSetupAssistant
+          isOpen={isAiAssistantOpen}
+          onClose={() => setIsAiAssistantOpen(false)}
+          projects={visibleProjects}
+          cameras={visibleCameras}
+          onAddCamerasBatch={handleClientAddCamerasBatch}
+          onCreateProject={handleSaveProject}
+          onSelectCameraAndGoToWall={(cameraId) => {
+            setSelectedCameraId(cameraId);
+            setFocusedCameraId(cameraId);
+            setActiveTab('videowall');
+          }}
+        />
+      )}
 
       {/* Barra inferior móvil: 4 secciones, todo al alcance del pulgar */}
       <BottomNav currentTab={activeTab} onSelectTab={(tab) => setActiveTab(tab)} />

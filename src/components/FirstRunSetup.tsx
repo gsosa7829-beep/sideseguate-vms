@@ -21,9 +21,9 @@ interface FirstRunSetupProps {
 }
 
 const BULLETS = [
-  'El panel tiene una sola cuenta: la del administrador.',
-  'No se crean usuarios adicionales ni correos de equipo.',
-  'Tu contraseña se guarda cifrada (PBKDF2-SHA256) en este equipo.',
+  'Configura la cuenta principal de administración del panel GLOBAL TECH.',
+  'Luego podrás crear sub-usuarios desde «Crear usuarios» si necesitas delegar acceso.',
+  'Tu contraseña se guarda cifrada (PBKDF2-SHA256) de forma segura.',
 ];
 
 /**
@@ -60,8 +60,8 @@ export const FirstRunSetup: React.FC<FirstRunSetupProps> = ({ onComplete }) => {
     setSaving(true);
     const res = await createAdminAccount([], {
       displayName: 'Administrador',
-      description: 'Cuenta única con acceso total al panel de monitoreo',
-      email: 'admin@sideseguate.local',
+      description: 'Administrador general - GLOBAL TECH',
+      email: 'admin@globaltech.local',
       password,
       role: 'superadmin',
     });

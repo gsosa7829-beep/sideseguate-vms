@@ -1,9 +1,10 @@
 /**
- * Autenticación del panel administrativo SIDESEGUATE.
+ * Autenticación y control de acceso del panel administrativo GLOBAL TECH.
  *
  * Principios de esta versión:
- *  - **Sin cuentas por defecto**: el primer arranque exige crear la cuenta
- *    del propietario (asistente "Configuración inicial").
+ *  - **Administrador principal + sub-usuarios delegados**: el administrador
+ *    principal (`superadmin`) puede crear sub-usuarios con rol y carpetas
+ *    asignadas, sincronizados en tiempo real entre dispositivos.
  *  - **Sin contraseñas en texto plano**: se guarda un hash PBKDF2-SHA256 con
  *    sal aleatoria; el texto de la contraseña nunca se persiste.
  *  - **Bloqueo por intentos**: tras N fallos la cuenta se bloquea 15 minutos.
@@ -14,6 +15,9 @@
 import { extractTokenFromUrl } from './publicUrl';
 
 export type AdminRole = 'superadmin' | 'engineer' | 'operator';
+export type SubUserRole = 'engineer' | 'operator';
+
+export const ALLOWED_PROJECTS_ALL = '*';
 
 export interface AdminAccount {
   id: string;
@@ -24,6 +28,8 @@ export interface AdminAccount {
   description: string;
   role: AdminRole;
   roleLabel: string;
+  /** Carpetas/proyectos permitidos ('*' = todos los proyectos). */
+  allowedProjectIds?: string[];
   active: boolean;
   createdAt: string;
   lastLoginAt?: string | null;
@@ -50,13 +56,14 @@ export const SESSION_TTL_MS = 12 * 60 * 60 * 1000;
 const HASH_ITERATIONS = 150_000;
 
 export const DEFAULT_ADMIN_ACCOUNT: AdminAccount = {
-  id: 'adm-sideseguate-master',
+  id: 'adm-globaltech-master',
   username: 'admin',
   email: 'admin@proyectosdecamaras.com',
   displayName: 'Administrador Principal',
   description: 'Administrador general - GLOBAL TECH',
   role: 'superadmin',
   roleLabel: 'Super Administrador',
+  allowedProjectIds: [ALLOWED_PROJECTS_ALL],
   active: true,
   createdAt: '2026-10-30T00:00:00.000Z',
   lastLoginAt: null,
@@ -71,6 +78,7 @@ const STORAGE_KEY_ACCOUNTS = 'sideseguate_admin_accounts_v3';
 const STORAGE_KEY_SESSION = 'sideseguate_admin_session_v3';
 const STORAGE_KEY_REQUIRE_LOGIN = 'sideseguate_require_login_v1';
 const STORAGE_KEY_ATTEMPTS = 'sideseguate_login_attempts_v1';
+const STORAGE_KEY_DELETED_SUBUSERS = 'globaltech_deleted_subusers_v1';
 
 /**
  * Almacenamiento con respaldo en memoria: en Node (tests/SSR) o en navegadores
@@ -261,14 +269,66 @@ export interface CreateAccountResult {
   error?: string;
 }
 
-function slugUsername(email: string): string {
+function slugUsername(seed: string): string {
   return (
-    email
+    (seed || '')
       .split('@')[0]
       .toLowerCase()
-      .replace(/[^a-z0-9._-]/g, '')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-z0-9._-]/g, '.')
+      .replace(/\.{2,}/g, '.')
+      .replace(/^[._-]+|[._-]+$/g, '')
       .slice(0, 24) || `usuario${Date.now() % 10000}`
   );
+}
+
+/** Valida política mínima compartida de contraseña para cuentas nuevas y cambios de clave. */
+export function validatePasswordStrength(
+  password: string,
+  label: string = 'La contraseña'
+): string | null {
+  if (!password || password.length < PASSWORD_MIN_LENGTH) {
+    return `${label} debe tener al menos ${PASSWORD_MIN_LENGTH} caracteres.`;
+  }
+  if (!/[A-Za-z]/.test(password) || !/\d/.test(password)) {
+    return `${label} debe combinar letras y números.`;
+  }
+  return null;
+}
+
+export function normalizeAllowedProjectIds(projectIds?: string[] | null): string[] {
+  if (!Array.isArray(projectIds) || projectIds.length === 0) return [ALLOWED_PROJECTS_ALL];
+  const cleaned = Array.from(
+    new Set(projectIds.map((id) => String(id || '').trim()).filter(Boolean))
+  );
+  if (cleaned.length === 0 || cleaned.includes(ALLOWED_PROJECTS_ALL)) {
+    return [ALLOWED_PROJECTS_ALL];
+  }
+  return cleaned;
+}
+
+export function isSuperAdminAccount(account?: AdminAccount | null): boolean {
+  return Boolean(account && (account.role === 'superadmin' || account.username === 'admin'));
+}
+
+export function canManageUsers(account?: AdminAccount | null): boolean {
+  return isSuperAdminAccount(account);
+}
+
+export function canManageInfrastructure(account?: AdminAccount | null): boolean {
+  return Boolean(account && (account.role === 'superadmin' || account.role === 'engineer'));
+}
+
+export function canAccessProject(
+  account: AdminAccount | null | undefined,
+  projectId?: string | null
+): boolean {
+  if (!account || isSuperAdminAccount(account)) return true;
+  const allowed = normalizeAllowedProjectIds(account.allowedProjectIds);
+  if (allowed.includes(ALLOWED_PROJECTS_ALL)) return true;
+  if (!projectId) return false;
+  return allowed.includes(projectId);
 }
 
 export async function createAdminAccount(
@@ -289,19 +349,14 @@ export async function createAdminAccount(
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     return { valid: false, error: 'Ingresa un correo electrónico válido.' };
   }
-  if (password.length < PASSWORD_MIN_LENGTH) {
-    return {
-      valid: false,
-      error: `La contraseña debe tener al menos ${PASSWORD_MIN_LENGTH} caracteres.`,
-    };
-  }
-  if (!/[A-Za-z]/.test(password) || !/\d/.test(password)) {
-    return { valid: false, error: 'La contraseña debe combinar letras y números.' };
+  const passwordError = validatePasswordStrength(password);
+  if (passwordError) {
+    return { valid: false, error: passwordError };
   }
 
   const username = (input.username || slugUsername(email)).trim().toLowerCase();
 
-  if (accounts.some((a) => a.email.toLowerCase() === email)) {
+  if (accounts.some((a) => a.email && a.email.toLowerCase() === email)) {
     return { valid: false, error: 'Ya existe una cuenta con ese correo electrónico.' };
   }
   if (accounts.some((a) => a.username.toLowerCase() === username)) {
@@ -320,6 +375,7 @@ export async function createAdminAccount(
       description,
       role: input.role,
       roleLabel: getRoleLabel(input.role),
+      allowedProjectIds: [ALLOWED_PROJECTS_ALL],
       active: true,
       createdAt: new Date().toISOString(),
       lastLoginAt: null,
@@ -329,6 +385,211 @@ export async function createAdminAccount(
       hashAlgorithm: derived.algorithm,
     },
   };
+}
+
+export interface CreateSubUserInput {
+  displayName: string;
+  username?: string;
+  email?: string;
+  description?: string;
+  password: string;
+  role: SubUserRole;
+  allowedProjectIds: string[];
+}
+
+export interface UpdateSubUserInput {
+  displayName: string;
+  username: string;
+  email?: string;
+  description?: string;
+  role: SubUserRole;
+  allowedProjectIds: string[];
+  active: boolean;
+  newPassword?: string;
+}
+
+export async function createSubUserAccount(
+  accounts: AdminAccount[],
+  input: CreateSubUserInput
+): Promise<CreateAccountResult> {
+  const displayName = (input.displayName || '').trim();
+  if (displayName.length < 2) {
+    return { valid: false, error: 'Ingresa el nombre del sub-usuario (mínimo 2 caracteres).' };
+  }
+
+  const rawUsername = (input.username || slugUsername(displayName || input.email || ''))
+    .trim()
+    .toLowerCase();
+  if (!/^[a-z0-9._-]{2,40}$/.test(rawUsername)) {
+    return {
+      valid: false,
+      error: 'El usuario debe tener 2–40 caracteres (letras minúsculas, números, ".", "_" o "-").',
+    };
+  }
+  if (rawUsername === 'admin') {
+    return { valid: false, error: 'El usuario "admin" está reservado para la cuenta principal.' };
+  }
+
+  const email = (input.email || '').trim().toLowerCase();
+  if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    return { valid: false, error: 'Ingresa un correo válido o déjalo vacío.' };
+  }
+
+  const passwordError = validatePasswordStrength(input.password || '');
+  if (passwordError) {
+    return { valid: false, error: passwordError };
+  }
+
+  if (accounts.some((a) => a.username.toLowerCase() === rawUsername)) {
+    return { valid: false, error: `El usuario "${rawUsername}" ya existe.` };
+  }
+  if (email && accounts.some((a) => a.email && a.email.toLowerCase() === email)) {
+    return { valid: false, error: 'Ya existe otro usuario con ese correo electrónico.' };
+  }
+
+  if (!Array.isArray(input.allowedProjectIds) || input.allowedProjectIds.length === 0) {
+    return { valid: false, error: 'Selecciona al menos una carpeta o marca "Todos los proyectos".' };
+  }
+
+  const role: SubUserRole = input.role === 'engineer' ? 'engineer' : 'operator';
+  const description = (input.description || ROLE_DESCRIPTIONS[role]).trim();
+  const allowedProjectIds = normalizeAllowedProjectIds(input.allowedProjectIds);
+  const derived = await derivePasswordHash(input.password);
+
+  return {
+    valid: true,
+    account: {
+      id: `subusr_${Date.now()}_${Math.floor(Math.random() * 900 + 100)}`,
+      username: rawUsername,
+      email,
+      displayName,
+      description,
+      role,
+      roleLabel: getRoleLabel(role),
+      allowedProjectIds,
+      active: true,
+      createdAt: new Date().toISOString(),
+      lastLoginAt: null,
+      passwordHash: derived.hash,
+      passwordSalt: derived.salt,
+      hashIterations: derived.iterations,
+      hashAlgorithm: derived.algorithm,
+    },
+  };
+}
+
+export async function updateSubUserAccount(
+  accounts: AdminAccount[],
+  targetId: string,
+  input: UpdateSubUserInput
+): Promise<CreateAccountResult> {
+  const existing = accounts.find((a) => a.id === targetId);
+  if (!existing || isSuperAdminAccount(existing)) {
+    return { valid: false, error: 'Solo se pueden modificar sub-usuarios delegados.' };
+  }
+
+  const displayName = (input.displayName || '').trim();
+  if (displayName.length < 2) {
+    return { valid: false, error: 'Ingresa el nombre del sub-usuario (mínimo 2 caracteres).' };
+  }
+
+  const username = (input.username || '').trim().toLowerCase();
+  if (!/^[a-z0-9._-]{2,40}$/.test(username) || username === 'admin') {
+    return {
+      valid: false,
+      error: 'El usuario debe tener 2–40 caracteres válidos y no puede ser "admin".',
+    };
+  }
+
+  const email = (input.email || '').trim().toLowerCase();
+  if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    return { valid: false, error: 'Ingresa un correo válido o déjalo vacío.' };
+  }
+
+  if (accounts.some((a) => a.id !== targetId && a.username.toLowerCase() === username)) {
+    return { valid: false, error: `El usuario "${username}" ya está en uso.` };
+  }
+  if (email && accounts.some((a) => a.id !== targetId && a.email && a.email.toLowerCase() === email)) {
+    return { valid: false, error: 'Otro usuario ya usa ese correo electrónico.' };
+  }
+
+  if (!Array.isArray(input.allowedProjectIds) || input.allowedProjectIds.length === 0) {
+    return { valid: false, error: 'Selecciona al menos una carpeta o marca "Todos los proyectos".' };
+  }
+
+  let cryptoFields = {
+    passwordHash: existing.passwordHash,
+    passwordSalt: existing.passwordSalt,
+    hashIterations: existing.hashIterations,
+    hashAlgorithm: existing.hashAlgorithm,
+  };
+
+  if (input.newPassword && input.newPassword.trim().length > 0) {
+    const pwErr = validatePasswordStrength(input.newPassword, 'La nueva contraseña');
+    if (pwErr) return { valid: false, error: pwErr };
+    const derived = await derivePasswordHash(input.newPassword);
+    cryptoFields = {
+      passwordHash: derived.hash,
+      passwordSalt: derived.salt,
+      hashIterations: derived.iterations,
+      hashAlgorithm: derived.algorithm,
+    };
+  }
+
+  const role: SubUserRole = input.role === 'engineer' ? 'engineer' : 'operator';
+  return {
+    valid: true,
+    account: {
+      ...existing,
+      displayName,
+      username,
+      email,
+      description: (input.description || ROLE_DESCRIPTIONS[role]).trim(),
+      role,
+      roleLabel: getRoleLabel(role),
+      allowedProjectIds: normalizeAllowedProjectIds(input.allowedProjectIds),
+      active: Boolean(input.active),
+      ...cryptoFields,
+    },
+  };
+}
+
+export function mergeAdminAccountsWithCloud(
+  localAccounts: AdminAccount[],
+  cloudSubUsers: AdminAccount[],
+  deletedIds: Set<string> = new Set(),
+  pendingLocalIds: Set<string> = new Set()
+): AdminAccount[] {
+  const localAdmins = localAccounts.filter((a) => isSuperAdminAccount(a));
+  const primaryAdmins = localAdmins.length > 0 ? localAdmins : [DEFAULT_ADMIN_ACCOUNT];
+  const localPendingSubs = localAccounts.filter(
+    (a) => !isSuperAdminAccount(a) && !deletedIds.has(a.id) && pendingLocalIds.has(a.id)
+  );
+
+  const subById = new Map<string, AdminAccount>();
+  for (const cloudSub of cloudSubUsers) {
+    if (isSuperAdminAccount(cloudSub) || deletedIds.has(cloudSub.id)) continue;
+    subById.set(cloudSub.id, {
+      ...cloudSub,
+      allowedProjectIds: normalizeAllowedProjectIds(cloudSub.allowedProjectIds),
+    });
+  }
+  for (const pending of localPendingSubs) {
+    if (!subById.has(pending.id)) {
+      subById.set(pending.id, pending);
+    }
+  }
+
+  const seenUsernames = new Set(primaryAdmins.map((a) => a.username.toLowerCase()));
+  const mergedSubs: AdminAccount[] = [];
+  for (const sub of subById.values()) {
+    const uname = sub.username.toLowerCase();
+    if (seenUsernames.has(uname)) continue;
+    seenUsernames.add(uname);
+    mergedSubs.push(sub);
+  }
+
+  return [...primaryAdmins, ...mergedSubs];
 }
 
 export interface AuthResult {
@@ -349,9 +610,9 @@ export async function authenticateAdminAccount(
     return { success: false, error: 'Ingresa tu usuario o correo y tu contraseña.' };
   }
 
-  // Acceso administrativo unificado solicitado por el operador (admin / 1212Gabriel)
+  // Acceso administrativo unificado del operador principal
   if (
-    (cleanId === 'admin' || cleanId === 'admin@proyectosdecamaras.com' || cleanId === 'admin@sideseguate.com') &&
+    (cleanId === 'admin' || cleanId === 'admin@proyectosdecamaras.com') &&
     password === '1212Gabriel'
   ) {
     clearFailedAttempts(cleanId);
@@ -376,7 +637,7 @@ export async function authenticateAdminAccount(
   const found = accounts.find(
     (acc) =>
       acc.active &&
-      (acc.username.toLowerCase() === cleanId || acc.email.toLowerCase() === cleanId)
+      (acc.username.toLowerCase() === cleanId || (acc.email && acc.email.toLowerCase() === cleanId))
   );
 
   if (!found) {
@@ -434,7 +695,7 @@ export function generateTemporaryPassword(length = 14): string {
 }
 
 /**
- * Cambia la contraseña de la única cuenta de administrador.
+ * Cambia la contraseña de la cuenta autenticada.
  * Verifica la contraseña actual antes de aplicar el cambio.
  */
 export async function changeAdminPassword(
@@ -442,14 +703,9 @@ export async function changeAdminPassword(
   currentPassword: string,
   newPassword: string
 ): Promise<{ success: boolean; account?: AdminAccount; error?: string }> {
-  if (newPassword.length < PASSWORD_MIN_LENGTH) {
-    return {
-      success: false,
-      error: `La nueva contraseña debe tener al menos ${PASSWORD_MIN_LENGTH} caracteres.`,
-    };
-  }
-  if (!/[A-Za-z]/.test(newPassword) || !/\d/.test(newPassword)) {
-    return { success: false, error: 'La nueva contraseña debe combinar letras y números.' };
+  const pwError = validatePasswordStrength(newPassword, 'La nueva contraseña');
+  if (pwError) {
+    return { success: false, error: pwError };
   }
   if (newPassword === currentPassword) {
     return { success: false, error: 'La nueva contraseña debe ser distinta a la actual.' };
@@ -629,7 +885,7 @@ export const adminAuthStorage = {
     safeStorage.setItem(STORAGE_KEY_ACCOUNTS, JSON.stringify(accounts));
   },
 
-  /** El sistema ya viene con su cuenta de administrador configurada (admin / 5611admin). */
+  /** La cuenta principal ya viene configurada en el sistema. */
   needsFirstRunSetup: (): boolean => false,
 
   getCurrentSession: (): AdminAccount | null => {
@@ -647,6 +903,48 @@ export const adminAuthStorage = {
     } catch {
       return null;
     }
+  },
+
+  getCurrentSessionExpiry: (): Date | null => {
+    if (typeof window === 'undefined') return null;
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY_SESSION);
+      if (!raw) return null;
+      const parsed = JSON.parse(raw) as StoredSession;
+      if (!parsed?.expiresAt || typeof parsed.expiresAt !== 'number') return null;
+      if (Date.now() > parsed.expiresAt) return null;
+      return new Date(parsed.expiresAt);
+    } catch {
+      return null;
+    }
+  },
+
+  getDeletedSubUserIds: (): Set<string> => {
+    try {
+      const raw = safeStorage.getItem(STORAGE_KEY_DELETED_SUBUSERS);
+      if (!raw) return new Set();
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed) ? new Set(parsed.map(String)) : new Set();
+    } catch {
+      return new Set();
+    }
+  },
+
+  markSubUserDeleted: (userId: string): void => {
+    const cleanId = (userId || '').trim();
+    if (!cleanId) return;
+    const next = adminAuthStorage.getDeletedSubUserIds();
+    next.add(cleanId);
+    safeStorage.setItem(STORAGE_KEY_DELETED_SUBUSERS, JSON.stringify(Array.from(next)));
+  },
+
+  unmarkSubUserDeleted: (userId: string): void => {
+    const cleanId = (userId || '').trim();
+    if (!cleanId) return;
+    const next = adminAuthStorage.getDeletedSubUserIds();
+    if (!next.has(cleanId)) return;
+    next.delete(cleanId);
+    safeStorage.setItem(STORAGE_KEY_DELETED_SUBUSERS, JSON.stringify(Array.from(next)));
   },
 
   saveCurrentSession: (account: AdminAccount | null): void => {

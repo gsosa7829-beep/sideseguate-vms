@@ -148,7 +148,7 @@ export function reviewDeviceRequest(
 /** Mensaje listo para enviar por WhatsApp cuando se aprueba un equipo. */
 export function buildApprovalMessage(device: ClientDeviceRequest, accessUrl: string): string {
   return (
-    `Hola ${device.clientName}, tu equipo "${device.alias}" ya fue autorizado en SIDESEGUATE.\n\n` +
+    `Hola ${device.clientName}, tu equipo "${device.alias}" ya fue autorizado en GLOBAL TECH.\n\n` +
     `Puedes ver tus cámaras aquí:\n${accessUrl}\n\n` +
     `Si no reconoces este mensaje, ignóralo.`
   );

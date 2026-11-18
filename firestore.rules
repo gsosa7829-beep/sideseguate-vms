@@ -335,6 +335,102 @@ service cloud.firestore {
         data.createdAt is timestamp;
     }
 
+    // Assumed Data Model for /cloud_sub_users/{userId}:
+    //   - id: string (required, immutable, 1..128, ^[a-zA-Z0-9_-]+$, equals userId on create)
+    //   - ownerId: string (required, immutable, isAuthorizedOperator)
+    //   - tenantId: string (required, immutable, 1..40, ^[a-z0-9-]+$)
+    //   - username: string (required, 2..40, ^[a-z0-9._-]+$)
+    //   - email: string (required, 0..150)
+    //   - displayName: string (required, 2..120)
+    //   - description: string (required, 0..250)
+    //   - role: string (required, in ['engineer', 'operator']; 'superadmin' is forbidden)
+    //   - roleLabel: string (required, 1..60)
+    //   - allowedProjectIds: list (required, max 100, elements string 1..128)
+    //   - active: bool (required)
+    //   - passwordHash: string (required, 16..128)
+    //   - passwordSalt: string (required, 8..64)
+    //   - hashIterations: int (required, 1000..1000000)
+    //   - hashAlgorithm: string (required, in ['PBKDF2-SHA256', 'LEGACY-FALLBACK'])
+    //   - createdAtIso: string (required, immutable, 1..64)
+    //   - lastLoginAtIso: string (required, 0..64)
+    //   - createdAt: timestamp (required, immutable, == request.time on create)
+    //   - updatedAt: timestamp (required, == request.time on create and update)
+    function isValidCloudSubUser(data) {
+      return data.keys().hasAll([
+          'id',
+          'ownerId',
+          'tenantId',
+          'username',
+          'email',
+          'displayName',
+          'description',
+          'role',
+          'roleLabel',
+          'allowedProjectIds',
+          'active',
+          'passwordHash',
+          'passwordSalt',
+          'hashIterations',
+          'hashAlgorithm',
+          'createdAtIso',
+          'lastLoginAtIso',
+          'createdAt',
+          'updatedAt'
+        ]) &&
+        data.keys().hasOnly([
+          'id',
+          'ownerId',
+          'tenantId',
+          'username',
+          'email',
+          'displayName',
+          'description',
+          'role',
+          'roleLabel',
+          'allowedProjectIds',
+          'active',
+          'passwordHash',
+          'passwordSalt',
+          'hashIterations',
+          'hashAlgorithm',
+          'createdAtIso',
+          'lastLoginAtIso',
+          'createdAt',
+          'updatedAt'
+        ]) &&
+        isValidId(data.id) &&
+        isAuthorizedOperator(data.ownerId) &&
+        hasValidTenant(data) &&
+        data.tenantId is string && data.tenantId.size() >= 1 && data.tenantId.size() <= 40 && data.tenantId.matches('^[a-z0-9-]+$') &&
+        data.username is string && data.username.size() >= 2 && data.username.size() <= 40 && data.username.matches('^[a-z0-9._-]+$') &&
+        data.email is string && data.email.size() >= 0 && data.email.size() <= 150 &&
+        data.displayName is string && data.displayName.size() >= 2 && data.displayName.size() <= 120 &&
+        data.description is string && data.description.size() >= 0 && data.description.size() <= 250 &&
+        data.role is string && data.role in ['engineer', 'operator'] &&
+        data.roleLabel is string && data.roleLabel.size() >= 1 && data.roleLabel.size() <= 60 &&
+        data.allowedProjectIds is list && data.allowedProjectIds.size() <= 100 &&
+        (
+          data.allowedProjectIds.size() == 0 ||
+          (
+            data.allowedProjectIds[0] is string &&
+            data.allowedProjectIds[0].size() >= 1 &&
+            data.allowedProjectIds[0].size() <= 128 &&
+            data.allowedProjectIds[data.allowedProjectIds.size() - 1] is string &&
+            data.allowedProjectIds[data.allowedProjectIds.size() - 1].size() >= 1 &&
+            data.allowedProjectIds[data.allowedProjectIds.size() - 1].size() <= 128
+          )
+        ) &&
+        data.active is bool &&
+        data.passwordHash is string && data.passwordHash.size() >= 16 && data.passwordHash.size() <= 128 &&
+        data.passwordSalt is string && data.passwordSalt.size() >= 8 && data.passwordSalt.size() <= 64 &&
+        data.hashIterations is int && data.hashIterations >= 1000 && data.hashIterations <= 1000000 &&
+        data.hashAlgorithm is string && data.hashAlgorithm in ['PBKDF2-SHA256', 'LEGACY-FALLBACK'] &&
+        data.createdAtIso is string && data.createdAtIso.size() >= 1 && data.createdAtIso.size() <= 64 &&
+        data.lastLoginAtIso is string && data.lastLoginAtIso.size() >= 0 && data.lastLoginAtIso.size() <= 64 &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
     // 4. Collection Rules: /admins/{adminId}
     match /admins/{adminId} {
       allow get: if isSignedIn() && isValidId(adminId) && (resource == null || adminId == request.auth.uid || isAdmin());
@@ -538,6 +634,42 @@ service cloud.firestore {
         incoming().createdAt == request.time;
       allow update: if false;
       allow delete: if isValidId(logId) && isAuthorizedOperator(existing().ownerId);
+    }
+
+    // 10. Collection Rules: /cloud_sub_users/{userId}
+    match /cloud_sub_users/{userId} {
+      allow get: if isValidId(userId) && (resource == null || isAuthorizedOperator(existing().ownerId));
+      allow list: if isAuthorizedOperator(existing().ownerId);
+      allow create: if isValidId(userId) &&
+        userId == incoming().id &&
+        isValidCloudSubUser(incoming()) &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time;
+      allow update: if isValidId(userId) &&
+        isValidCloudSubUser(incoming()) &&
+        incoming().id == existing().id &&
+        incoming().ownerId == existing().ownerId &&
+        incoming().tenantId == existing().tenantId &&
+        incoming().createdAtIso == existing().createdAtIso &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time &&
+        incoming().diff(existing()).affectedKeys().hasOnly([
+          'username',
+          'email',
+          'displayName',
+          'description',
+          'role',
+          'roleLabel',
+          'allowedProjectIds',
+          'active',
+          'passwordHash',
+          'passwordSalt',
+          'hashIterations',
+          'hashAlgorithm',
+          'lastLoginAtIso',
+          'updatedAt'
+        ]);
+      allow delete: if isValidId(userId) && isAuthorizedOperator(existing().ownerId);
     }
   }
 }

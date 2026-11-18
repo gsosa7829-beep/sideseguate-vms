@@ -1,21 +1,13 @@
 import React, { useEffect, useState } from 'react';
 import { NavigationTab, AccessLog, ShareLink } from '../lib/types';
 import { sectionOfTab, labelOfTab } from '../lib/navigation';
-import { AdminAccount } from '../lib/adminAuth';
+import { AdminAccount, canManageInfrastructure, canManageUsers } from '../lib/adminAuth';
 import {
   Plus,
   Search,
   Link2,
-  Cloud,
-  CheckCircle2,
   X,
-  LogIn,
   LogOut,
-  RefreshCw,
-  ExternalLink,
-  Copy,
-  Check,
-  Terminal,
   Monitor,
   Palette,
   Bell,
@@ -25,22 +17,12 @@ import {
   Radio,
   ShieldCheck,
   MoreHorizontal,
+  Users,
 } from 'lucide-react';
-import {
-  GOOGLE_CLOUD_PROJECT_ID,
-  FIRESTORE_DATABASE_ID,
-  subscribeToAuth,
-  signInWithGoogle,
-  signOutFromGoogle,
-  syncVmsWorkspaceToCloud
-} from '../lib/firebase';
-import { currentTenantId } from '../lib/tenant';
 import { formatBuyerAccessNotification } from '../lib/pcLauncherGenerator';
 import { usePWAInstall } from '../lib/usePWAInstall';
 import { MenuItem } from './MenuItem';
 import { BrandSquareIcon } from './BrandMark';
-import { getPublicUrlInfo, describeShareUrlWarning } from '../lib/publicUrl';
-import type { User } from 'firebase/auth';
 
 export type UiThemePreset = 'tactical' | 'sapphire' | 'titanium';
 
@@ -55,8 +37,6 @@ interface TopNavbarProps {
   camerasOnline: number;
   totalCameras: number;
   totalLinks: number;
-  cloudSyncStatus?: 'connecting' | 'live' | 'error';
-  onForceCloudSync?: () => Promise<void>;
   uiTheme?: UiThemePreset;
   onChangeUiTheme?: (theme: UiThemePreset) => void;
   accessLogs?: AccessLog[];
@@ -69,6 +49,7 @@ interface TopNavbarProps {
   onSelectTab?: (tab: NavigationTab) => void;
   currentAdminAccount?: AdminAccount | null;
   onOpenSecurityModal?: () => void;
+  onOpenUsersModal?: () => void;
   onLockPanelNow?: () => void;
 }
 
@@ -79,10 +60,6 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
   onOpenDesktopProgram,
   searchTerm,
   onSearchChange,
-  totalCameras,
-  totalLinks,
-  cloudSyncStatus = 'live',
-  onForceCloudSync,
   uiTheme = 'sapphire',
   onChangeUiTheme,
   accessLogs = [],
@@ -95,26 +72,16 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
   onSelectTab,
   currentAdminAccount,
   onOpenSecurityModal,
+  onOpenUsersModal,
   onLockPanelNow,
 }) => {
   const { isInstalled } = usePWAInstall();
-  const [cloudUser, setCloudUser] = useState<User | null>(null);
-  // Espacio (tenant) activo: cada cliente ve únicamente sus cámaras y enlaces.
-  const [activeTenantId] = useState(() => currentTenantId());
-  const [showCloudModal, setShowCloudModal] = useState(false);
   const [showAlertsPopover, setShowAlertsPopover] = useState(false);
   const [showMoreMenu, setShowMoreMenu] = useState(false);
   const [showMobileSearch, setShowMobileSearch] = useState(false);
-  const [copiedPublicUrl, setCopiedPublicUrl] = useState(false);
-  const [syncStatus, setSyncStatus] = useState<'idle' | 'syncing' | 'synced' | 'error'>('idle');
-  const [authError, setAuthError] = useState<string | null>(null);
 
-  useEffect(() => {
-    const unsub = subscribeToAuth((u) => {
-      setCloudUser(u);
-    });
-    return () => unsub();
-  }, []);
+  const allowInfraEdit = canManageInfrastructure(currentAdminAccount);
+  const allowUserManagement = canManageUsers(currentAdminAccount);
 
   // Cerrar los menús con Escape o al hacer clic fuera.
   useEffect(() => {
@@ -143,49 +110,6 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
     };
   }, [showMoreMenu, showAlertsPopover, showMobileSearch]);
 
-  const handleGoogleSignIn = async () => {
-    setAuthError(null);
-    try {
-      await signInWithGoogle();
-      setSyncStatus('syncing');
-      if (onForceCloudSync) {
-        await onForceCloudSync();
-      }
-      await syncVmsWorkspaceToCloud({
-        gatewayHost: '192.168.1.41:8889',
-        projectsCount: 2,
-        camerasCount: totalCameras,
-        shareLinksCount: totalLinks,
-      });
-      setSyncStatus('synced');
-    } catch (err) {
-      setSyncStatus('error');
-      setAuthError(err instanceof Error ? err.message : 'No se pudo completar el inicio de sesión');
-    }
-  };
-
-  const handleManualSync = async () => {
-    setSyncStatus('syncing');
-    setAuthError(null);
-    try {
-      if (onForceCloudSync) {
-        await onForceCloudSync();
-      }
-      if (cloudUser) {
-        await syncVmsWorkspaceToCloud({
-          gatewayHost: '192.168.1.41:8889',
-          projectsCount: 2,
-          camerasCount: totalCameras,
-          shareLinksCount: totalLinks,
-        });
-      }
-      setSyncStatus('synced');
-    } catch (err) {
-      setSyncStatus('error');
-      setAuthError(err instanceof Error ? err.message : 'Error al sincronizar con Firestore');
-    }
-  };
-
   const cycleTheme = () => {
     if (!onChangeUiTheme) return;
     const order: UiThemePreset[] = ['sapphire', 'tactical', 'titanium'];
@@ -203,10 +127,6 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
   // así la barra superior no puede desincronizarse del menú.
   const section = sectionOfTab(currentTab).label;
   const title = labelOfTab(currentTab);
-
-  // Dominio que llevan los enlaces que recibe el cliente.
-  const publicUrlInfo = getPublicUrlInfo();
-  const publicUrlWarning = describeShareUrlWarning(publicUrlInfo);
 
   return (
     <>
@@ -420,15 +340,17 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
                   aria-label="Más opciones"
                   className="fixed sm:absolute right-3 sm:right-0 top-16 sm:top-11 w-[calc(100vw-1.5rem)] sm:w-64 bg-neutral-900 border border-neutral-700/80 rounded-2xl shadow-2xl z-[100] max-h-[calc(100dvh-9rem)] overflow-y-auto py-1.5 text-xs ring-1 ring-white/10"
                 >
-                <MenuItem
-                  icon={Plus}
-                  label="Añadir cámara"
-                  hint="Registrar una cámara o DVR"
-                  onClick={() => {
-                    setShowMoreMenu(false);
-                    onOpenNewCamera();
-                  }}
-                />
+                {allowInfraEdit && (
+                  <MenuItem
+                    icon={Plus}
+                    label="Añadir cámara"
+                    hint="Registrar una cámara o DVR"
+                    onClick={() => {
+                      setShowMoreMenu(false);
+                      onOpenNewCamera();
+                    }}
+                  />
+                )}
 
                 <MenuItem
                   icon={Monitor}
@@ -453,34 +375,23 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
 
                 <div className="my-1 border-t border-neutral-800" role="separator" />
 
-                <MenuItem
-                  icon={Cloud}
-                  label={
-                    cloudSyncStatus === 'live'
-                      ? 'Nube conectada'
-                      : cloudSyncStatus === 'connecting'
-                        ? 'Conectando…'
-                        : 'Sin conexión a la nube'
-                  }
-                  hint={`Espacio: ${activeTenantId}`}
-                  onClick={() => {
-                    setShowMoreMenu(false);
-                    setShowCloudModal(true);
-                  }}
-                  dot={
-                    cloudSyncStatus === 'live'
-                      ? 'bg-emerald-400'
-                      : cloudSyncStatus === 'connecting'
-                        ? 'bg-sky-400 animate-pulse'
-                        : 'bg-amber-400'
-                  }
-                />
+                {allowUserManagement && onOpenUsersModal && (
+                  <MenuItem
+                    icon={Users}
+                    label="Crear usuarios"
+                    hint="Sub-usuarios, roles y carpetas"
+                    onClick={() => {
+                      setShowMoreMenu(false);
+                      onOpenUsersModal();
+                    }}
+                  />
+                )}
 
                 {onOpenSecurityModal && (
                   <MenuItem
                     icon={ShieldCheck}
                     label="Mi cuenta"
-                    hint="Contraseña y seguridad del panel"
+                    hint="Perfil, contraseña y sesión"
                     onClick={() => {
                       setShowMoreMenu(false);
                       onOpenSecurityModal();
@@ -494,7 +405,7 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
                     <MenuItem
                       icon={LogOut}
                       label="Bloquear panel"
-                      hint="Cerrar la sesión del administrador"
+                      hint="Cerrar la sesión actual"
                       danger
                       onClick={() => {
                         setShowMoreMenu(false);
@@ -509,16 +420,18 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
           </div>
 
           {/* Acción principal */}
-          <button
-            type="button"
-            onClick={onOpenNewLink}
-            aria-label="Crear enlace para un cliente"
-            className="h-11 md:h-9 px-3 sm:px-3.5 bg-gradient-to-r from-sky-600 to-sky-500 hover:from-sky-500 hover:to-sky-400 text-white rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition shadow-sm whitespace-nowrap shrink-0"
-            title="Crear un enlace para un cliente"
-          >
-            <Link2 className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
-            <span className="hidden min-[400px]:inline">Enlace</span>
-          </button>
+          {allowInfraEdit && (
+            <button
+              type="button"
+              onClick={onOpenNewLink}
+              aria-label="Crear enlace para un cliente"
+              className="h-11 md:h-9 px-3 sm:px-3.5 bg-gradient-to-r from-sky-600 to-sky-500 hover:from-sky-500 hover:to-sky-400 text-white rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition shadow-sm whitespace-nowrap shrink-0"
+              title="Crear un enlace para un cliente"
+            >
+              <Link2 className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
+              <span className="hidden min-[400px]:inline">Enlace</span>
+            </button>
+          )}
         </div>
       </header>
 
@@ -547,223 +460,6 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
             >
               <X className="w-4 h-4" aria-hidden="true" />
             </button>
-          </div>
-        </div>
-      )}
-
-      {showCloudModal && (
-        <div
-          role="dialog"
-          aria-modal="true"
-          aria-label="Infraestructura Google Cloud y Firebase"
-          onClick={() => setShowCloudModal(false)}
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            className="bg-neutral-900 border border-neutral-800 rounded-2xl w-full max-w-xl shadow-2xl text-neutral-100 overflow-hidden"
-          >
-            <div className="px-5 py-4 border-b border-neutral-800 flex items-center justify-between bg-neutral-950">
-              <div className="flex items-center gap-2.5">
-                <Cloud className="w-5 h-5 text-sky-400" />
-                <div>
-                  <h3 className="text-sm font-bold text-white">
-                    Sincronización Cloud Firestore y Publicación Web
-                  </h3>
-                  <p className="text-[11px] text-neutral-400">
-                    Cámaras, enlaces y accesos sincronizados en tiempo real
-                  </p>
-                </div>
-              </div>
-              <button
-                aria-label="Cerrar ventana de Google Cloud"
-                onClick={() => setShowCloudModal(false)}
-                className="p-1.5 rounded-lg text-neutral-400 hover:text-white hover:bg-neutral-800 transition"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <div className="p-5 space-y-4 text-xs max-h-[80vh] overflow-y-auto">
-              {/* Real-Time Cloud Sync Box */}
-              <div className="bg-neutral-950 border border-neutral-800 rounded-xl p-4 space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="font-semibold text-white">
-                    1. Sincronización Real en la Nube (Enlaces, PINs y Cámaras)
-                  </span>
-                  <span className="text-[11px] font-mono text-emerald-400 flex items-center gap-1">
-                    <CheckCircle2 className="w-3.5 h-3.5" /> En Vivo (4G / Wi-Fi)
-                  </span>
-                </div>
-                <p className="text-neutral-400 leading-relaxed">
-                  Cada vez que creas o editas un enlace, PIN o cámara en tu PC, se guarda automáticamente en <strong>Google Cloud Firestore</strong>. Cualquier comprador que abra el enlace desde su celular (en otra red 4G o Wi-Fi) verá las cámaras al instante.
-                </p>
-
-                <div className="grid grid-cols-2 gap-2 py-2 border-y border-neutral-800 font-mono text-[11px]">
-                  <div className="text-neutral-400">
-                    Cámaras en Nube: <strong className="text-white">{totalCameras}</strong>
-                  </div>
-                  <div className="text-neutral-400">
-                    Enlaces Activos: <strong className="text-emerald-400">{totalLinks}</strong>
-                  </div>
-                </div>
-
-                <button
-                  onClick={handleManualSync}
-                  disabled={syncStatus === 'syncing'}
-                  className="w-full py-2.5 px-3 bg-sky-600 hover:bg-sky-500 text-white font-semibold rounded-lg flex items-center justify-center gap-1.5 transition"
-                >
-                  <RefreshCw className={`w-3.5 h-3.5 ${syncStatus === 'syncing' ? 'animate-spin' : ''}`} />
-                  <span>
-                    {syncStatus === 'syncing'
-                      ? 'Sincronizando catálogo completo con Firestore...'
-                      : 'Sincronizar Todas las Cámaras y Enlaces Ahora'}
-                  </span>
-                </button>
-
-                {syncStatus === 'synced' && (
-                  <div className="text-[11px] text-emerald-400 font-mono">
-                    ✓ {totalCameras} cámaras y {totalLinks} enlaces sincronizados en Cloud Firestore.
-                  </div>
-                )}
-
-                {cloudUser ? (
-                  <div className="flex items-center justify-between bg-neutral-900 border border-neutral-800 rounded-lg px-3 py-2">
-                    <div className="min-w-0">
-                      <div className="font-medium text-white truncate">
-                        {cloudUser.displayName || 'Operador'}
-                      </div>
-                      <div className="text-[11px] text-neutral-400 font-mono truncate">
-                        {cloudUser.email}
-                      </div>
-                    </div>
-                    <button
-                      onClick={() => signOutFromGoogle()}
-                      className="px-2.5 py-1.5 bg-neutral-800 hover:bg-neutral-700 text-neutral-300 rounded-lg text-[11px] flex items-center gap-1"
-                    >
-                      <LogOut className="w-3.5 h-3.5" />
-                      <span>Salir</span>
-                    </button>
-                  </div>
-                ) : (
-                  <button
-                    onClick={handleGoogleSignIn}
-                    className="w-full py-2 px-4 bg-neutral-900 hover:bg-neutral-800 text-neutral-200 border border-neutral-800 font-medium rounded-lg flex items-center justify-center gap-2 transition"
-                  >
-                    <LogIn className="w-3.5 h-3.5 text-sky-400" />
-                    <span>Vincular Cuenta Google del Administrador (Opcional)</span>
-                  </button>
-                )}
-
-                {authError && (
-                  <div className="text-[11px] text-amber-400 bg-amber-950/40 border border-amber-800/50 rounded-lg p-2.5">
-                    {authError}
-                  </div>
-                )}
-              </div>
-
-              {/* Dominio público: lo que el cliente ve en la barra de direcciones.
-                  Antes esta caja mostraba https://<id-del-proyecto>.web.app, que
-                  es el nombre interno de la infraestructura y además no es el
-                  dominio donde vive la app. */}
-              <div className="bg-neutral-950 border border-neutral-800 rounded-xl p-4 space-y-3">
-                <div className="flex items-center justify-between gap-2">
-                  <span className="font-semibold text-white">
-                    2. Dominio de tus enlaces
-                  </span>
-                  {publicUrlInfo.isReachableByClient && !publicUrlInfo.looksPersonal && (
-                    <span className="text-[11px] font-mono text-emerald-400 flex items-center gap-1 shrink-0">
-                      <CheckCircle2 className="w-3.5 h-3.5" aria-hidden="true" /> Listo
-                    </span>
-                  )}
-                </div>
-
-                <p className="text-neutral-400 leading-relaxed">
-                  Es la dirección que aparece cuando tu cliente abre el enlace
-                  (WhatsApp, QR o «copiar enlace»).
-                </p>
-
-                <div className="flex items-center gap-2 bg-neutral-900 border border-neutral-800 rounded-lg px-3 py-2">
-                  <ExternalLink className="w-3.5 h-3.5 text-sky-400 shrink-0" aria-hidden="true" />
-                  <code className="text-[11.5px] font-mono text-white truncate flex-1">
-                    {publicUrlInfo.baseUrl || '(sin dominio configurado)'}
-                  </code>
-                  <button
-                    type="button"
-                    aria-label="Copiar dominio"
-                    onClick={() => {
-                      navigator.clipboard.writeText(publicUrlInfo.baseUrl).then(() => {
-                        setCopiedPublicUrl(true);
-                        setTimeout(() => setCopiedPublicUrl(false), 2000);
-                      });
-                    }}
-                    className="shrink-0 px-2 py-1 bg-neutral-800 hover:bg-neutral-750 text-white rounded-md text-[11px] font-medium flex items-center gap-1 transition"
-                  >
-                    {copiedPublicUrl ? (
-                      <>
-                        <Check className="w-3 h-3 text-emerald-400" aria-hidden="true" />
-                        <span className="text-emerald-400">Copiado</span>
-                      </>
-                    ) : (
-                      <>
-                        <Copy className="w-3 h-3 text-neutral-400" aria-hidden="true" />
-                        <span>Copiar</span>
-                      </>
-                    )}
-                  </button>
-                </div>
-
-                {publicUrlWarning ? (
-                  <p className="text-[11.5px] leading-relaxed text-amber-300 bg-amber-950/40 border border-amber-800/50 rounded-lg p-2.5">
-                    {publicUrlWarning}
-                  </p>
-                ) : (
-                  <p className="text-[11.5px] leading-relaxed text-neutral-500">
-                    Tus clientes ven tu marca, no datos personales ni el nombre interno
-                    de la infraestructura.
-                  </p>
-                )}
-              </div>
-
-              {/* Detalles técnicos: plegados. El operador no los necesita a la
-                  vista, y mostraban el nombre interno del proyecto. */}
-              <details className="bg-neutral-950 border border-neutral-800 rounded-xl p-4">
-                <summary className="cursor-pointer text-neutral-300 font-medium select-none">
-                  Detalles técnicos e infraestructura
-                </summary>
-                <div className="mt-3 space-y-2">
-                  <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1.5 font-mono text-[11px] text-neutral-400">
-                    <dt>Proyecto</dt>
-                    <dd className="text-neutral-300 break-all">{GOOGLE_CLOUD_PROJECT_ID}</dd>
-                    <dt>Base de datos</dt>
-                    <dd className="text-neutral-300 break-all">{FIRESTORE_DATABASE_ID}</dd>
-                    <dt>Espacio</dt>
-                    <dd className="text-neutral-300 break-all">{activeTenantId}</dd>
-                  </dl>
-                  <div className="flex flex-wrap items-center gap-2 pt-1">
-                    <a
-                      href={`https://console.firebase.google.com/project/${GOOGLE_CLOUD_PROJECT_ID}/firestore/rules`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="px-3 py-2 bg-neutral-900 hover:bg-neutral-850 text-neutral-200 border border-neutral-800 rounded-lg font-medium inline-flex items-center gap-1.5 transition"
-                    >
-                      <span>Consola Firebase</span>
-                      <ExternalLink className="w-3 h-3" aria-hidden="true" />
-                    </a>
-                    <a
-                      href={`https://console.cloud.google.com/cloudshell/editor?project=${GOOGLE_CLOUD_PROJECT_ID}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="px-3 py-2 bg-neutral-900 hover:bg-neutral-850 text-neutral-200 border border-neutral-800 rounded-lg font-medium inline-flex items-center gap-1.5 transition"
-                    >
-                      <Terminal className="w-3.5 h-3.5 text-sky-400" aria-hidden="true" />
-                      <span>Cloud Shell</span>
-                      <ExternalLink className="w-3 h-3" aria-hidden="true" />
-                    </a>
-                  </div>
-                </div>
-              </details>
-            </div>
           </div>
         </div>
       )}

@@ -1353,7 +1353,7 @@ test('el QR nunca cae en un dominio fijo que no sea el de la plataforma', async 
 
   // Sin payload (o vacío) el QR debe codificar el dominio público de la
   // plataforma, no un dominio fijo heredado que puede no existir.
-  const expected = matrixOf(getPublicBaseUrl() || 'SIDESEGUATE');
+  const expected = matrixOf(getPublicBaseUrl() || 'GLOBAL TECH');
   assert.equal(matrixOf('   '), expected);
   // Y no debe coincidir con el dominio fijo que se usaba antes como relleno.
   assert.notEqual(matrixOf('https://sideseguate.com'), expected);
@@ -2007,4 +2007,118 @@ test('shouldUseNativeDvrHls prioriza HLS fijo 1080p en DVR H.264 Cementerio y ma
     }),
     false
   );
+});
+
+test('formatWorkspaceDisplayName oculta el identificador heredado y muestra GLOBAL TECH', async () => {
+  const { formatWorkspaceDisplayName } = await import('./tenant.ts');
+
+  assert.equal(formatWorkspaceDisplayName('sideseguate'), 'GLOBAL TECH');
+  assert.equal(formatWorkspaceDisplayName('global-tech'), 'GLOBAL TECH');
+  assert.equal(formatWorkspaceDisplayName(''), 'GLOBAL TECH');
+  assert.equal(formatWorkspaceDisplayName('lospinos'), 'lospinos');
+});
+
+test('createSubUserAccount, RBAC y sincronización en nube gestionan sub-usuarios con carpetas asignadas', async () => {
+  const {
+    DEFAULT_ADMIN_ACCOUNT,
+    createSubUserAccount,
+    updateSubUserAccount,
+    authenticateAdminAccount,
+    canManageUsers,
+    canManageInfrastructure,
+    canAccessProject,
+    mergeAdminAccountsWithCloud,
+  } = await import('./adminAuth.ts');
+  const { toCloudSubUserPayload, fromCloudSubUserDoc } = await import('./cloudSyncHelpers.ts');
+
+  const baseAccounts = [DEFAULT_ADMIN_ACCOUNT];
+
+  const emptyProjectsRes = await createSubUserAccount(baseAccounts, {
+    displayName: 'Luis López',
+    username: 'luis',
+    password: 'Turno2026Seguro',
+    role: 'operator',
+    allowedProjectIds: [],
+  });
+  assert.equal(emptyProjectsRes.valid, false);
+
+  const reservedAdminRes = await createSubUserAccount(baseAccounts, {
+    displayName: 'Falso Admin',
+    username: 'admin',
+    password: 'Turno2026Seguro',
+    role: 'engineer',
+    allowedProjectIds: ['*'],
+  });
+  assert.equal(reservedAdminRes.valid, false);
+
+  const created = await createSubUserAccount(baseAccounts, {
+    displayName: 'Carlos Méndez',
+    username: 'carlos.ocos',
+    email: '',
+    description: 'Vigilante municipal Ocós',
+    password: 'Ocos2026Seguro',
+    role: 'operator',
+    allowedProjectIds: ['proj-ocos-01'],
+  });
+  assert.equal(created.valid, true);
+  const sub = created.account!;
+  assert.equal(sub.username, 'carlos.ocos');
+  assert.equal(sub.role, 'operator');
+  assert.deepEqual(sub.allowedProjectIds, ['proj-ocos-01']);
+
+  assert.equal(canManageUsers(DEFAULT_ADMIN_ACCOUNT), true);
+  assert.equal(canManageUsers(sub), false);
+  assert.equal(canManageInfrastructure(DEFAULT_ADMIN_ACCOUNT), true);
+  assert.equal(canManageInfrastructure(sub), false);
+  assert.equal(canAccessProject(sub, 'proj-ocos-01'), true);
+  assert.equal(canAccessProject(sub, 'proj-cementerio-02'), false);
+
+  const loginOk = await authenticateAdminAccount([DEFAULT_ADMIN_ACCOUNT, sub], 'carlos.ocos', 'Ocos2026Seguro');
+  assert.equal(loginOk.success, true);
+  assert.equal(loginOk.account?.id, sub.id);
+
+  const updatedRes = await updateSubUserAccount([DEFAULT_ADMIN_ACCOUNT, sub], sub.id, {
+    displayName: 'Carlos Méndez',
+    username: 'carlos.ocos',
+    email: 'carlos@globaltech.gt',
+    description: 'Técnico Ocós y Cementerio',
+    role: 'engineer',
+    allowedProjectIds: ['proj-ocos-01', 'proj-cementerio-02'],
+    active: true,
+  });
+  assert.equal(updatedRes.valid, true);
+  const updatedSub = updatedRes.account!;
+  assert.equal(canManageInfrastructure(updatedSub), true);
+  assert.equal(canManageUsers(updatedSub), false);
+  assert.equal(canAccessProject(updatedSub, 'proj-cementerio-02'), true);
+
+  // Nunca permite escalar a superadmin al serializar para Firestore
+  const cloudPayload = toCloudSubUserPayload({ ...updatedSub, role: 'superadmin' });
+  assert.equal(cloudPayload.role, 'operator');
+
+  const roundTrip = fromCloudSubUserDoc({
+    ...cloudPayload,
+    role: 'engineer',
+  });
+  assert.equal(roundTrip.username, 'carlos.ocos');
+  assert.equal(roundTrip.role, 'engineer');
+  assert.deepEqual(roundTrip.allowedProjectIds, ['proj-ocos-01', 'proj-cementerio-02']);
+
+  // Merge remoto mantiene superadmin, adopta cambios remotos y respeta tumbas locales
+  const merged = mergeAdminAccountsWithCloud(
+    [DEFAULT_ADMIN_ACCOUNT, sub],
+    [roundTrip],
+    new Set()
+  );
+  assert.equal(merged.length, 2);
+  assert.equal(merged[0].role, 'superadmin');
+  assert.equal(merged[1].role, 'engineer');
+
+  const mergedAfterDelete = mergeAdminAccountsWithCloud(
+    [DEFAULT_ADMIN_ACCOUNT, updatedSub],
+    [],
+    new Set()
+  );
+  assert.equal(mergedAfterDelete.length, 1);
+  assert.equal(mergedAfterDelete[0].role, 'superadmin');
 });

@@ -1,6 +1,12 @@
 import React, { useState } from 'react';
-import { AdminAccount, PASSWORD_MIN_LENGTH, changeAdminPassword } from '../lib/adminAuth';
-import { currentTenantId } from '../lib/tenant';
+import {
+  AdminAccount,
+  PASSWORD_MIN_LENGTH,
+  adminAuthStorage,
+  changeAdminPassword,
+} from '../lib/adminAuth';
+import { currentTenantId, formatWorkspaceDisplayName } from '../lib/tenant';
+import { BRAND_NAME } from '../lib/assets';
 import {
   ShieldCheck,
   X,
@@ -31,11 +37,10 @@ interface AdminAccountModalProps {
 }
 
 /**
- * Panel de la **única cuenta de administrador**.
+ * Panel de perfil y seguridad de la cuenta autenticada.
  *
- * No hay gestión de usuarios: el sistema tiene una sola cuenta con acceso al
- * panel. Aquí el administrador revisa sus datos, cambia su contraseña y puede
- * bloquear la sesión.
+ * Muestra los datos de la sesión activa (administrador principal o sub-usuario),
+ * permite cambiar su propia contraseña y bloquear el panel.
  */
 export const AdminAccountModal: React.FC<AdminAccountModalProps> = ({
   isOpen,
@@ -98,29 +103,20 @@ export const AdminAccountModal: React.FC<AdminAccountModalProps> = ({
 
   const spaceId = (() => {
     try {
-      return currentTenantId();
+      return formatWorkspaceDisplayName(currentTenantId());
     } catch {
-      return 'sideseguate';
+      return BRAND_NAME;
     }
   })();
 
-  const sessionExpiry = (() => {
-    try {
-      const raw = localStorage.getItem('sideseguate_admin_session_v2');
-      if (!raw) return null;
-      const parsed = JSON.parse(raw) as { expiresAt?: number };
-      if (!parsed?.expiresAt) return null;
-      return new Date(parsed.expiresAt);
-    } catch {
-      return null;
-    }
-  })();
+  const sessionExpiry = adminAuthStorage.getCurrentSessionExpiry();
+  const isPrimaryAdmin = account.role === 'superadmin';
 
   return (
     <div
       role="dialog"
       aria-modal="true"
-      aria-label="Cuenta del administrador"
+      aria-label="Mi cuenta"
       onClick={handleClose}
       className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
     >
@@ -133,9 +129,9 @@ export const AdminAccountModal: React.FC<AdminAccountModalProps> = ({
           <div className="flex items-start gap-2.5 min-w-0">
             <ShieldCheck className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />
             <div className="min-w-0">
-              <h3 className="text-sm sm:text-base font-bold text-white">Cuenta del administrador</h3>
+              <h3 className="text-sm sm:text-base font-bold text-white">Mi cuenta</h3>
               <p className="text-[11px] text-neutral-400 truncate">
-                Única cuenta con acceso a este panel
+                {account.roleLabel} · {BRAND_NAME}
               </p>
             </div>
           </div>
@@ -143,7 +139,7 @@ export const AdminAccountModal: React.FC<AdminAccountModalProps> = ({
             type="button"
             aria-label="Cerrar"
             onClick={handleClose}
-            className="p-1.5 rounded-lg text-neutral-400 hover:text-white hover:bg-neutral-800 transition shrink-0"
+            className="min-w-[36px] min-h-[36px] sm:min-w-0 sm:min-h-0 p-1.5 rounded-lg text-neutral-400 hover:text-white hover:bg-neutral-800 flex items-center justify-center transition shrink-0"
           >
             <X className="w-4 h-4" />
           </button>
@@ -173,7 +169,7 @@ export const AdminAccountModal: React.FC<AdminAccountModalProps> = ({
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-2 border-t border-neutral-850 text-[11px]">
               <span className="flex items-center gap-1.5 text-neutral-400 truncate">
                 <Mail className="w-3.5 h-3.5 text-neutral-500 shrink-0" />
-                {account.email}
+                {account.email || 'Sin correo registrado'}
               </span>
               <span className="flex items-center gap-1.5 text-neutral-400 truncate">
                 <User className="w-3.5 h-3.5 text-neutral-500 shrink-0" />
@@ -194,15 +190,14 @@ export const AdminAccountModal: React.FC<AdminAccountModalProps> = ({
             </div>
           </div>
 
-          {/* Espacio de datos (multi-tenant) */}
+          {/* Organización / Espacio de trabajo */}
           <div className="bg-neutral-950 border border-neutral-800 rounded-xl p-4 flex items-start gap-2.5">
             <Building2 className="w-4 h-4 text-sky-400 shrink-0 mt-0.5" />
             <div className="min-w-0 space-y-0.5">
-              <p className="font-semibold text-white text-[11px]">Espacio de trabajo</p>
+              <p className="font-semibold text-white text-[11px]">Organización activa</p>
               <p className="text-[11px] text-neutral-400 leading-relaxed">
-                Este panel gestiona únicamente los datos de{' '}
-                <span className="font-mono text-sky-300">{spaceId}</span>. Las cámaras y enlaces
-                de otro cliente nunca se mezclan con los de este espacio.
+                Este panel gestiona los dispositivos y enlaces de{' '}
+                <span className="font-semibold text-sky-300">{spaceId}</span>.
               </p>
             </div>
           </div>
@@ -291,7 +286,7 @@ export const AdminAccountModal: React.FC<AdminAccountModalProps> = ({
             <button
               type="submit"
               disabled={saving}
-              className="w-full sm:w-auto px-4 py-2 bg-sky-600 hover:bg-sky-500 disabled:opacity-50 text-white font-bold rounded-lg text-xs flex items-center justify-center gap-1.5 transition"
+              className="w-full sm:w-auto min-h-[42px] sm:min-h-0 px-4 py-2 bg-sky-600 hover:bg-sky-500 disabled:opacity-50 text-white font-bold rounded-lg text-xs flex items-center justify-center gap-1.5 transition"
             >
               {saving ? (
                 <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
@@ -302,35 +297,36 @@ export const AdminAccountModal: React.FC<AdminAccountModalProps> = ({
             </button>
           </form>
 
-          {/* Candado al abrir el sistema */}
-          <div className="bg-neutral-950 border border-neutral-800 rounded-xl p-4 flex items-start justify-between gap-3">
-            <div className="space-y-1 min-w-0">
-              <p className="font-semibold text-white text-[11px] flex items-center gap-1.5">
-                <Lock className="w-3.5 h-3.5 text-sky-400 shrink-0" />
-                Pedir contraseña al abrir el panel
-              </p>
-              <p className="text-[11px] text-neutral-400 leading-relaxed">
-                Si está activo, el panel arranca bloqueado y solicita la contraseña del
-                administrador. Útil en equipos compartidos.
-              </p>
-            </div>
-            <button
-              type="button"
-              role="switch"
-              aria-checked={requireLoginOnBoot}
-              aria-label="Pedir contraseña al abrir el panel"
-              onClick={() => onToggleRequireLoginOnBoot(!requireLoginOnBoot)}
-              className={`shrink-0 relative w-11 h-6 rounded-full transition-colors ${
-                requireLoginOnBoot ? 'bg-emerald-600' : 'bg-neutral-700'
-              }`}
-            >
-              <span
-                className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white transition-transform ${
-                  requireLoginOnBoot ? 'translate-x-5' : 'translate-x-0'
+          {/* Candado al abrir el sistema (solo administrador principal) */}
+          {isPrimaryAdmin && (
+            <div className="bg-neutral-950 border border-neutral-800 rounded-xl p-4 flex items-start justify-between gap-3">
+              <div className="space-y-1 min-w-0">
+                <p className="font-semibold text-white text-[11px] flex items-center gap-1.5">
+                  <Lock className="w-3.5 h-3.5 text-sky-400 shrink-0" />
+                  Pedir contraseña al abrir el panel
+                </p>
+                <p className="text-[11px] text-neutral-400 leading-relaxed">
+                  Si está activo, el panel arranca bloqueado y solicita contraseña al abrir. Útil en equipos compartidos.
+                </p>
+              </div>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={requireLoginOnBoot}
+                aria-label="Pedir contraseña al abrir el panel"
+                onClick={() => onToggleRequireLoginOnBoot(!requireLoginOnBoot)}
+                className={`shrink-0 relative w-11 h-6 rounded-full transition-colors ${
+                  requireLoginOnBoot ? 'bg-emerald-600' : 'bg-neutral-700'
                 }`}
-              />
-            </button>
-          </div>
+              >
+                <span
+                  className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white transition-transform ${
+                    requireLoginOnBoot ? 'translate-x-5' : 'translate-x-0'
+                  }`}
+                />
+              </button>
+            </div>
+          )}
 
           {/* Seguridad de la sesión */}
           <div className="bg-neutral-950 border border-neutral-800 rounded-xl p-4 flex items-start gap-2.5">
@@ -350,7 +346,7 @@ export const AdminAccountModal: React.FC<AdminAccountModalProps> = ({
               handleClose();
               onLockPanelNow();
             }}
-            className="w-full py-2.5 px-3 bg-amber-600/20 hover:bg-amber-600/30 text-amber-300 border border-amber-500/40 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition"
+            className="w-full min-h-[44px] sm:min-h-0 py-2.5 px-3 bg-amber-600/20 hover:bg-amber-600/30 text-amber-300 border border-amber-500/40 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition"
           >
             <LogOut className="w-3.5 h-3.5" />
             Cerrar sesión y bloquear el panel

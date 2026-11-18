@@ -22,7 +22,7 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
   }
 
   componentDidCatch(error: Error, info: React.ErrorInfo): void {
-    console.error('[SIDESEGUATE] Error de render:', error, info.componentStack);
+    console.error('[GLOBAL TECH] Error de render:', error, info.componentStack);
   }
 
   private handleReload = (): void => {

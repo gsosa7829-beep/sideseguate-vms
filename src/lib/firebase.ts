@@ -132,7 +132,10 @@ import {
   fromCloudShareLinkDoc,
   toCloudAccessLogPayload,
   fromCloudAccessLogDoc,
+  toCloudSubUserPayload,
+  fromCloudSubUserDoc,
 } from './cloudSyncHelpers';
+import type { AdminAccount } from './adminAuth';
 import { currentTenantId, ownerIdForTenant, scopeDocId, parseScopedDocId } from './tenant';
 import { resolveSafeCloudCameraTokenFields } from './ezvizAuth';
 
@@ -601,4 +604,82 @@ export async function syncVmsWorkspaceToCloud(params: {
   } catch (error) {
     handleFirestoreError(error, OperationType.WRITE, docPath);
   }
+}
+
+export async function upsertCloudSubUser(account: AdminAccount): Promise<void> {
+  if (account.role === 'superadmin') return;
+  const { tenantId, ownerId } = activeTenant();
+  const payload = toCloudSubUserPayload(account, ownerId, tenantId);
+  const docKey = scopedId(payload.id);
+  const docPath = `cloud_sub_users/${docKey}`;
+  const docRef = doc(db, 'cloud_sub_users', docKey);
+
+  try {
+    const snap = await getDoc(docRef);
+    if (!snap.exists()) {
+      await setDoc(docRef, {
+        ...payload,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
+    } else {
+      await updateDoc(docRef, {
+        username: payload.username,
+        email: payload.email,
+        displayName: payload.displayName,
+        description: payload.description,
+        role: payload.role,
+        roleLabel: payload.roleLabel,
+        allowedProjectIds: payload.allowedProjectIds,
+        active: payload.active,
+        passwordHash: payload.passwordHash,
+        passwordSalt: payload.passwordSalt,
+        hashIterations: payload.hashIterations,
+        hashAlgorithm: payload.hashAlgorithm,
+        lastLoginAtIso: payload.lastLoginAtIso,
+        updatedAt: serverTimestamp(),
+      });
+    }
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, docPath);
+  }
+}
+
+export async function deleteCloudSubUser(userId: string): Promise<void> {
+  const cleanId = sanitizeCloudId(userId, 'subusr');
+  const docKey = scopedId(cleanId);
+  const docPath = `cloud_sub_users/${docKey}`;
+  try {
+    await deleteDoc(doc(db, 'cloud_sub_users', docKey));
+  } catch (error) {
+    handleFirestoreError(error, OperationType.DELETE, docPath);
+  }
+}
+
+export function subscribeToCloudSubUsers(
+  onSubUsers: (accounts: AdminAccount[]) => void,
+  onError?: (err: unknown) => void
+): () => void {
+  const tenantOwnerId = activeTenant().ownerId;
+  const usersQ = query(
+    collection(db, 'cloud_sub_users'),
+    where('ownerId', '==', tenantOwnerId)
+  );
+
+  return onSnapshot(
+    usersQ,
+    (snap) => {
+      const list = snap.docs
+        .map((d) => {
+          const data = d.data() as Record<string, unknown>;
+          return { ...fromCloudSubUserDoc(data), id: unscopedId(String(data.id || d.id)) };
+        })
+        .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+      onSubUsers(list);
+    },
+    (err) => {
+      console.warn('Error en listener cloud_sub_users:', err);
+      onError?.(err);
+    }
+  );
 }

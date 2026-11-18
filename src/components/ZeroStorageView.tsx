@@ -108,7 +108,7 @@ export const ZeroStorageView: React.FC = () => {
             </ul>
           </div>
 
-          {/* SIDESEGUATE Windows On-Demand */}
+          {/* GLOBAL TECH Windows On-Demand */}
           <div className="bg-neutral-950/80 p-4 rounded-xl border border-emerald-900/40 space-y-3">
             <div className="flex items-center justify-between">
               <span className="font-bold text-white">Pasarela Web Directa</span>

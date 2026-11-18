@@ -150,7 +150,7 @@ export const ClientHandoverCardModal: React.FC<ClientHandoverCardModalProps> = (
         <div className="p-6 space-y-5">
           {/* QR & Main Credential Split */}
           <div className="flex flex-col sm:flex-row items-center gap-5 bg-neutral-950 border border-neutral-850 rounded-xl p-4">
-            {/* Crisp SVG QR Code with Center SIDESEGUATE Badge */}
+            {/* Crisp SVG QR Code with Center GLOBAL TECH Badge */}
             <div className="relative bg-white p-3 rounded-xl shadow-md shrink-0">
               <svg
                 viewBox={`0 0 ${qr.size} ${qr.size}`}

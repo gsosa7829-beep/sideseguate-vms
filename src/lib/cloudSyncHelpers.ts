@@ -40,7 +40,7 @@ export function toCloudProjectPayload(
     id: sanitizeCloudId(project.id, 'proj'),
     ownerId: sanitizeCloudId(ownerId, 'sideseguate_cloud_v1'),
     tenantId: sanitizeTenantId(tenantId),
-    name: (project.name || 'Cliente SIDESEGUATE').trim().slice(0, 200) || 'Cliente SIDESEGUATE',
+    name: (project.name || 'Cliente GLOBAL TECH').trim().slice(0, 200) || 'Cliente GLOBAL TECH',
     clientName: (project.clientName || 'Cliente').trim().slice(0, 150) || 'Cliente',
     clientPhone: (project.clientPhone || '').trim().slice(0, 60),
     location: (project.location || '').trim().slice(0, 250),
@@ -53,7 +53,7 @@ export function toCloudProjectPayload(
 export function fromCloudProjectDoc(data: Record<string, unknown>): Project {
   return {
     id: String(data.id || ''),
-    name: String(data.name || 'Cliente SIDESEGUATE'),
+    name: String(data.name || 'Cliente GLOBAL TECH'),
     clientName: String(data.clientName || 'Cliente'),
     clientPhone: String(data.clientPhone || ''),
     location: String(data.location || ''),
@@ -236,5 +236,119 @@ export function fromCloudAccessLogDoc(data: Record<string, unknown>): AccessLog 
     timestamp: String(data.timestampIso || new Date().toISOString()),
     durationSeconds: Number(data.durationSeconds) || 0,
     action: (data.action as AccessLog['action']) || 'stream_started',
+  };
+}
+
+export interface CloudSubUserRecord {
+  id: string;
+  ownerId: string;
+  tenantId: string;
+  username: string;
+  email: string;
+  displayName: string;
+  description: string;
+  role: 'engineer' | 'operator';
+  roleLabel: string;
+  allowedProjectIds: string[];
+  active: boolean;
+  passwordHash: string;
+  passwordSalt: string;
+  hashIterations: number;
+  hashAlgorithm: 'PBKDF2-SHA256' | 'LEGACY-FALLBACK';
+  createdAtIso: string;
+  lastLoginAtIso: string;
+}
+
+export function toCloudSubUserPayload(
+  account: {
+    id: string;
+    username: string;
+    email?: string;
+    displayName: string;
+    description?: string;
+    role: 'superadmin' | 'engineer' | 'operator';
+    roleLabel: string;
+    allowedProjectIds?: string[];
+    active: boolean;
+    passwordHash: string;
+    passwordSalt: string;
+    hashIterations: number;
+    hashAlgorithm: 'PBKDF2-SHA256' | 'LEGACY-FALLBACK';
+    createdAt: string;
+    lastLoginAt?: string | null;
+  },
+  ownerId: string = CLOUD_WORKSPACE_ID,
+  tenantId: string = DEFAULT_TENANT_ID
+): CloudSubUserRecord {
+  const safeRole: 'engineer' | 'operator' =
+    account.role === 'engineer' ? 'engineer' : 'operator';
+  const rawAllowed = Array.isArray(account.allowedProjectIds)
+    ? account.allowedProjectIds
+        .map((id) => {
+          const trimmed = String(id).trim();
+          if (trimmed === '*') return '*';
+          return sanitizeCloudId(trimmed, 'proj');
+        })
+        .filter((id) => id.length >= 1 && id.length <= 128)
+        .slice(0, 100)
+    : [];
+  const safeAllowed =
+    rawAllowed.length === 0 || rawAllowed.includes('*')
+      ? ['*']
+      : Array.from(new Set(rawAllowed));
+
+  return {
+    id: sanitizeCloudId(account.id, 'subusr'),
+    ownerId: sanitizeCloudId(ownerId, 'sideseguate_cloud_v1'),
+    tenantId: sanitizeTenantId(tenantId),
+    username: (account.username || 'usuario')
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9._-]/g, '')
+      .slice(0, 40) || 'usuario',
+    email: (account.email || '').trim().toLowerCase().slice(0, 150),
+    displayName: (account.displayName || 'Operador').trim().slice(0, 120) || 'Operador',
+    description: (account.description || '').trim().slice(0, 250),
+    role: safeRole,
+    roleLabel: (account.roleLabel || (safeRole === 'engineer' ? 'Ingeniero Electrónico' : 'Operador de Monitoreo'))
+      .trim()
+      .slice(0, 60),
+    allowedProjectIds: safeAllowed,
+    active: Boolean(account.active),
+    passwordHash: String(account.passwordHash || '').slice(0, 128),
+    passwordSalt: String(account.passwordSalt || '').slice(0, 64),
+    hashIterations: Math.max(1000, Math.min(1_000_000, Math.floor(Number(account.hashIterations) || 150_000))),
+    hashAlgorithm: account.hashAlgorithm === 'LEGACY-FALLBACK' ? 'LEGACY-FALLBACK' : 'PBKDF2-SHA256',
+    createdAtIso: (account.createdAt || new Date().toISOString()).slice(0, 64),
+    lastLoginAtIso: account.lastLoginAt ? String(account.lastLoginAt).slice(0, 64) : '',
+  };
+}
+
+export function fromCloudSubUserDoc(data: Record<string, unknown>) {
+  const safeRole: 'engineer' | 'operator' =
+    data.role === 'engineer' ? 'engineer' : 'operator';
+  const rawAllowed = Array.isArray(data.allowedProjectIds)
+    ? data.allowedProjectIds.map(String).filter(Boolean)
+    : ['*'];
+  return {
+    id: String(data.id || ''),
+    username: String(data.username || '').trim().toLowerCase(),
+    email: String(data.email || '').trim().toLowerCase(),
+    displayName: String(data.displayName || 'Operador'),
+    description: String(data.description || ''),
+    role: safeRole,
+    roleLabel: String(
+      data.roleLabel || (safeRole === 'engineer' ? 'Ingeniero Electrónico' : 'Operador de Monitoreo')
+    ),
+    allowedProjectIds: rawAllowed.length > 0 ? rawAllowed : ['*'],
+    active: Boolean(data.active),
+    passwordHash: String(data.passwordHash || ''),
+    passwordSalt: String(data.passwordSalt || ''),
+    hashIterations: Number(data.hashIterations) || 150_000,
+    hashAlgorithm: (data.hashAlgorithm === 'LEGACY-FALLBACK' ? 'LEGACY-FALLBACK' : 'PBKDF2-SHA256') as
+      | 'PBKDF2-SHA256'
+      | 'LEGACY-FALLBACK',
+    createdAt: String(data.createdAtIso || new Date().toISOString()),
+    lastLoginAt: String(data.lastLoginAtIso || '').trim() || null,
   };
 }

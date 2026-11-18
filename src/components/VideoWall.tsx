@@ -54,6 +54,7 @@ interface VideoWallProps {
   onOpenNewProject: () => void;
   onDeleteProject?: (projectId: string) => void;
   onGenerateLink: (camera: Camera) => void;
+  readOnly?: boolean;
 }
 
 interface ProjectBucket {
@@ -358,6 +359,7 @@ export const VideoWall: React.FC<VideoWallProps> = ({
   onOpenNewProject,
   onDeleteProject,
   onGenerateLink,
+  readOnly = false,
 }) => {
   const [filterProjectId, setFilterProjectId] = useState<string>('all');
   const [layoutMode, setLayoutMode] = useState<'folders' | 'sections' | 'grid'>('folders');
@@ -864,14 +866,16 @@ export const VideoWall: React.FC<VideoWallProps> = ({
               <span className="hidden sm:inline font-mono text-[11px] text-neutral-400 bg-neutral-950 px-2.5 py-1.5 rounded-lg border border-neutral-800">
                 {totalFolders} {totalFolders === 1 ? 'Carpeta' : 'Carpetas'}
               </span>
-              <button
-                type="button"
-                onClick={onOpenNewProject}
-                className="w-full sm:w-auto min-h-[40px] sm:min-h-[36px] px-3.5 py-2 sm:py-1.5 rounded-xl bg-sky-600 hover:bg-sky-500 active:scale-95 text-white font-semibold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer shadow-sm"
-              >
-                <FolderPlus className="w-3.5 h-3.5 shrink-0" />
-                <span>Nueva Carpeta</span>
-              </button>
+              {!readOnly && (
+                <button
+                  type="button"
+                  onClick={onOpenNewProject}
+                  className="w-full sm:w-auto min-h-[40px] sm:min-h-[36px] px-3.5 py-2 sm:py-1.5 rounded-xl bg-sky-600 hover:bg-sky-500 active:scale-95 text-white font-semibold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer shadow-sm"
+                >
+                  <FolderPlus className="w-3.5 h-3.5 shrink-0" />
+                  <span>Nueva Carpeta</span>
+                </button>
+              )}
             </div>
           </div>
 
@@ -1032,7 +1036,7 @@ export const VideoWall: React.FC<VideoWallProps> = ({
                         : `Toca para abrir (${bucket.cameras.length})`}
                     </span>
                     <div className="flex items-center gap-1.5 shrink-0">
-                      {bucket.project && onDeleteProject && (
+                      {!readOnly && bucket.project && onDeleteProject && (
                         <button
                           type="button"
                           onClick={(e) => {
@@ -1252,7 +1256,7 @@ export const VideoWall: React.FC<VideoWallProps> = ({
                           </>
                         )}
 
-                        {bucket.project && (
+                        {!readOnly && bucket.project && (
                           <button
                             type="button"
                             onClick={() => onOpenNewCamera(bucket.id)}
@@ -1273,17 +1277,21 @@ export const VideoWall: React.FC<VideoWallProps> = ({
                       <div className="space-y-1">
                         <p className="text-sm font-semibold text-white">Carpeta "{bucket.title}" vacía</p>
                         <p className="text-xs text-neutral-400 max-w-md mx-auto">
-                          Agrega nuevas cámaras desde el Asistente IA eligiendo esta carpeta o haz clic abajo.
+                          {readOnly
+                            ? 'Todavía no hay cámaras asignadas a esta carpeta.'
+                            : 'Agrega nuevas cámaras desde el Asistente IA eligiendo esta carpeta o haz clic abajo.'}
                         </p>
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => onOpenNewCamera(bucket.id !== 'other' ? bucket.id : undefined)}
-                        className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-sky-600 hover:bg-sky-500 text-white text-xs font-semibold transition cursor-pointer"
-                      >
-                        <Plus className="w-4 h-4" />
-                        <span>Agregar Cámara a {bucket.title}</span>
-                      </button>
+                      {!readOnly && (
+                        <button
+                          type="button"
+                          onClick={() => onOpenNewCamera(bucket.id !== 'other' ? bucket.id : undefined)}
+                          className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-sky-600 hover:bg-sky-500 text-white text-xs font-semibold transition cursor-pointer"
+                        >
+                          <Plus className="w-4 h-4" />
+                          <span>Agregar Cámara a {bucket.title}</span>
+                        </button>
+                      )}
                     </div>
                   ) : (
                     <div className={`pt-2 pb-8 ${getProjectGridClass(bucket.cameras.length)}`}>

@@ -44,7 +44,7 @@ export function generateRealQrCode(
 ): RealQrCode {
   // Si llega vacío, el QR apunta al dominio público real en vez de a un
   // dominio fijo que puede no existir.
-  const text = payload && payload.trim() ? payload : getPublicBaseUrl() || 'SIDESEGUATE';
+  const text = payload && payload.trim() ? payload : getPublicBaseUrl() || 'GLOBAL TECH';
   const qr = QRCode.create(text, {
     errorCorrectionLevel: options.errorCorrectionLevel || 'H',
   });
@@ -104,7 +104,7 @@ export async function generateRealQrPngDataUrl(
   payload: string,
   options: RealQrOptions & { width?: number; margin?: number } = {}
 ): Promise<string> {
-  return QRCode.toDataURL(payload && payload.trim() ? payload : getPublicBaseUrl() || 'SIDESEGUATE', {
+  return QRCode.toDataURL(payload && payload.trim() ? payload : getPublicBaseUrl() || 'GLOBAL TECH', {
     errorCorrectionLevel: options.errorCorrectionLevel || 'H',
     width: options.width ?? 512,
     margin: options.margin ?? 2,

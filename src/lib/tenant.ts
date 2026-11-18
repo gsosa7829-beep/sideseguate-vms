@@ -249,3 +249,15 @@ export function currentTenantId(): string {
     stored: loadTenantId(),
   });
 }
+
+/**
+ * Nombre visible del espacio de trabajo en la UI (nunca expone el
+ * identificador interno heredado).
+ */
+export function formatWorkspaceDisplayName(tenantId?: string | null): string {
+  const clean = (tenantId || '').trim().toLowerCase();
+  if (!clean || clean === DEFAULT_TENANT_ID || clean === 'global-tech' || clean === 'sideseguate-vms') {
+    return 'GLOBAL TECH';
+  }
+  return clean;
+}
