@@ -2121,4 +2121,16 @@ test('createSubUserAccount, RBAC y sincronización en nube gestionan sub-usuario
   );
   assert.equal(mergedAfterDelete.length, 1);
   assert.equal(mergedAfterDelete[0].role, 'superadmin');
+
+  const { isValidSubUserEmail } = await import('./adminAuth.ts');
+  const { scopeDocId, parseScopedDocId } = await import('./tenant.ts');
+  assert.equal(isValidSubUserEmail('carlos@globaltech.gt'), true);
+  assert.equal(isValidSubUserEmail('bad@domain.c'), false);
+
+  const sanitizedBadEmailPayload = toCloudSubUserPayload({ ...updatedSub, email: 'bad@domain.c' });
+  assert.equal(sanitizedBadEmailPayload.email, '');
+
+  const scopedSubId = scopeDocId('los-pinos', updatedSub.id);
+  assert.match(scopedSubId, /^[a-zA-Z0-9_\-]+$/);
+  assert.equal(parseScopedDocId(scopedSubId).docId, updatedSub.id);
 });

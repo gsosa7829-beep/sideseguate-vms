@@ -6,6 +6,18 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    // ===============================================================
+    // Assumed Data Model (Summary across all 7 collections)
+    // ===============================================================
+    // - /admins/{adminId}: { ownerId, displayName, createdAt, updatedAt }
+    // - /vms_workspaces/{workspaceId}: { ownerId, gatewayHost, projectsCount, camerasCount, shareLinksCount, status, createdAt, updatedAt }
+    // - /cloud_projects/{projectId}: { id, ownerId, name, clientName, clientPhone, location, status, equipmentNotes, createdAtIso, [tenantId], createdAt, updatedAt }
+    // - /cloud_cameras/{cameraId}: { id, ownerId, projectId, name, deviceType, host, port, onvifPort, channel, streamType, hlsStreamUrl, webrtcUrl, status, fps, resolution, bitrateKbps, codec, locationDesc, ptzSupported, nightVision, cloudId, [deviceSerial], [tenantId], notes, createdAt, updatedAt }
+    // - /cloud_share_links/{token}: { id, ownerId, projectId, token, title, clientName, cameraIds, pinCode, expiresAtIso, isActive, allowPtz, allowAudio, allowSnapshot, showWatermark, maxConcurrentViewers, accessCount, lastAccessedAtIso, createdAtIso, [tenantId], createdAt, updatedAt }
+    // - /cloud_access_logs/{logId}: { id, ownerId, shareLinkId, clientIp, deviceInfo, timestampIso, durationSeconds, action, [tenantId], createdAt }
+    // - /cloud_sub_users/{userId}: { id, ownerId, tenantId, username, email, displayName, description, role, roleLabel, allowedProjectIds, active, passwordHash, passwordSalt, hashIterations, hashAlgorithm, createdAtIso, lastLoginAtIso, createdAt, updatedAt }
+    // ===============================================================
+
     // 2. Hardened Global Primitives
     function isValidId(id) {
       return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
@@ -58,12 +70,61 @@ service cloud.firestore {
       );
     }
 
+    function isValidEmail(email) {
+      return email is string &&
+        email.size() >= 3 &&
+        email.size() <= 150 &&
+        email.matches('^[a-zA-Z0-9._%+\\-]+@[a-zA-Z0-9.\\-]+\\.[a-zA-Z]{2,}$');
+    }
+
+    // Allows empty string, http(s):// URLs, or same-origin relative /paths (rejects javascript:/data:)
+    function isValidStreamUrl(url) {
+      return url is string &&
+        url.size() <= 500 &&
+        (url == '' || url.matches('^https?://.*') || url.matches('^/.*'));
+    }
+
+    // ISO 8601 date string format validation (with properly escaped double backslashes for CEL)
+    function isValidDateString(dateStr) {
+      return dateStr is string &&
+        dateStr.size() >= 1 &&
+        dateStr.size() <= 64 &&
+        dateStr.matches('^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}.*Z?$');
+    }
+
+    function isValidStringIdList(items, maxItems) {
+      return items is list &&
+        items.size() <= maxItems &&
+        (
+          items.size() == 0 ||
+          (
+            items[0] is string &&
+            items[0].size() >= 1 &&
+            items[0].size() <= 128 &&
+            items[items.size() - 1] is string &&
+            items[items.size() - 1].size() >= 1 &&
+            items[items.size() - 1].size() <= 128
+          )
+        );
+    }
+
+    function isValidAllowedProjectIds(items) {
+      return items is list &&
+        items.size() <= 100 &&
+        (
+          items.size() == 0 ||
+          (
+            (items[0] == '*' || isValidId(items[0])) &&
+            (items[items.size() - 1] == '*' || isValidId(items[items.size() - 1]))
+          )
+        );
+    }
+
     // 3. Entity Validation Blueprints
     function isValidAdminProfile(data) {
       return data.keys().hasAll(['ownerId', 'displayName', 'createdAt', 'updatedAt']) &&
         data.keys().hasOnly(['ownerId', 'displayName', 'createdAt', 'updatedAt']) &&
-        data.ownerId is string && data.ownerId.size() >= 1 && data.ownerId.size() <= 128 &&
-        data.ownerId.matches('^[a-zA-Z0-9_\\-]+$') &&
+        isValidId(data.ownerId) &&
         data.ownerId == request.auth.uid &&
         data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 100 &&
         data.createdAt is timestamp &&
@@ -91,8 +152,7 @@ service cloud.firestore {
           'createdAt',
           'updatedAt'
         ]) &&
-        data.ownerId is string && data.ownerId.size() >= 1 && data.ownerId.size() <= 128 &&
-        data.ownerId.matches('^[a-zA-Z0-9_\\-]+$') &&
+        isValidId(data.ownerId) &&
         data.ownerId == request.auth.uid &&
         data.gatewayHost is string && data.gatewayHost.size() >= 1 && data.gatewayHost.size() <= 200 &&
         data.projectsCount is int && data.projectsCount >= 0 && data.projectsCount <= 500 &&
@@ -211,8 +271,8 @@ service cloud.firestore {
         data.onvifPort is int && data.onvifPort >= 1 && data.onvifPort <= 65535 &&
         data.channel is int && data.channel >= 1 && data.channel <= 128 &&
         data.streamType is string && data.streamType in ['main', 'sub'] &&
-        data.hlsStreamUrl is string && data.hlsStreamUrl.size() >= 0 && data.hlsStreamUrl.size() <= 500 &&
-        data.webrtcUrl is string && data.webrtcUrl.size() >= 0 && data.webrtcUrl.size() <= 500 &&
+        isValidStreamUrl(data.hlsStreamUrl) &&
+        isValidStreamUrl(data.webrtcUrl) &&
         data.status is string && data.status in ['online', 'offline', 'warning'] &&
         data.fps is int && data.fps >= 1 && data.fps <= 120 &&
         data.resolution is string && data.resolution.size() >= 1 && data.resolution.size() <= 100 &&
@@ -222,7 +282,7 @@ service cloud.firestore {
         data.ptzSupported is bool &&
         data.nightVision is bool &&
         data.cloudId is string && data.cloudId.size() >= 0 && data.cloudId.size() <= 128 &&
-        (!data.keys().hasAny(['deviceSerial']) || (data.deviceSerial is string && data.deviceSerial.size() <= 64)) &&
+        (!data.keys().hasAny(['deviceSerial']) || (data.deviceSerial is string && data.deviceSerial.size() >= 0 && data.deviceSerial.size() <= 64)) &&
         data.notes is string && data.notes.size() >= 0 && data.notes.size() <= 1000 &&
         data.createdAt is timestamp &&
         data.updatedAt is timestamp;
@@ -248,7 +308,6 @@ service cloud.firestore {
           'accessCount',
           'lastAccessedAtIso',
           'createdAtIso',
-          'tenantId',
           'createdAt',
           'updatedAt'
         ]) &&
@@ -282,8 +341,7 @@ service cloud.firestore {
         isValidId(data.token) &&
         data.title is string && data.title.size() >= 1 && data.title.size() <= 200 &&
         data.clientName is string && data.clientName.size() >= 1 && data.clientName.size() <= 150 &&
-        data.cameraIds is list && data.cameraIds.size() <= 64 &&
-        (data.cameraIds.size() == 0 || (data.cameraIds[0] is string && data.cameraIds[0].size() >= 1 && data.cameraIds[0].size() <= 128)) &&
+        isValidStringIdList(data.cameraIds, 64) &&
         data.pinCode is string && data.pinCode.size() >= 0 && data.pinCode.size() <= 16 &&
         data.expiresAtIso is string && data.expiresAtIso.size() >= 0 && data.expiresAtIso.size() <= 64 &&
         data.isActive is bool &&
@@ -329,7 +387,7 @@ service cloud.firestore {
         isValidId(data.shareLinkId) &&
         data.clientIp is string && data.clientIp.size() >= 1 && data.clientIp.size() <= 100 &&
         data.deviceInfo is string && data.deviceInfo.size() >= 1 && data.deviceInfo.size() <= 250 &&
-        data.timestampIso is string && data.timestampIso.size() >= 1 && data.timestampIso.size() <= 64 &&
+        isValidDateString(data.timestampIso) &&
         data.durationSeconds is int && data.durationSeconds >= 0 && data.durationSeconds <= 86400 &&
         data.action is string && data.action in ['stream_started', 'ptz_used', 'snapshot_taken', 'auth_failed'] &&
         data.createdAt is timestamp;
@@ -339,20 +397,20 @@ service cloud.firestore {
     //   - id: string (required, immutable, 1..128, ^[a-zA-Z0-9_-]+$, equals userId on create)
     //   - ownerId: string (required, immutable, isAuthorizedOperator)
     //   - tenantId: string (required, immutable, 1..40, ^[a-z0-9-]+$)
-    //   - username: string (required, 2..40, ^[a-z0-9._-]+$)
-    //   - email: string (required, 0..150)
+    //   - username: string (required, 2..40, ^[a-z0-9._-]+$, != 'admin')
+    //   - email: string (required, '' or valid email <= 150)
     //   - displayName: string (required, 2..120)
     //   - description: string (required, 0..250)
     //   - role: string (required, in ['engineer', 'operator']; 'superadmin' is forbidden)
     //   - roleLabel: string (required, 1..60)
-    //   - allowedProjectIds: list (required, max 100, elements string 1..128)
+    //   - allowedProjectIds: list (required, max 100, '*' or isValidId)
     //   - active: bool (required)
     //   - passwordHash: string (required, 16..128)
     //   - passwordSalt: string (required, 8..64)
     //   - hashIterations: int (required, 1000..1000000)
     //   - hashAlgorithm: string (required, in ['PBKDF2-SHA256', 'LEGACY-FALLBACK'])
-    //   - createdAtIso: string (required, immutable, 1..64)
-    //   - lastLoginAtIso: string (required, 0..64)
+    //   - createdAtIso: string (required, immutable, ISO 8601, 1..64)
+    //   - lastLoginAtIso: string (required, '' or ISO 8601, <= 64)
     //   - createdAt: timestamp (required, immutable, == request.time on create)
     //   - updatedAt: timestamp (required, == request.time on create and update)
     function isValidCloudSubUser(data) {
@@ -402,38 +460,27 @@ service cloud.firestore {
         isAuthorizedOperator(data.ownerId) &&
         hasValidTenant(data) &&
         data.tenantId is string && data.tenantId.size() >= 1 && data.tenantId.size() <= 40 && data.tenantId.matches('^[a-z0-9-]+$') &&
-        data.username is string && data.username.size() >= 2 && data.username.size() <= 40 && data.username.matches('^[a-z0-9._-]+$') &&
-        data.email is string && data.email.size() >= 0 && data.email.size() <= 150 &&
+        data.username is string && data.username.size() >= 2 && data.username.size() <= 40 && data.username.matches('^[a-z0-9._-]+$') && data.username != 'admin' &&
+        data.email is string && data.email.size() <= 150 && (data.email == '' || isValidEmail(data.email)) &&
         data.displayName is string && data.displayName.size() >= 2 && data.displayName.size() <= 120 &&
         data.description is string && data.description.size() >= 0 && data.description.size() <= 250 &&
         data.role is string && data.role in ['engineer', 'operator'] &&
         data.roleLabel is string && data.roleLabel.size() >= 1 && data.roleLabel.size() <= 60 &&
-        data.allowedProjectIds is list && data.allowedProjectIds.size() <= 100 &&
-        (
-          data.allowedProjectIds.size() == 0 ||
-          (
-            data.allowedProjectIds[0] is string &&
-            data.allowedProjectIds[0].size() >= 1 &&
-            data.allowedProjectIds[0].size() <= 128 &&
-            data.allowedProjectIds[data.allowedProjectIds.size() - 1] is string &&
-            data.allowedProjectIds[data.allowedProjectIds.size() - 1].size() >= 1 &&
-            data.allowedProjectIds[data.allowedProjectIds.size() - 1].size() <= 128
-          )
-        ) &&
+        isValidAllowedProjectIds(data.allowedProjectIds) &&
         data.active is bool &&
         data.passwordHash is string && data.passwordHash.size() >= 16 && data.passwordHash.size() <= 128 &&
         data.passwordSalt is string && data.passwordSalt.size() >= 8 && data.passwordSalt.size() <= 64 &&
         data.hashIterations is int && data.hashIterations >= 1000 && data.hashIterations <= 1000000 &&
         data.hashAlgorithm is string && data.hashAlgorithm in ['PBKDF2-SHA256', 'LEGACY-FALLBACK'] &&
-        data.createdAtIso is string && data.createdAtIso.size() >= 1 && data.createdAtIso.size() <= 64 &&
-        data.lastLoginAtIso is string && data.lastLoginAtIso.size() >= 0 && data.lastLoginAtIso.size() <= 64 &&
+        isValidDateString(data.createdAtIso) &&
+        data.lastLoginAtIso is string && data.lastLoginAtIso.size() <= 64 && (data.lastLoginAtIso == '' || isValidDateString(data.lastLoginAtIso)) &&
         data.createdAt is timestamp &&
         data.updatedAt is timestamp;
     }
 
     // 4. Collection Rules: /admins/{adminId}
     match /admins/{adminId} {
-      allow get: if isSignedIn() && isValidId(adminId) && (resource == null || adminId == request.auth.uid || isAdmin());
+      allow get: if isSignedIn() && isValidId(adminId) && (adminId == request.auth.uid || isAdmin());
       allow list: if false;
       allow create: if isSignedIn() &&
         isValidId(adminId) &&
@@ -456,7 +503,11 @@ service cloud.firestore {
 
     // 5. Collection Rules: /vms_workspaces/{workspaceId}
     match /vms_workspaces/{workspaceId} {
-      allow get: if isSignedIn() && isValidId(workspaceId) && (resource == null || existing().ownerId == request.auth.uid || isAdmin());
+      allow get: if isSignedIn() && isValidId(workspaceId) && (
+        (resource == null && workspaceId == request.auth.uid) ||
+        (resource != null && existing().ownerId == request.auth.uid) ||
+        isAdmin()
+      );
       allow list: if isSignedIn() && (existing().ownerId == request.auth.uid || isAdmin());
       allow create: if isSignedIn() &&
         isValidId(workspaceId) &&
@@ -493,12 +544,14 @@ service cloud.firestore {
       allow create: if isValidId(projectId) &&
         projectId == incoming().id &&
         isValidCloudProject(incoming()) &&
+        isValidDateString(incoming().createdAtIso) &&
         incoming().createdAt == request.time &&
         incoming().updatedAt == request.time;
       allow update: if isValidId(projectId) &&
         isValidCloudProject(incoming()) &&
         incoming().id == existing().id &&
         incoming().ownerId == existing().ownerId &&
+        (!existing().keys().hasAny(['tenantId']) || incoming().tenantId == existing().tenantId) &&
         incoming().createdAtIso == existing().createdAtIso &&
         incoming().createdAt == existing().createdAt &&
         incoming().updatedAt == request.time &&
@@ -530,6 +583,7 @@ service cloud.firestore {
         isValidCloudCamera(incoming()) &&
         incoming().id == existing().id &&
         incoming().ownerId == existing().ownerId &&
+        (!existing().keys().hasAny(['tenantId']) || incoming().tenantId == existing().tenantId) &&
         incoming().createdAt == existing().createdAt &&
         incoming().updatedAt == request.time &&
         (
@@ -583,7 +637,11 @@ service cloud.firestore {
       allow list: if isAuthorizedOperator(existing().ownerId);
       allow create: if isValidId(token) &&
         token == incoming().token &&
+        incoming().keys().hasAny(['tenantId']) &&
         isValidCloudShareLink(incoming()) &&
+        isValidDateString(incoming().createdAtIso) &&
+        (incoming().expiresAtIso == '' || isValidDateString(incoming().expiresAtIso)) &&
+        (incoming().lastAccessedAtIso == '' || isValidDateString(incoming().lastAccessedAtIso)) &&
         incoming().createdAt == request.time &&
         incoming().updatedAt == request.time;
       allow update: if isValidId(token) &&
@@ -591,17 +649,23 @@ service cloud.firestore {
         incoming().id == existing().id &&
         incoming().token == existing().token &&
         incoming().ownerId == existing().ownerId &&
+        (!existing().keys().hasAny(['tenantId']) || incoming().tenantId == existing().tenantId) &&
         incoming().createdAtIso == existing().createdAtIso &&
         incoming().createdAt == existing().createdAt &&
         incoming().updatedAt == request.time &&
         (
           isAdmin() ||
           // Action 1: Buyer / Viewer Telemetry Increment
-          incoming().diff(existing()).affectedKeys().hasOnly([
-            'accessCount',
-            'lastAccessedAtIso',
-            'updatedAt'
-          ]) ||
+          (
+            incoming().diff(existing()).affectedKeys().hasOnly([
+              'accessCount',
+              'lastAccessedAtIso',
+              'updatedAt'
+            ]) &&
+            incoming().accessCount >= existing().accessCount &&
+            incoming().accessCount <= existing().accessCount + 1 &&
+            isValidDateString(incoming().lastAccessedAtIso)
+          ) ||
           // Action 2: Operator Link Configuration Update
           incoming().diff(existing()).affectedKeys().hasOnly([
             'projectId',
@@ -633,7 +697,7 @@ service cloud.firestore {
         isValidCloudAccessLog(incoming()) &&
         incoming().createdAt == request.time;
       allow update: if false;
-      allow delete: if isValidId(logId) && isAuthorizedOperator(existing().ownerId);
+      allow delete: if isValidId(logId) && isAdmin();
     }
 
     // 10. Collection Rules: /cloud_sub_users/{userId}

@@ -148,9 +148,12 @@ function activeTenant(): { tenantId: string; ownerId: string } {
   return { tenantId, ownerId: ownerIdForTenant(tenantId) };
 }
 
-/** id real del documento en Firestore (namespaced por tenant). */
-function scopedId(id: string): string {
-  return scopeDocId(activeTenant().tenantId, id);
+/** id real del documento en Firestore (namespaced por tenant y acotado a 1..128 chars). */
+function scopedDocKey(id: string, fallbackPrefix: string): string {
+  return sanitizeCloudId(
+    scopeDocId(activeTenant().tenantId, sanitizeCloudId(id, fallbackPrefix)),
+    fallbackPrefix
+  );
 }
 
 /** Devuelve el id "lógico" quitando el prefijo del tenant. */
@@ -166,8 +169,9 @@ const MAX_HOST_LEN = 200;
 // CRUD & Real-Time Cloud Sync Operations
 export async function upsertCloudProject(project: Project): Promise<void> {
   const { tenantId, ownerId } = activeTenant();
-  const payload = { ...toCloudProjectPayload(project, ownerId, tenantId), id: project.id };
-  const docKey = scopedId(payload.id);
+  const basePayload = toCloudProjectPayload(project, ownerId, tenantId);
+  const docKey = scopedDocKey(basePayload.id, 'proj');
+  const payload = { ...basePayload, id: docKey };
   const docPath = `cloud_projects/${docKey}`;
   const docRef = doc(db, 'cloud_projects', docKey);
 
@@ -196,10 +200,10 @@ export async function upsertCloudProject(project: Project): Promise<void> {
 }
 
 export async function deleteCloudProject(projectId: string): Promise<void> {
-  const cleanId = sanitizeCloudId(projectId, 'proj');
-  const docPath = `cloud_projects/${cleanId}`;
+  const docKey = scopedDocKey(projectId, 'proj');
+  const docPath = `cloud_projects/${docKey}`;
   try {
-    await deleteDoc(doc(db, 'cloud_projects', cleanId));
+    await deleteDoc(doc(db, 'cloud_projects', docKey));
   } catch (error) {
     handleFirestoreError(error, OperationType.DELETE, docPath);
   }
@@ -207,8 +211,9 @@ export async function deleteCloudProject(projectId: string): Promise<void> {
 
 export async function upsertCloudCamera(camera: Camera): Promise<void> {
   const { tenantId, ownerId } = activeTenant();
-  const payload = { ...toCloudCameraPayload(camera, ownerId, tenantId), id: camera.id };
-  const docKey = scopedId(payload.id);
+  const basePayload = toCloudCameraPayload(camera, ownerId, tenantId);
+  const docKey = scopedDocKey(basePayload.id, 'cam');
+  const payload = { ...basePayload, id: docKey };
   const docPath = `cloud_cameras/${docKey}`;
   const docRef = doc(db, 'cloud_cameras', docKey);
 
@@ -256,10 +261,10 @@ export async function upsertCloudCamera(camera: Camera): Promise<void> {
 }
 
 export async function deleteCloudCamera(cameraId: string): Promise<void> {
-  const cleanId = sanitizeCloudId(cameraId, 'cam');
-  const docPath = `cloud_cameras/${cleanId}`;
+  const docKey = scopedDocKey(cameraId, 'cam');
+  const docPath = `cloud_cameras/${docKey}`;
   try {
-    await deleteDoc(doc(db, 'cloud_cameras', cleanId));
+    await deleteDoc(doc(db, 'cloud_cameras', docKey));
   } catch (error) {
     handleFirestoreError(error, OperationType.DELETE, docPath);
   }
@@ -365,8 +370,10 @@ export async function recordCloudShareLinkAccess(
     };
 
     const { tenantId, ownerId } = activeTenant();
-    const logPayload = toCloudAccessLogPayload(logEntry, ownerId, tenantId);
-    const logRef = doc(db, 'cloud_access_logs', scopedId(logPayload.id));
+    const baseLogPayload = toCloudAccessLogPayload(logEntry, ownerId, tenantId);
+    const logDocKey = scopedDocKey(baseLogPayload.id, 'log');
+    const logPayload = { ...baseLogPayload, id: logDocKey };
+    const logRef = doc(db, 'cloud_access_logs', logDocKey);
     await setDoc(logRef, {
       ...logPayload,
       createdAt: serverTimestamp(),
@@ -609,8 +616,9 @@ export async function syncVmsWorkspaceToCloud(params: {
 export async function upsertCloudSubUser(account: AdminAccount): Promise<void> {
   if (account.role === 'superadmin') return;
   const { tenantId, ownerId } = activeTenant();
-  const payload = toCloudSubUserPayload(account, ownerId, tenantId);
-  const docKey = scopedId(payload.id);
+  const basePayload = toCloudSubUserPayload(account, ownerId, tenantId);
+  const docKey = scopedDocKey(basePayload.id, 'subusr');
+  const payload = { ...basePayload, id: docKey };
   const docPath = `cloud_sub_users/${docKey}`;
   const docRef = doc(db, 'cloud_sub_users', docKey);
 
@@ -646,8 +654,7 @@ export async function upsertCloudSubUser(account: AdminAccount): Promise<void> {
 }
 
 export async function deleteCloudSubUser(userId: string): Promise<void> {
-  const cleanId = sanitizeCloudId(userId, 'subusr');
-  const docKey = scopedId(cleanId);
+  const docKey = scopedDocKey(userId, 'subusr');
   const docPath = `cloud_sub_users/${docKey}`;
   try {
     await deleteDoc(doc(db, 'cloud_sub_users', docKey));

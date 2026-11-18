@@ -105,6 +105,12 @@
           "maxLength": 128,
           "pattern": "^[a-zA-Z0-9_\\-]+$"
         },
+        "tenantId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 40,
+          "pattern": "^[a-z0-9-]+$"
+        },
         "name": {
           "type": "string",
           "minLength": 1,
@@ -179,6 +185,12 @@
           "maxLength": 128,
           "pattern": "^[a-zA-Z0-9_\\-]+$"
         },
+        "tenantId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 40,
+          "pattern": "^[a-z0-9-]+$"
+        },
         "projectId": {
           "type": "string",
           "minLength": 1,
@@ -205,27 +217,12 @@
         "onvifPort": {
           "type": "number"
         },
-        "username": {
-          "type": "string",
-          "minLength": 0,
-          "maxLength": 100
-        },
-        "password": {
-          "type": "string",
-          "minLength": 0,
-          "maxLength": 100
-        },
         "channel": {
           "type": "number"
         },
         "streamType": {
           "type": "string",
           "enum": ["main", "sub"]
-        },
-        "rtspUrl": {
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 500
         },
         "hlsStreamUrl": {
           "type": "string",
@@ -267,15 +264,15 @@
         "nightVision": {
           "type": "boolean"
         },
-        "verificationCode": {
-          "type": "string",
-          "minLength": 0,
-          "maxLength": 64
-        },
         "cloudId": {
           "type": "string",
           "minLength": 0,
           "maxLength": 128
+        },
+        "deviceSerial": {
+          "type": "string",
+          "minLength": 0,
+          "maxLength": 64
         },
         "notes": {
           "type": "string",
@@ -300,11 +297,8 @@
         "host",
         "port",
         "onvifPort",
-        "username",
-        "password",
         "channel",
         "streamType",
-        "rtspUrl",
         "hlsStreamUrl",
         "webrtcUrl",
         "status",
@@ -315,7 +309,6 @@
         "locationDesc",
         "ptzSupported",
         "nightVision",
-        "verificationCode",
         "cloudId",
         "notes",
         "createdAt",
@@ -338,6 +331,12 @@
           "minLength": 1,
           "maxLength": 128,
           "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "tenantId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 40,
+          "pattern": "^[a-z0-9-]+$"
         },
         "projectId": {
           "type": "string",
@@ -454,6 +453,12 @@
           "maxLength": 128,
           "pattern": "^[a-zA-Z0-9_\\-]+$"
         },
+        "tenantId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 40,
+          "pattern": "^[a-z0-9-]+$"
+        },
         "shareLinkId": {
           "type": "string",
           "minLength": 1,
@@ -498,6 +503,123 @@
         "action",
         "createdAt"
       ]
+    },
+    "CloudSubUser": {
+      "title": "CloudSubUser",
+      "description": "Delegated administrator sub-user record (engineer/operator) synchronized in Firestore with PBKDF2-SHA256 hash and folder scope.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "ownerId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "tenantId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 40,
+          "pattern": "^[a-z0-9-]+$"
+        },
+        "username": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 40,
+          "pattern": "^[a-z0-9._-]+$"
+        },
+        "email": {
+          "type": "string",
+          "minLength": 0,
+          "maxLength": 150
+        },
+        "displayName": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 120
+        },
+        "description": {
+          "type": "string",
+          "minLength": 0,
+          "maxLength": 250
+        },
+        "role": {
+          "type": "string",
+          "enum": ["engineer", "operator"]
+        },
+        "roleLabel": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 60
+        },
+        "allowedProjectIds": {
+          "type": "array"
+        },
+        "active": {
+          "type": "boolean"
+        },
+        "passwordHash": {
+          "type": "string",
+          "minLength": 16,
+          "maxLength": 128
+        },
+        "passwordSalt": {
+          "type": "string",
+          "minLength": 8,
+          "maxLength": 64
+        },
+        "hashIterations": {
+          "type": "number"
+        },
+        "hashAlgorithm": {
+          "type": "string",
+          "enum": ["PBKDF2-SHA256", "LEGACY-FALLBACK"]
+        },
+        "createdAtIso": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "lastLoginAtIso": {
+          "type": "string",
+          "minLength": 0,
+          "maxLength": 64
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "ownerId",
+        "tenantId",
+        "username",
+        "email",
+        "displayName",
+        "description",
+        "role",
+        "roleLabel",
+        "allowedProjectIds",
+        "active",
+        "passwordHash",
+        "passwordSalt",
+        "hashIterations",
+        "hashAlgorithm",
+        "createdAtIso",
+        "lastLoginAtIso",
+        "createdAt",
+        "updatedAt"
+      ]
     }
   },
   "firestore": {
@@ -524,6 +646,10 @@
     "/cloud_access_logs/{logId}": {
       "schema": "CloudAccessLog",
       "description": "Real-time cloud-synchronized buyer access audit logs"
+    },
+    "/cloud_sub_users/{userId}": {
+      "schema": "CloudSubUser",
+      "description": "Real-time cloud-synchronized delegated engineer and operator sub-users"
     }
   }
 }

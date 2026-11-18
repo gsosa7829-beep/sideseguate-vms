@@ -306,7 +306,12 @@ export function toCloudSubUserPayload(
       .toLowerCase()
       .replace(/[^a-z0-9._-]/g, '')
       .slice(0, 40) || 'usuario',
-    email: (account.email || '').trim().toLowerCase().slice(0, 150),
+    email: (() => {
+      const cleanEmail = (account.email || '').trim().toLowerCase().slice(0, 150);
+      return /^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$/.test(cleanEmail)
+        ? cleanEmail
+        : '';
+    })(),
     displayName: (account.displayName || 'Operador').trim().slice(0, 120) || 'Operador',
     description: (account.description || '').trim().slice(0, 250),
     role: safeRole,

@@ -19,6 +19,14 @@ export type SubUserRole = 'engineer' | 'operator';
 
 export const ALLOWED_PROJECTS_ALL = '*';
 
+/** Mismo patrón estricto que `isValidEmail` en `firestore.rules`. */
+export const SUB_USER_EMAIL_REGEX = /^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$/;
+
+export function isValidSubUserEmail(email: string): boolean {
+  const clean = (email || '').trim().toLowerCase();
+  return clean.length >= 3 && clean.length <= 150 && SUB_USER_EMAIL_REGEX.test(clean);
+}
+
 export interface AdminAccount {
   id: string;
   username: string;
@@ -431,8 +439,8 @@ export async function createSubUserAccount(
   }
 
   const email = (input.email || '').trim().toLowerCase();
-  if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-    return { valid: false, error: 'Ingresa un correo válido o déjalo vacío.' };
+  if (email && !isValidSubUserEmail(email)) {
+    return { valid: false, error: 'Ingresa un correo válido (ej. usuario@dominio.com) o déjalo vacío.' };
   }
 
   const passwordError = validatePasswordStrength(input.password || '');
@@ -502,8 +510,8 @@ export async function updateSubUserAccount(
   }
 
   const email = (input.email || '').trim().toLowerCase();
-  if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-    return { valid: false, error: 'Ingresa un correo válido o déjalo vacío.' };
+  if (email && !isValidSubUserEmail(email)) {
+    return { valid: false, error: 'Ingresa un correo válido (ej. usuario@dominio.com) o déjalo vacío.' };
   }
 
   if (accounts.some((a) => a.id !== targetId && a.username.toLowerCase() === username)) {
