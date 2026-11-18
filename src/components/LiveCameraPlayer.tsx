@@ -17,6 +17,7 @@ import {
   getAccessToken,
   getDeviceVerificationCode,
   hasEzvizCredentials,
+  hasValidAccessToken,
   refreshEzvizToken,
   saveDeviceVerificationCode,
   subscribeEzvizAuth,
@@ -134,10 +135,9 @@ export function prewarmHikvisionCameras(
 ) {
   if (typeof window === 'undefined') return;
   const { mobile } = getPlaybackEnvironment(navigator.userAgent, navigator.maxTouchPoints, window.innerWidth);
-  if (mobile) return;
 
   const list = targets && targets.length > 0
-    ? targets
+    ? (mobile ? targets.slice(0, 2) : targets)
     : [
         { channel: 1, deviceSerial: 'FF9363270' },
         { channel: 1, deviceSerial: 'F31700438' },
@@ -533,7 +533,17 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
   const camRateKBs = Math.max(8, Math.round(((camera.bitrateKbps || 512) * 1000) / 8 / 1024));
   const [ecoRemainingSec, setEcoRemainingSec] = useState<number>(() => ecoSleepSec || 60);
   const ecoDeadline = useRef(0);
-  const canLoadVideo = canLoadInViewport && !is4gEcoPaused && isStreamPlaying;
+  // En móviles nuevos sin caché local, aguardar brevemente (máx. 2.2s) al token vivo de Firestore
+  // antes de lanzar EZUIKit con el token fallback expirado y evitar el arranque doble/trabado.
+  const [awaitingInitialToken, setAwaitingInitialToken] = useState<boolean>(
+    () => Boolean(isClientView && !hasValidAccessToken())
+  );
+  useEffect(() => {
+    if (!awaitingInitialToken) return;
+    const timer = setTimeout(() => setAwaitingInitialToken(false), 2200);
+    return () => clearTimeout(timer);
+  }, [awaitingInitialToken]);
+  const canLoadVideo = canLoadInViewport && !is4gEcoPaused && isStreamPlaying && !awaitingInitialToken;
   const channel = clampCameraChannel(camera.channel);
   const deviceSerial = camera.deviceSerial || cloudP2pClient.resolveDevice(camera)?.serial || 'F31700438';
   const configuredHls = camera.hlsStreamUrl?.trim() || '';
@@ -601,6 +611,12 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
         delete ezvizHlsCache[k];
       }
       savePersistedHlsCache(ezvizHlsCache);
+      setAwaitingInitialToken(false);
+      setUseHlsFallback(false);
+      setTryEzFallback(false);
+      setIsOffline(false);
+      ezErrorCountRef.current = 0;
+      hlsRetryCountRef.current = 0;
       setReconnectVersion((v) => v + 1);
     });
   }, []);
@@ -633,6 +649,8 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
     setNativeP2pReady(true);
     return dataUrl;
   }, [camera.channel, camera.deviceSerial, ezuikitContainerId]);
+  const captureSnapshotRef = useRef(captureLiveFrameSnapshot);
+  captureSnapshotRef.current = captureLiveFrameSnapshot;
 
   const pause4gStreamForDataSaving = useCallback(() => {
     // Capturar último fotograma visible antes de apagar el flujo 4G para mantener vista previa nítida
@@ -922,8 +940,9 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
     };
 
     const initEzPlayer = async () => {
-      // Dar breve respiro si acabamos de cerrar una sesión P2P previa (Pausar -> Reanudar)
+      // Dar breve respiro solo si se acaba de destruir una sesión P2P previa (Pausar -> Reanudar)
       if (hadPriorEzSessionRef.current) {
+        hadPriorEzSessionRef.current = false;
         await new Promise((r) => setTimeout(r, 220));
         if (!active) return;
       }
@@ -947,7 +966,7 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
 
       // Preservar fotograma en vivo solo si hay una reproducción activa previa; al reanudar conserva el de pausa.
       if (ezPlayerRef.current || videoRef.current) {
-        captureLiveFrameSnapshot();
+        captureSnapshotRef.current();
       }
 
       if (ezPlayerRef.current) {
@@ -981,9 +1000,8 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
 
         startupTimer = setTimeout(() => {
           if (!ezuikitLiveReadyRef.current) fallbackToHls();
-        }, isMobile ? 14_000 : 20_000);
+        }, isMobile ? 7_500 : 14_000);
 
-        hadPriorEzSessionRef.current = true;
         const player = new EZUIKit.EZUIKitPlayer({
           id: ezuikitContainerId,
           accessToken: getAccessToken(),
@@ -1023,7 +1041,7 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
             clearTimeout(captureWarmTimer);
             captureWarmTimer = setTimeout(() => {
               if (active && ezuikitLiveReadyRef.current) {
-                captureLiveFrameSnapshot();
+                captureSnapshotRef.current();
               }
             }, 2500);
           },
@@ -1051,6 +1069,7 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
       clearTimeout(captureWarmTimer);
       clearTimeout(ezRetryTimer);
       if (ezPlayerRef.current) {
+        hadPriorEzSessionRef.current = true;
         try {
           ezPlayerRef.current.stop();
           ezPlayerRef.current.destroy();
@@ -1060,7 +1079,7 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
       setEzuikitLiveReady(false);
       ezuikitLiveReadyRef.current = false;
     };
-  }, [deviceSerial, camera.channel, effectiveVerificationCode, isEzopenDevice, streamQuality, canLoadVideo, isMobile, reconnectVersion, ezuikitContainerId, captureLiveFrameSnapshot]);
+  }, [deviceSerial, camera.channel, effectiveVerificationCode, isEzopenDevice, streamQuality, canLoadVideo, isMobile, reconnectVersion, ezuikitContainerId]);
 
   useEffect(() => {
     if (!canLoadVideo || isEzopenDevice || directHlsUrl) {
@@ -1686,6 +1705,10 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
     return () => window.removeEventListener('online', reconnectWhenOnline);
   }, [handleForceReconnect]);
 
+  const showConnectingOverlay =
+    (canLoadVideo || (awaitingInitialToken && isStreamPlaying && !is4gEcoPaused && canLoadInViewport)) &&
+    !autoplayBlocked;
+
   return (
     <>
       {expandedHeight !== null && <div aria-hidden="true" style={{ height: expandedHeight }} />}
@@ -1695,7 +1718,7 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
       className={
         isTheaterMode
           ? 'fixed inset-0 z-[150] bg-black/90 backdrop-blur-2xl flex flex-col items-center justify-center p-2 sm:p-6 md:p-10 select-none animate-in fade-in duration-200'
-          : `bg-neutral-950 overflow-hidden flex flex-col group ${
+          : `w-full max-w-full min-w-0 bg-neutral-950 overflow-hidden flex flex-col group ${
               expandedHeight !== null ? 'camera-expanded fixed inset-0 z-[200]' : 'relative'
             }`
       }
@@ -1713,7 +1736,7 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
         className={
           isTheaterMode
             ? 'w-full max-w-5xl min-w-0 max-h-[92vh] bg-neutral-950 rounded-xl sm:rounded-2xl border border-neutral-700/80 shadow-2xl overflow-hidden flex flex-col relative my-auto animate-in zoom-in-95 duration-200'
-            : 'w-full flex flex-col relative'
+            : 'w-full min-w-0 max-w-full flex flex-col relative'
         }
         onClick={(e) => {
           if (isTheaterMode) e.stopPropagation();
@@ -1764,7 +1787,7 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
         onTouchEnd={handleTouchEnd}
         onDoubleClick={isMobile ? undefined : toggleFullscreen}
         style={{ touchAction: 'pan-y' }}
-        className={`relative w-full bg-neutral-950 flex items-center justify-center overflow-hidden select-none cursor-pointer aspect-video sm:${isFullscreen ? "flex-1 min-h-0" : "aspect-video"}`}
+        className={`relative w-full min-w-0 max-w-full bg-neutral-950 flex items-center justify-center overflow-hidden select-none cursor-pointer aspect-video sm:${isFullscreen ? "flex-1 min-h-0" : "aspect-video"}`}
         title="Doble toque o doble clic para Pantalla Completa · Pellizca para Zoom"
       >
         {/* Overlay de Reposo / Video en Espera (0 KB/s · Reproducción Bajo Demanda) */}
@@ -1852,7 +1875,7 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
         )}
 
         {/* Indicador ligero de sintonización inicial (0.4s), desbloqueo por cifrado o Reconexión cuando está offline */}
-        {canLoadVideo && !autoplayBlocked && (!hasImage || isOffline) && (
+        {showConnectingOverlay && (!hasImage || isOffline) && (
           <div className="absolute inset-0 z-30 flex flex-col items-center justify-center p-4 sm:p-5 bg-neutral-950/80 backdrop-blur-xs text-center select-none">
             {isOffline && needsEncryptionCode ? (
               <form
@@ -1930,6 +1953,15 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
                 </span>
               </div>
             )}
+          </div>
+        )}
+
+        {showConnectingOverlay && hasImage && !isOffline && !isContinuousLive && (
+          <div className="absolute top-12 inset-x-0 z-30 flex justify-center pointer-events-none px-4">
+            <div className="bg-neutral-950/85 border border-sky-500/45 text-sky-200 text-xs font-semibold px-3.5 py-1.5 rounded-full shadow-lg backdrop-blur-md flex items-center gap-2">
+              <div className="w-3.5 h-3.5 rounded-full border-2 border-sky-400/30 border-t-sky-400 animate-spin shrink-0" />
+              <span>Conectando video en vivo…</span>
+            </div>
           </div>
         )}
 

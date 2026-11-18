@@ -1,14 +1,19 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  DEFAULT_FALLBACK_TOKEN,
+  DEFAULT_FALLBACK_EXPIRE_MS,
   loadEzvizAuth,
   saveEzvizAuth,
   getTokenHealth,
   setManualToken,
+  hasValidAccessToken,
   hasEzvizCredentials,
   refreshEzvizToken,
   pickTokenCarrierCameras,
+  extractEzvizTokenFromCamera,
   extractLatestEzvizTokenFromCameras,
+  syncEzvizAuthFromRemote,
   formatEzvizTokenNotes,
   getDeviceVerificationCode,
   saveDeviceVerificationCode,
@@ -161,4 +166,55 @@ test('disableEzvizEncryption interpreta respuestas 200, 60016 y 10017 correctame
   } finally {
     globalThis.fetch = originalFetch;
   }
+});
+
+test('extractEzvizTokenFromCamera nunca asigna 7 días futuros al DEFAULT_FALLBACK_TOKEN', () => {
+  const futureExpire = Date.now() + 7 * 86400 * 1000;
+  const fromCloudId = extractEzvizTokenFromCamera({ cloudId: DEFAULT_FALLBACK_TOKEN });
+  assert.ok(fromCloudId);
+  assert.equal(fromCloudId.accessToken, DEFAULT_FALLBACK_TOKEN);
+  assert.ok((fromCloudId.expireTime || 0) <= DEFAULT_FALLBACK_EXPIRE_MS);
+
+  const fromNotes = extractEzvizTokenFromCamera({
+    notes: `[EZVIZ_TOKEN:${DEFAULT_FALLBACK_TOKEN}|${futureExpire}]`,
+  });
+  assert.ok(fromNotes);
+  assert.equal(fromNotes.accessToken, DEFAULT_FALLBACK_TOKEN);
+  assert.ok((fromNotes.expireTime || 0) <= DEFAULT_FALLBACK_EXPIRE_MS);
+});
+
+test('syncEzvizAuthFromRemote nunca sobrescribe un token vigente con uno expirado o más antiguo', () => {
+  const now = Date.now();
+  const validToken = 'at.valid-live-token-000111222333444';
+  const validExpire = now + 6 * 86400 * 1000;
+  saveEzvizAuth({
+    accessToken: validToken,
+    expireTime: validExpire,
+  });
+
+  syncEzvizAuthFromRemote({
+    accessToken: DEFAULT_FALLBACK_TOKEN,
+  });
+  assert.equal(loadEzvizAuth().accessToken, validToken);
+
+  syncEzvizAuthFromRemote({
+    accessToken: 'at.older-token-999888777666555',
+    expireTime: now + 2 * 86400 * 1000,
+  });
+  assert.equal(loadEzvizAuth().accessToken, validToken);
+});
+
+test('hasValidAccessToken diferencia token expirado vs vigente', () => {
+  const now = Date.now();
+  saveEzvizAuth({
+    accessToken: DEFAULT_FALLBACK_TOKEN,
+    expireTime: DEFAULT_FALLBACK_EXPIRE_MS,
+  });
+  assert.equal(hasValidAccessToken(now), false);
+
+  saveEzvizAuth({
+    accessToken: 'at.fresh-token-1234567890',
+    expireTime: now + 3600 * 1000,
+  });
+  assert.equal(hasValidAccessToken(now), true);
 });

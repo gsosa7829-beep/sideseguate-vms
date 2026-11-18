@@ -9,7 +9,7 @@ import {
   recordCloudShareLinkAccess,
 } from '../lib/firebase';
 import { LiveCameraPlayer, prewarmHikvisionCameras } from './LiveCameraPlayer';
-import { syncEzvizAuthFromRemote, extractEzvizTokenFromCamera } from '../lib/ezvizAuth';
+import { syncEzvizAuthFromRemote, extractLatestEzvizTokenFromCameras } from '../lib/ezvizAuth';
 import { isCamera4gDevice } from '../lib/ocos4gMonitor';
 import { getOcosMetadataForCamera } from '../lib/ocosMetadata';
 import { OcosTenderPlaque } from './OcosTenderPlaque';
@@ -334,21 +334,19 @@ export const ClientLivePortal: React.FC<ClientLivePortalProps> = ({
     [allowedCameras]
   );
 
-  // Sincronizar token de EZVIZ para las cámaras 4G de Ocós para que clientes en móvil nunca vean token vencido
+  // Sincronizar token de EZVIZ únicamente desde cámaras reales recibidas (nunca sobrescribir con fallback expirado)
   useEffect(() => {
-    const ocosCam = pool.find((c) => isCamera4gDevice(c) || c.deviceSerial?.startsWith('FF9'));
-    if (ocosCam) {
-      const extracted = extractEzvizTokenFromCamera(ocosCam);
-      if (extracted) {
-        syncEzvizAuthFromRemote(extracted);
-      }
+    if (cameras.length === 0) return;
+    const extracted = extractLatestEzvizTokenFromCameras(cameras);
+    if (extracted) {
+      syncEzvizAuthFromRemote(extracted);
     }
-  }, [pool]);
+  }, [cameras]);
 
   useEffect(() => {
     if (!allowedCamerasKey) return;
     if (allowedCameras.some((c) => isCamera4gDevice(c) || c.deviceSerial?.startsWith('FF9') || c.id.includes('ocos'))) {
-      prewarmHikvisionCameras(allowedCameras);
+      prewarmHikvisionCameras(allowedCameras.slice(0, 2));
     }
   }, [allowedCamerasKey]);
 

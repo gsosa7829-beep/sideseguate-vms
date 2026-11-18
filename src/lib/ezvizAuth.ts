@@ -161,6 +161,12 @@ export function syncEzvizAuthFromRemote(remote: {
       ? DEFAULT_FALLBACK_EXPIRE_MS
       : Date.now() + 7 * 86400 * 1000;
 
+  // Nunca reemplazar un token vigente por un fallback expirado o más antiguo
+  const currentValid = typeof current.expireTime === 'number' && current.expireTime > Date.now() + 60_000;
+  if (currentValid && remoteExpire <= current.expireTime) {
+    return;
+  }
+
   const tokenChanged = cleanToken !== current.accessToken;
   const remoteExpireValid = typeof remote.expireTime === 'number' && remote.expireTime > 0;
   const significantExpireBump =
@@ -201,9 +207,8 @@ export function extractEzvizTokenFromCamera(
   }
 
   if (token) {
-    if (token === 'at.dw0j6l0mc8iltishdqp82b6v91w62mt0-6t7ybvn2iq-1sl45m4-yb5utk7cf') {
-      token = DEFAULT_FALLBACK_TOKEN;
-      expireTime = Date.now() + 7 * 86400 * 1000;
+    if (token === DEFAULT_FALLBACK_TOKEN) {
+      expireTime = expireTime ? Math.min(expireTime, DEFAULT_FALLBACK_EXPIRE_MS) : DEFAULT_FALLBACK_EXPIRE_MS;
     }
     return {
       accessToken: token,
@@ -259,6 +264,16 @@ export function extractLatestEzvizTokenFromCameras(
 /** Retorna el token activo en memoria */
 export function getAccessToken(): string {
   return loadEzvizAuth().accessToken || DEFAULT_FALLBACK_TOKEN;
+}
+
+/** Indica si el token en memoria/localStorage sigue vigente (no expirado). */
+export function hasValidAccessToken(nowMs: number = Date.now()): boolean {
+  const config = loadEzvizAuth();
+  return Boolean(
+    config.accessToken?.startsWith('at.') &&
+    typeof config.expireTime === 'number' &&
+    config.expireTime > nowMs + 60_000
+  );
 }
 
 /** Comprueba si el usuario ya configuró AppKey y AppSecret */

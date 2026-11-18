@@ -1052,7 +1052,7 @@ function AppShell() {
         // Sólo lo necesario para reproducir: sin usuario, contraseña ni RTSP.
         cameras={toPublicCameras(cameras)}
         isAdminPreview={isOwner}
-        isCloudLoading={false}
+        isCloudLoading={cloudSyncStatus === 'connecting'}
         onBackToAdmin={
           isOwner
             ? () => {
