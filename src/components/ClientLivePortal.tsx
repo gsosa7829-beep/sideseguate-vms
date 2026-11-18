@@ -542,7 +542,7 @@ export const ClientLivePortal: React.FC<ClientLivePortalProps> = ({
   const selectedCamera = allowedCameras.find((c) => c.id === selectedCameraId) || allowedCameras[0];
 
   return (
-    <div className="min-h-dvh bg-neutral-950 text-neutral-100 flex flex-col">
+    <div className="min-h-dvh w-full max-w-full overflow-x-clip bg-neutral-950 text-neutral-100 flex flex-col">
       {onBackToAdmin && (
         <div className="bg-sky-950/95 border-b border-sky-500/40 px-4 py-2.5 flex items-center justify-between text-xs text-sky-200 sticky top-0 z-50 backdrop-blur shadow-md">
           <div className="flex items-center gap-2">
@@ -586,7 +586,7 @@ export const ClientLivePortal: React.FC<ClientLivePortalProps> = ({
       </header>
 
       {/* Main Video Viewing Area */}
-      <main className="flex-1 max-w-7xl w-full mx-auto p-3 sm:p-5 pb-32 sm:pb-8 flex flex-col gap-4">
+      <main className="flex-1 max-w-7xl w-full min-w-0 mx-auto p-3 sm:p-5 pb-32 sm:pb-8 flex flex-col gap-4">
         {/* Selector Rápido de Cámaras Móvil (Pestañas Táctiles Mínimo 46px) */}
         {allowedCameras.length > 1 && (
           <div className="bg-neutral-900/90 border border-neutral-800/90 rounded-2xl p-2.5 shadow-lg mb-1">
@@ -660,7 +660,7 @@ export const ClientLivePortal: React.FC<ClientLivePortalProps> = ({
           </div>
         ) : allowedCameras.length === 1 ? (
           /* Focused Single-Camera View: Full Width, Clean & Immersive */
-          <div className="max-w-5xl mx-auto w-full flex flex-col gap-3">
+          <div className="max-w-5xl mx-auto w-full min-w-0 flex flex-col gap-3">
             {selectedCamera && (
               <LiveCameraPlayer
                 key={selectedCamera.id}
@@ -829,11 +829,11 @@ export const ClientLivePortal: React.FC<ClientLivePortalProps> = ({
           </div>
         ) : (
           /* Multi-Camera Grid View */
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-5xl mx-auto w-full">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-5xl mx-auto w-full min-w-0">
             {allowedCameras.map((cam) => {
               const ocosMeta = getOcosMetadataForCamera(cam);
               return (
-                <div key={cam.id} className="flex flex-col bg-neutral-900 border border-neutral-800 hover:border-neutral-700 transition-all duration-200 rounded-2xl overflow-hidden shadow-xl shadow-black/50 ring-1 ring-white/5 hover:shadow-2xl">
+                <div key={cam.id} className="flex flex-col min-w-0 max-w-full bg-neutral-900 border border-neutral-800 hover:border-neutral-700 transition-all duration-200 rounded-2xl overflow-hidden shadow-xl shadow-black/50 ring-1 ring-white/5 hover:shadow-2xl">
                   {/* Cabecera con Nombre Completo y Estado */}
                   <div className="px-4 py-3 bg-neutral-950/95 border-b border-neutral-800 flex items-center justify-between gap-2.5">
                     <div className="flex items-center gap-2 min-w-0 flex-1">

@@ -47,6 +47,12 @@
 }
 
 @layer base {
+  html,
+  body {
+    max-width: 100%;
+    overflow-x: clip;
+  }
+
   body {
     background-color: var(--color-neutral-950);
     color: #f1f5f9;
@@ -216,22 +222,26 @@
 
 /* EZUIKit Player: Integración perfecta al marco sin bordes negros ni zoom */
 .ezuikit-live-player {
-  position: absolute;
-  inset: 0;
+  position: absolute !important;
+  inset: 0 !important;
+  contain: layout size !important;
   width: 100% !important;
   max-width: 100% !important;
+  min-width: 0 !important;
   height: 100% !important;
   max-height: 100% !important;
   overflow: hidden !important;
   background: transparent;
 }
 
-.ezuikit-live-player > div {
+.ezuikit-live-player > * {
   width: 100% !important;
   max-width: 100% !important;
+  min-width: 0 !important;
   height: 100% !important;
   max-height: 100% !important;
   overflow: hidden !important;
+  box-sizing: border-box !important;
 }
 
 .ezuikit-live-player .ezplayer-header,

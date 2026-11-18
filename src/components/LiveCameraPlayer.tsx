@@ -992,11 +992,15 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
       try {
         const rect = container.getBoundingClientRect();
         const dpr = typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1;
-        const { width, height } = getEzPlayerCanvasDimensions(
-          rect.width || container.clientWidth || 640,
-          dpr,
-          streamQuality
-        );
+        const cssWidth = Math.max(320, Math.round(rect.width || container.clientWidth || 360));
+        const { width, height } =
+          isMobile && !isCementerioCamera
+            ? { width: cssWidth, height: Math.round((cssWidth * 9) / 16) }
+            : getEzPlayerCanvasDimensions(
+                rect.width || container.clientWidth || 640,
+                dpr,
+                streamQuality
+              );
 
         startupTimer = setTimeout(() => {
           if (!ezuikitLiveReadyRef.current) fallbackToHls();
