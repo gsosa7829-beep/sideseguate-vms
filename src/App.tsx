@@ -33,6 +33,7 @@ import {
   loadGateway,
   saveGateway,
   resolveAppCameraUrls,
+  isCloudManagedCamera,
 } from './lib/streamGateway';
 import { formatExpirationText, createFlashTemporaryLink } from './lib/tokenSecurity';
 import { generateMediaMtxYaml } from './lib/mediaMtxGenerator';
@@ -42,6 +43,7 @@ import {
   syncEzvizAuthFromRemote,
   extractLatestEzvizTokenFromCameras,
   formatEzvizTokenNotes,
+  hasValidAccessToken,
   loadEzvizAuth,
   pickTokenCarrierCameras,
   getDeviceVerificationCode,
@@ -189,9 +191,10 @@ function AppShell() {
       if (!detail || !detail.accessToken) return;
       const currentCams = storage.getCameras();
       const carriers = pickTokenCarrierCameras(currentCams);
-      if (carriers.length === 0) return;
+      const cloudManaged = currentCams.filter((c) => isCloudManagedCamera(c));
+      if (carriers.length === 0 && cloudManaged.length === 0) return;
 
-      const carrierIds = new Set(carriers.map((c) => c.id));
+      const carrierIds = new Set([...carriers, ...cloudManaged].map((c) => c.id));
       const expireMs = typeof detail.expireTime === 'number' && detail.expireTime > 0
         ? detail.expireTime
         : Date.now() + 7 * 86400 * 1000;
@@ -420,17 +423,13 @@ function AppShell() {
       setClientTokenView(parsedToken);
     }
 
-    // Solo publicar semilla/catálogo hacia Firestore cuando no es un visitante externo de solo lectura
+    // Solo publicar semilla inicial hacia Firestore si la base aún está vacía (evita pisar tokens vigentes en caché vieja)
     if (!isVisitorClientRoute) {
       seedInitialCloudDataIfEmpty({
         projects: loadedProjects,
         cameras: loadedCameras,
         shareLinks: loadedLinks,
         accessLogs: loadedLogs,
-      });
-
-      loadedCameras.forEach((cam) => {
-        upsertCloudCamera(cam).catch(() => {});
       });
     }
 
@@ -647,9 +646,15 @@ function AppShell() {
     }
 
     const activeAuth = loadEzvizAuth();
-    const carrierIds = new Set(pickTokenCarrierCameras(newCameras).map((c) => c.id));
+    const canAttachAuth = hasValidAccessToken() && Boolean(activeAuth.accessToken);
+    const carrierIds = new Set(
+      [
+        ...pickTokenCarrierCameras(newCameras),
+        ...newCameras.filter((c) => isCloudManagedCamera(c)),
+      ].map((c) => c.id)
+    );
     const preparedNewCameras = newCameras.map((nc) => {
-      if (!carrierIds.has(nc.id) || !activeAuth.accessToken) return nc;
+      if (!canAttachAuth || !carrierIds.has(nc.id)) return nc;
       const expireMs = activeAuth.expireTime || Date.now() + 7 * 86400 * 1000;
       return {
         ...nc,

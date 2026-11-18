@@ -14,6 +14,7 @@ import {
   extractEzvizTokenFromCamera,
   extractLatestEzvizTokenFromCameras,
   syncEzvizAuthFromRemote,
+  resolveSafeCloudCameraTokenFields,
   formatEzvizTokenNotes,
   getDeviceVerificationCode,
   saveDeviceVerificationCode,
@@ -217,4 +218,53 @@ test('hasValidAccessToken diferencia token expirado vs vigente', () => {
     expireTime: now + 3600 * 1000,
   });
   assert.equal(hasValidAccessToken(now), true);
+});
+
+test('resolveSafeCloudCameraTokenFields protege token vigente y etiqueta de notas frente a cachés viejas o fallback', () => {
+  const now = Date.now();
+  const validToken = 'at.fresh-cloud-token-998877665544';
+  const validExpire = now + 5 * 86400 * 1000;
+  const existingDoc = {
+    cloudId: validToken,
+    notes: `DVR HiLook F31700438 | Canal 1 [EZVIZ_TOKEN:${validToken}|${validExpire}]`,
+  };
+
+  // Un navegador viejo envía DEFAULT_FALLBACK_TOKEN y notas sin etiqueta
+  const blockedFallback = resolveSafeCloudCameraTokenFields(
+    {
+      cloudId: DEFAULT_FALLBACK_TOKEN,
+      notes: 'DVR HiLook F31700438 | Canal 1',
+    },
+    existingDoc,
+    now
+  );
+  assert.equal(blockedFallback.cloudId, validToken);
+  assert.ok(blockedFallback.notes.includes(`[EZVIZ_TOKEN:${validToken}|${validExpire}]`));
+
+  // Una edición de metadatos conserva la etiqueta aunque localStorage haya perdido [EZVIZ_TOKEN]
+  const preservedTag = resolveSafeCloudCameraTokenFields(
+    {
+      cloudId: validToken,
+      notes: 'DVR HiLook F31700438 | Canal 1 Actualizado',
+    },
+    existingDoc,
+    now
+  );
+  assert.equal(preservedTag.cloudId, validToken);
+  assert.ok(preservedTag.notes.startsWith('DVR HiLook F31700438 | Canal 1 Actualizado '));
+  assert.ok(preservedTag.notes.includes(`[EZVIZ_TOKEN:${validToken}|${validExpire}]`));
+
+  // Un token genuinamente más nuevo reemplaza al anterior
+  const newerToken = 'at.even-newer-token-112233445566';
+  const newerExpire = now + 7 * 86400 * 1000;
+  const updated = resolveSafeCloudCameraTokenFields(
+    {
+      cloudId: newerToken,
+      notes: `DVR HiLook F31700438 [EZVIZ_TOKEN:${newerToken}|${newerExpire}]`,
+    },
+    existingDoc,
+    now
+  );
+  assert.equal(updated.cloudId, newerToken);
+  assert.ok(updated.notes.includes(`[EZVIZ_TOKEN:${newerToken}|${newerExpire}]`));
 });

@@ -134,6 +134,7 @@ import {
   fromCloudAccessLogDoc,
 } from './cloudSyncHelpers';
 import { currentTenantId, ownerIdForTenant, scopeDocId, parseScopedDocId } from './tenant';
+import { resolveSafeCloudCameraTokenFields } from './ezvizAuth';
 
 /**
  * Espacio de datos activo. Cada cliente (tenant) tiene su propio `ownerId`, así
@@ -217,6 +218,10 @@ export async function upsertCloudCamera(camera: Camera): Promise<void> {
         updatedAt: serverTimestamp(),
       });
     } else {
+      const safeTokenFields = resolveSafeCloudCameraTokenFields(
+        { cloudId: payload.cloudId, notes: payload.notes },
+        snap.data() as { cloudId?: string; notes?: string }
+      );
       await updateDoc(docRef, {
         projectId: payload.projectId,
         name: payload.name,
@@ -236,9 +241,9 @@ export async function upsertCloudCamera(camera: Camera): Promise<void> {
         locationDesc: payload.locationDesc,
         ptzSupported: payload.ptzSupported,
         nightVision: payload.nightVision,
-        cloudId: payload.cloudId,
+        cloudId: safeTokenFields.cloudId,
         deviceSerial: payload.deviceSerial,
-        notes: payload.notes,
+        notes: safeTokenFields.notes,
         updatedAt: serverTimestamp(),
       });
     }

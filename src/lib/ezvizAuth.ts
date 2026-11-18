@@ -224,7 +224,10 @@ export function extractEzvizTokenFromCamera(
 export function formatEzvizTokenNotes(notes: string | undefined, token: string, expireTime: number): string {
   const base = (notes || '').replace(/\[EZVIZ_TOKEN:[^\]]*\]/g, '').trim();
   const tag = `[EZVIZ_TOKEN:${token}|${expireTime}]`;
-  return base ? `${base} ${tag}` : tag;
+  if (!base) return tag.slice(0, 1000);
+  const maxBaseLen = Math.max(0, 1000 - tag.length - 1);
+  const clippedBase = base.length > maxBaseLen ? base.slice(0, maxBaseLen).trim() : base;
+  return clippedBase ? `${clippedBase} ${tag}` : tag.slice(0, 1000);
 }
 
 /**
@@ -259,6 +262,51 @@ export function extractLatestEzvizTokenFromCameras(
     }
   }
   return best;
+}
+
+/**
+ * Preserva el token EZVIZ más vigente al actualizar una cámara en Firestore,
+ * impidiendo que una caché vieja o el token fallback expirado borren la etiqueta
+ * `[EZVIZ_TOKEN:...|expiración]` o degraden un token válido existente.
+ */
+export function resolveSafeCloudCameraTokenFields(
+  incoming: { cloudId?: string; notes?: string },
+  existing?: { cloudId?: string; notes?: string } | null,
+  nowMs: number = Date.now()
+): { cloudId: string; notes: string } {
+  const rawCloudId = (incoming.cloudId || '').trim();
+  const rawNotes = (incoming.notes || '').trim();
+  if (!existing) {
+    return { cloudId: rawCloudId, notes: rawNotes };
+  }
+
+  const existingMeta = extractEzvizTokenFromCamera(existing);
+  const incomingMeta = extractEzvizTokenFromCamera(incoming);
+  if (!existingMeta?.accessToken || existingMeta.accessToken === DEFAULT_FALLBACK_TOKEN) {
+    return { cloudId: rawCloudId, notes: rawNotes };
+  }
+
+  const existingExpire = existingMeta.expireTime || 0;
+  const existingValid = existingExpire > nowMs + 60_000;
+  const incomingExpire = incomingMeta?.expireTime || 0;
+  const incomingIsFallbackOrExpired =
+    !incomingMeta?.accessToken ||
+    incomingMeta.accessToken === DEFAULT_FALLBACK_TOKEN ||
+    (incomingExpire > 0 && incomingExpire <= nowMs + 60_000);
+  const incomingIsOlder =
+    existingExpire > 0 && incomingExpire > 0 && incomingExpire < existingExpire - 60_000;
+  const sameTokenLostTag =
+    incomingMeta?.accessToken === existingMeta.accessToken && existingExpire > 0 && !incomingMeta?.expireTime;
+
+  if ((existingValid && (incomingIsFallbackOrExpired || incomingIsOlder)) || sameTokenLostTag) {
+    const preservedExpire = existingExpire || nowMs + 7 * 86400 * 1000;
+    return {
+      cloudId: existingMeta.accessToken.slice(0, 128),
+      notes: formatEzvizTokenNotes(rawNotes, existingMeta.accessToken, preservedExpire).slice(0, 1000),
+    };
+  }
+
+  return { cloudId: rawCloudId, notes: rawNotes };
 }
 
 /** Retorna el token activo en memoria */
