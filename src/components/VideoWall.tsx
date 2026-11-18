@@ -418,8 +418,11 @@ export const VideoWall: React.FC<VideoWallProps> = ({
   }, []);
 
   useEffect(() => {
-    if (cameras.some((c) => c.deviceSerial === 'F31700438' || c.id.includes('hilook'))) {
-      prewarmHikvisionCameras();
+    const cloudTargets = cameras.filter(
+      (c) => c.deviceSerial === 'F31700438' || c.deviceSerial?.startsWith('FF9') || c.id.includes('hilook')
+    );
+    if (cloudTargets.length > 0) {
+      prewarmHikvisionCameras(cloudTargets);
     }
   }, [cameras]);
 

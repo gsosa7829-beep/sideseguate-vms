@@ -4,8 +4,8 @@ import { Camera } from '../lib/types';
 import { BRAND_NAME } from '../lib/assets';
 import { ivmsLiveBridge, computeIvmsChannelSourceRect } from '../lib/ivmsLiveBridge';
 import { cloudP2pClient } from '../lib/cloudP2pClient';
-import { clampCameraChannel, getLiveResumePosition, getPlaybackEnvironment } from '../lib/livePlayback';
-import { isPlaceholderStreamUrl, loadGateway, resolveStreamUrls, isPublicGateway } from '../lib/streamGateway';
+import { clampCameraChannel, getEzPlayerCanvasDimensions, getLiveResumePosition, getPlaybackEnvironment } from '../lib/livePlayback';
+import { isDeprecatedServerUrl, isPlaceholderStreamUrl, loadGateway, resolveStreamUrls, isPublicGateway } from '../lib/streamGateway';
 import {
   captureContainerFrameDataUrl,
   captureMediaFrameDataUrl,
@@ -538,6 +538,7 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
   const configuredHls = camera.hlsStreamUrl?.trim() || '';
   const localPlaceholder = isMobile ? isPlaceholderStreamUrl(configuredHls) : configuredHls.includes('localhost');
   const directHlsUrl = configuredHls.includes('.m3u8') && !localPlaceholder &&
+    !isDeprecatedServerUrl(configuredHls) &&
     !/sideseguate-[a-z0-9-]*\.trycloudflare\.com|xxxx\.trycloudflare\.com/i.test(configuredHls)
     ? configuredHls
     : null;
@@ -546,12 +547,12 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
   const gatewayStream = resolveStreamUrls(camera, currentGateway);
   const hasRealPublicHls = Boolean(
     (directHlsUrl && directHlsUrl.startsWith('https://')) ||
-    (gatewayStream.hlsUrl && isPublicGateway(gatewayStream.hlsUrl))
+    (gatewayStream.hlsUrl && isPublicGateway(gatewayStream.hlsUrl) && !isDeprecatedServerUrl(gatewayStream.hlsUrl))
   );
 
-  // Cámaras 4G y HiLook transmiten vía EZopen (WASM Player / Canvas decodificador H.265)
+  // Cámaras 4G y HiLook transmiten vía EZopen (WASM Player / Canvas) si no hay gateway público real
   const isEzopenDevice = Boolean(
-    !useHlsFallback && (
+    !useHlsFallback && !hasRealPublicHls && (
       camera.codec === 'H.265' ||
       camera.deviceSerial === 'FF9363270' ||
       camera.deviceSerial === 'FF9363192' ||
@@ -573,6 +574,8 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
 
   const ezuikitContainerId = useRef('ezuikit-live-' + Math.random().toString(36).substring(2, 9)).current;
   const ezPlayerRef = useRef<any>(null);
+  const ezErrorCountRef = useRef(0);
+  const hadPriorEzSessionRef = useRef(false);
   const [ezuikitLiveReady, setEzuikitLiveReady] = useState(false);
   const ezuikitLiveReadyRef = useRef(false);
   useEffect(() => {
@@ -665,6 +668,13 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
   const handleToggleStream = useCallback((play: boolean) => {
     if (!play) {
       captureLiveFrameSnapshot();
+    } else {
+      // Al reanudar, restaurar ruta principal consistente sin quedar en fallback HLS/SD previo.
+      setUseHlsFallback(false);
+      setIsOffline(false);
+      ezErrorCountRef.current = 0;
+      stallCountRef.current = 0;
+      setStreamQuality(!isMobile && !is4gCamera && isCementerioCamera ? '1' : '2');
     }
     setInternalPlaying(play);
     onPlayStateChange?.(play);
@@ -675,7 +685,7 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
         pause4gStreamForDataSaving();
       }
     }
-  }, [captureLiveFrameSnapshot, is4gCamera, onPlayStateChange, pause4gStreamForDataSaving, resume4gStream]);
+  }, [captureLiveFrameSnapshot, is4gCamera, isCementerioCamera, isMobile, onPlayStateChange, pause4gStreamForDataSaving, resume4gStream]);
 
   // Suspensión estricta al minimizar pestaña, cambiar de aplicación o salir del enlace en cámara 4G (0 KB/s)
   useEffect(() => {
@@ -814,6 +824,7 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
     }
     // Restaurar protocolos principales y reintentar conexión limpia
     setUseHlsFallback(false);
+    ezErrorCountRef.current = 0;
     if (userInitiated) {
       setNeedsEncryptionCode(false);
       setUnlockFeedback(null);
@@ -838,7 +849,7 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
     return () => clearInterval(recoveryTimer);
   }, [isOffline, canLoadVideo, is4gCamera, handleForceReconnect]);
 
-  // Reproductor WebAssembly EZUIKit (H.265 / 4G para Proyecto Ocós con Modo Ultra-Ahorro SIM)
+  // Reproductor WebAssembly EZUIKit (H.265 / 4G para Proyecto Ocós y DVR HiLook HD)
   useEffect(() => {
     if (!isEzopenDevice || !canLoadVideo) {
       if (ezPlayerRef.current) {
@@ -855,10 +866,12 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
     let active = true;
     let startupTimer: ReturnType<typeof setTimeout> | undefined;
     let captureWarmTimer: ReturnType<typeof setTimeout> | undefined;
+    let ezRetryTimer: ReturnType<typeof setTimeout> | undefined;
     let tokenRetried = false;
     const fallbackToHls = () => {
       if (!active) return;
       clearTimeout(startupTimer);
+      clearTimeout(ezRetryTimer);
       setUseHlsFallback(true);
     };
 
@@ -878,13 +891,29 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
             return;
           }
         } catch {
-          // continuar al respaldo HLS si la renovación falla
+          // continuar al reintento o respaldo HLS si la renovación falla
         }
+      }
+      // Permitir 1 reintento limpio en la calidad actual antes de saltar a HLS fallback
+      // para evitar saltos HD/SD ante micro-cortes P2P tras pausar y reanudar.
+      if (ezErrorCountRef.current < 1) {
+        ezErrorCountRef.current += 1;
+        clearTimeout(startupTimer);
+        ezRetryTimer = setTimeout(() => {
+          if (active) setReconnectVersion((v) => v + 1);
+        }, 550);
+        return;
       }
       fallbackToHls();
     };
 
     const initEzPlayer = async () => {
+      // Dar breve respiro si acabamos de cerrar una sesión P2P previa (Pausar -> Reanudar)
+      if (hadPriorEzSessionRef.current) {
+        await new Promise((r) => setTimeout(r, 220));
+        if (!active) return;
+      }
+
       let tries = 0;
       while (!((window as any).EZUIKit?.EZUIKitPlayer) && tries < (isMobile ? 100 : 30)) {
         if (!active) return;
@@ -902,8 +931,10 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
       const container = document.getElementById(ezuikitContainerId);
       if (!container) return;
 
-      // Preservar el último fotograma visible de la cámara antes de reiniciar para transición limpia sin parpadeo
-      captureLiveFrameSnapshot();
+      // Preservar fotograma en vivo solo si hay una reproducción activa previa; al reanudar conserva el de pausa.
+      if (ezPlayerRef.current || videoRef.current) {
+        captureLiveFrameSnapshot();
+      }
 
       if (ezPlayerRef.current) {
         try {
@@ -927,14 +958,18 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
 
       try {
         const rect = container.getBoundingClientRect();
-        const dpr = typeof window !== 'undefined' ? Math.min(window.devicePixelRatio || 1, 2) : 1;
-        const width = Math.max(720, Math.round((rect.width || container.clientWidth || 640) * dpr));
-        const height = Math.max(405, Math.round((width * 9) / 16));
+        const dpr = typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1;
+        const { width, height } = getEzPlayerCanvasDimensions(
+          rect.width || container.clientWidth || 640,
+          dpr,
+          streamQuality
+        );
 
         startupTimer = setTimeout(() => {
           if (!ezuikitLiveReadyRef.current) fallbackToHls();
         }, isMobile ? 14_000 : 20_000);
 
+        hadPriorEzSessionRef.current = true;
         const player = new EZUIKit.EZUIKitPlayer({
           id: ezuikitContainerId,
           accessToken: getAccessToken(),
@@ -950,6 +985,8 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
           handleSuccess: () => {
             if (!active) return;
             clearTimeout(startupTimer);
+            clearTimeout(ezRetryTimer);
+            ezErrorCountRef.current = 0;
             setEzuikitLiveReady(true);
             ezuikitLiveReadyRef.current = true;
             setIsSwitchingQuality(false);
@@ -998,6 +1035,7 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
       active = false;
       clearTimeout(startupTimer);
       clearTimeout(captureWarmTimer);
+      clearTimeout(ezRetryTimer);
       if (ezPlayerRef.current) {
         try {
           ezPlayerRef.current.stop();
@@ -1112,11 +1150,12 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
         }
       }
 
-      // 2. Respaldo de captura rápida mientras el reproductor inicializa el flujo de video
+      // 2. Respaldo de captura rápida solo si aún no hay fotograma nítido en caché (evita salto visual al reanudar)
+      if (nativeP2pImgRef.current) return;
       timer = setTimeout(async () => {
-        if (!active || hlsLiveReadyRef.current || ezuikitLiveReadyRef.current) return;
+        if (!active || nativeP2pImgRef.current || hlsLiveReadyRef.current || ezuikitLiveReadyRef.current) return;
         const livePicUrl = await fetchEzvizLiveCapture(ch, deviceSerial || (is4gCamera ? 'FF9363270' : 'F31700438'));
-        if (livePicUrl && active && !hlsLiveReadyRef.current && !ezuikitLiveReadyRef.current) {
+        if (livePicUrl && active && !nativeP2pImgRef.current && !hlsLiveReadyRef.current && !ezuikitLiveReadyRef.current) {
           setLatestPosterUrl(livePicUrl);
           const img = new Image();
           img.crossOrigin = 'anonymous';

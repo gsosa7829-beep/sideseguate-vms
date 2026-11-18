@@ -29,9 +29,27 @@ export interface StreamGateway {
 export const STORAGE_KEY_STREAM_GATEWAY = 'sideseguate_stream_gateway_v1';
 export const DEFAULT_HLS_PORT = 8888;
 export const DEFAULT_WEBRTC_PORT = 8889;
-export const PRODUCTION_STREAM_GATEWAY_URL = 'https://162-243-55-220.sslip.io';
 
 const LOCAL_HOSTS = ['localhost', '127.0.0.1', '0.0.0.0', '[::1]'];
+const DEPRECATED_SERVER_MARKERS = ['162-243-55-220', '162.243.55.220'];
+
+/** Detecta direcciones del servidor de prueba retirado (DigitalOcean) para limpiar cachés viejos. */
+export function isDeprecatedServerUrl(url: string | null | undefined): boolean {
+  const value = (url || '').trim().toLowerCase();
+  if (!value) return false;
+  return DEPRECATED_SERVER_MARKERS.some((marker) => value.includes(marker));
+}
+
+/** Indica si la cámara opera directamente vía nube/P2P EZVIZ (4G o DVR HiLook) sin gateway propio. */
+export function isCloudManagedCamera(
+  camera: Pick<Camera, 'codec' | 'deviceSerial'>
+): boolean {
+  return Boolean(
+    camera.codec === 'H.265' ||
+    camera.deviceSerial?.startsWith('FF9') ||
+    camera.deviceSerial === 'F31700438'
+  );
+}
 
 export function emptyGateway(): StreamGateway {
   return {
@@ -167,10 +185,13 @@ export function resolveStreamUrls(
   camera: Pick<Camera, 'id' | 'name' | 'hlsStreamUrl' | 'webrtcUrl'>,
   gateway: StreamGateway | null | undefined
 ): { hlsUrl: string; webrtcUrl: string; mode: StreamMode; reason: string } {
-  const explicitHls = (camera.hlsStreamUrl || '').trim();
-  const explicitWhep = (camera.webrtcUrl || '').trim();
+  const rawHls = (camera.hlsStreamUrl || '').trim();
+  const rawWhep = (camera.webrtcUrl || '').trim();
+  const explicitHls = isDeprecatedServerUrl(rawHls) ? '' : rawHls;
+  const explicitWhep = isDeprecatedServerUrl(rawWhep) ? '' : rawWhep;
   const streamPath = deriveStreamPath(camera);
-  const gatewayBase = normalizeGatewayUrl(gateway?.baseUrl);
+  const rawGatewayBase = normalizeGatewayUrl(gateway?.baseUrl);
+  const gatewayBase = isDeprecatedServerUrl(rawGatewayBase) ? '' : rawGatewayBase;
 
   // 1. URL explícita y pública: manda.
   if (explicitHls && !isPlaceholderStreamUrl(explicitHls)) {
@@ -221,6 +242,28 @@ export function resolveStreamUrls(
     mode: 'hls-local',
     reason: 'Video continuo solo en este equipo. Configura el dominio público para el celular.',
   };
+}
+
+/**
+ * Resuelve `hlsStreamUrl` y `webrtcUrl` para el catálogo en memoria: las cámaras
+ * gestionadas por nube EZVIZ/4G (H.265, FF9*, F31700438) omiten URLs locales o
+ * servidores retirados si no existe un gateway público activo.
+ */
+export function resolveAppCameraUrls(
+  camera: Pick<Camera, 'id' | 'name' | 'codec' | 'deviceSerial' | 'hlsStreamUrl' | 'webrtcUrl'>,
+  gateway: StreamGateway | null | undefined
+): { hlsStreamUrl: string; webrtcUrl: string } {
+  const cleanGateway = gateway && !isDeprecatedServerUrl(gateway.baseUrl) ? gateway : emptyGateway();
+  if (isCloudManagedCamera(camera) && !isPublicGateway(cleanGateway.baseUrl)) {
+    const rawHls = (camera.hlsStreamUrl || '').trim();
+    const hasCustomExternalHls =
+      rawHls && !isPlaceholderStreamUrl(rawHls) && !isDeprecatedServerUrl(rawHls);
+    if (!hasCustomExternalHls) {
+      return { hlsStreamUrl: '', webrtcUrl: '' };
+    }
+  }
+  const { hlsUrl, webrtcUrl } = resolveStreamUrls(camera, cleanGateway);
+  return { hlsStreamUrl: hlsUrl, webrtcUrl };
 }
 
 /**
@@ -277,7 +320,12 @@ export function loadGateway(): StreamGateway {
       if (raw) {
         const parsed = JSON.parse(raw) as Partial<StreamGateway>;
         const normalized = normalizeGatewayUrl(parsed.baseUrl || '');
-        if (normalized && !isLocalGateway(normalized) && !normalized.includes('trycloudflare')) {
+        if (
+          normalized &&
+          !isLocalGateway(normalized) &&
+          !normalized.includes('trycloudflare') &&
+          !isDeprecatedServerUrl(normalized)
+        ) {
           return {
             baseUrl: normalized,
             webrtcBaseUrl: normalizeGatewayUrl(parsed.webrtcBaseUrl || '') || undefined,

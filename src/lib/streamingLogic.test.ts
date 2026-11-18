@@ -18,7 +18,7 @@ import {
 } from './cloudSyncHelpers.ts';
 import { ShareLink, Camera } from './types.ts';
 import { mergeCloudShareLinks, shareLinkListsDiffer } from './shareLinkMerge.ts';
-import { getLiveResumePosition, getPlaybackEnvironment } from './livePlayback.ts';
+import { getEzPlayerCanvasDimensions, getLiveResumePosition, getPlaybackEnvironment } from './livePlayback.ts';
 import { BRAND_NAME, BRAND_SUBTITLE, BRAND_ICON_URL, LOGO_URL } from './assets.ts';
 
 test('reconoce iPad con agente de escritorio y distingue Android de Safari móvil', () => {
@@ -940,6 +940,8 @@ import {
   applyGatewayToCameras,
   isPlaceholderStreamUrl,
   emptyGateway,
+  isDeprecatedServerUrl,
+  resolveAppCameraUrls,
 } from './streamGateway.ts';
 import {
   parseRunnerReport,
@@ -1938,4 +1940,35 @@ test('identidad visual GLOBAL TECH expone marca y rutas de logo válidas', async
   assert.ok(LOGO_URL.endsWith('logo-global-tech.png'));
   assert.ok(BRAND_ICON_URL.endsWith('global-tech-icon.png'));
   assert.equal(DEFAULT_PUBLIC_APP_URL, 'https://global-tech.surge.sh');
+});
+
+test('getEzPlayerCanvasDimensions mantiene HD (>=1280x720) en Cementerio aunque la tarjeta sea compacta', () => {
+  assert.deepEqual(getEzPlayerCanvasDimensions(480, 1, '1'), { width: 1280, height: 720 });
+  assert.deepEqual(getEzPlayerCanvasDimensions(1100, 2, '1'), { width: 1920, height: 1080 });
+  assert.deepEqual(getEzPlayerCanvasDimensions(390, 1, '2'), { width: 720, height: 405 });
+});
+
+test('isDeprecatedServerUrl y resolveAppCameraUrls descartan el servidor retirado 162.243.55.220', () => {
+  assert.equal(isDeprecatedServerUrl('https://162-243-55-220.sslip.io/live/calle_cementerio/index.m3u8'), true);
+  assert.equal(isDeprecatedServerUrl('http://162.243.55.220:8888/live/index.m3u8'), true);
+  assert.equal(isDeprecatedServerUrl('https://stream.sideseguate.gt/cam/index.m3u8'), false);
+
+  const cementerioStale = resolveAppCameraUrls(
+    {
+      id: 'cam-hilook-ch1',
+      name: 'Cámara 1 · Portón Calle del Cementerio (CH1)',
+      codec: 'H.264',
+      deviceSerial: 'F31700438',
+      hlsStreamUrl: 'https://162-243-55-220.sslip.io/live/calle_cementerio/index.m3u8',
+      webrtcUrl: '',
+    },
+    { baseUrl: 'https://162-243-55-220.sslip.io', updatedAt: 'x' }
+  );
+  assert.deepEqual(cementerioStale, { hlsStreamUrl: '', webrtcUrl: '' });
+
+  const regularCamFallback = resolveAppCameraUrls(
+    { ...camBase, hlsStreamUrl: 'https://162-243-55-220.sslip.io/live/x/index.m3u8' },
+    emptyGateway()
+  );
+  assert.match(regularCamFallback.hlsStreamUrl, /^http:\/\/localhost:8888\//);
 });

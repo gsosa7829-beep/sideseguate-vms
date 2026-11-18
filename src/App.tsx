@@ -32,8 +32,7 @@ import {
   StreamGateway,
   loadGateway,
   saveGateway,
-  resolveStreamUrls,
-  emptyGateway,
+  resolveAppCameraUrls,
 } from './lib/streamGateway';
 import { formatExpirationText, createFlashTemporaryLink } from './lib/tokenSecurity';
 import { generateMediaMtxYaml } from './lib/mediaMtxGenerator';
@@ -364,15 +363,12 @@ function AppShell() {
       latestLogIdRef.current = loadedLogs[0].id;
     }
 
-    // Cada cámara deriva su HLS/WHEP del gateway configurado (video continuo real).
+    // Cada cámara deriva su HLS/WHEP del gateway configurado (sin URLs locales ni servidores retirados en cámaras nube).
     const gatewayAtBoot = loadGateway();
-    loadedCameras = loadedCameras.map((cam) => {
-      if (cam.codec === 'H.265' || cam.deviceSerial?.startsWith('FF9') || cam.deviceSerial === 'F31700438') {
-        return { ...cam, hlsStreamUrl: '', webrtcUrl: '' };
-      }
-      const { hlsUrl, webrtcUrl } = resolveStreamUrls(cam, gatewayAtBoot);
-      return { ...cam, hlsStreamUrl: hlsUrl, webrtcUrl };
-    });
+    loadedCameras = loadedCameras.map((cam) => ({
+      ...cam,
+      ...resolveAppCameraUrls(cam, gatewayAtBoot),
+    }));
     storage.saveCameras(loadedCameras);
 
     // Check URL query param ?autoTunnel=https://xxxx.trycloudflare.com (Improvement #1: Zero-Click Auto-Tunnel)
@@ -511,7 +507,7 @@ function AppShell() {
         ];
         const enriched = deduplicateCameras(
           mergedCams.map((cam) => {
-            const { hlsUrl, webrtcUrl } = resolveStreamUrls(cam, gatewayNow);
+            const { hlsStreamUrl: hlsUrl, webrtcUrl } = resolveAppCameraUrls(cam, gatewayNow);
             const local = localById.get(cam.id);
             const initial = INITIAL_CAMERAS.find((c) => c.id === cam.id);
             const resolvedSerial = cam.deviceSerial || local?.deviceSerial || initial?.deviceSerial;
@@ -855,10 +851,10 @@ function AppShell() {
       return;
     }
     setCameras((prev) => {
-      const next = prev.map((cam) => {
-        const { hlsUrl, webrtcUrl } = resolveStreamUrls(cam, saved);
-        return { ...cam, hlsStreamUrl: hlsUrl, webrtcUrl };
-      });
+      const next = prev.map((cam) => ({
+        ...cam,
+        ...resolveAppCameraUrls(cam, saved),
+      }));
       storage.saveCameras(next);
       return next;
     });

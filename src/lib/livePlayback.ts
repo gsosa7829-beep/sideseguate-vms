@@ -30,3 +30,24 @@ export function getLiveResumePosition(currentTime: number, start: number, end: n
   if (currentTime >= start && currentTime <= end && end - currentTime <= 30) return null;
   return end - Math.min(8, (end - start) / 2);
 }
+
+/**
+ * Calcula las dimensiones internas del lienzo EZUIKit para que los flujos HD ('1')
+ * nunca arranquen en resolución SD (720×405) dentro de tarjetas compactas y eviten
+ * cambios bruscos entre HD y SD al reanudar o ampliar la cámara.
+ */
+export function getEzPlayerCanvasDimensions(
+  containerWidth: number,
+  devicePixelRatio: number,
+  quality: '1' | '2'
+): { width: number; height: number } {
+  const safeDpr = Number.isFinite(devicePixelRatio) && devicePixelRatio > 0
+    ? Math.min(devicePixelRatio, 2)
+    : 1;
+  const baseWidth = Number.isFinite(containerWidth) && containerWidth > 0 ? containerWidth : 640;
+  const minWidth = quality === '1' ? 1280 : 720;
+  const maxWidth = quality === '1' ? 1920 : 1280;
+  const width = Math.min(maxWidth, Math.max(minWidth, Math.round(baseWidth * safeDpr)));
+  const height = Math.round((width * 9) / 16);
+  return { width, height };
+}
