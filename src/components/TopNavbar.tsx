@@ -38,6 +38,7 @@ import { currentTenantId } from '../lib/tenant';
 import { formatBuyerAccessNotification } from '../lib/pcLauncherGenerator';
 import { usePWAInstall } from '../lib/usePWAInstall';
 import { MenuItem } from './MenuItem';
+import { BrandSquareIcon } from './BrandMark';
 import { getPublicUrlInfo, describeShareUrlWarning } from '../lib/publicUrl';
 import type { User } from 'firebase/auth';
 
@@ -212,6 +213,7 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
       <header className="admin-topbar shrink-0 h-16 md:h-15 bg-neutral-900/90 border-b border-neutral-800/90 px-3 sm:px-6 flex items-center justify-between gap-2 sm:gap-4 sticky top-0 z-50 backdrop-blur-md bg-neutral-900/95">
         {/* Zone 1: Contextual Breadcrumb Trail */}
         <div className="flex items-center gap-2.5 min-w-0 flex-1">
+          <BrandSquareIcon size={28} className="w-7 h-7 rounded-lg md:hidden" />
           <span className="text-[11px] font-mono uppercase tracking-wider text-sky-400/90 hidden lg:inline shrink-0">
             {section}
           </span>

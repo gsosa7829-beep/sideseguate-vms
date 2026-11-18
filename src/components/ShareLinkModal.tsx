@@ -6,6 +6,7 @@ import {
 } from '../lib/tokenSecurity';
 import { buildPublicShareUrl } from '../lib/publicUrl';
 import { buildWhatsAppUrl } from '../lib/whatsapp';
+import { BRAND_NAME } from '../lib/assets';
 import {
   X,
   Link2,
@@ -231,7 +232,7 @@ export const ShareLinkModal: React.FC<ShareLinkModalProps> = ({
     if (mode === 'save_and_whatsapp') {
       const proj = projects.find((p) => p.id === link.projectId);
       const pinNote = link.pinCode ? `\n🔒 Código PIN: ${link.pinCode}` : '';
-      const text = `Hola ${link.clientName}, aquí tienes tu enlace privado para ver las cámaras en vivo (${link.title}):\n\n${fullUrl}${pinNote}\n\nÁbrelo directo en tu celular o PC.`;
+      const text = `📹 *${BRAND_NAME}*\nHola ${link.clientName}, aquí tienes tu enlace privado para ver las cámaras en vivo (${link.title}):\n\n${fullUrl}${pinNote}\n\nÁbrelo directo en tu celular o PC.`;
       const waUrl = buildWhatsAppUrl({ text, phone: proj?.clientPhone });
       window.open(waUrl, '_blank', 'noopener,noreferrer');
     }

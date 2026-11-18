@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import { Camera } from '../lib/types';
+import { BrandSquareIcon } from './BrandMark';
+import { BRAND_NAME } from '../lib/assets';
 import {
   Monitor,
   Download,
@@ -70,13 +72,11 @@ export const DesktopProgramModal: React.FC<DesktopProgramModalProps> = ({
 
         {/* Body: Direct 1-Click Download Card */}
         <div className="p-6 space-y-5 text-center">
-          <div className="w-16 h-16 rounded-2xl bg-sky-950/60 border border-sky-500/40 flex items-center justify-center text-sky-400 mx-auto shadow-lg shadow-sky-950/40">
-            <Monitor className="w-8 h-8" />
-          </div>
+          <BrandSquareIcon size={64} className="w-16 h-16 rounded-2xl mx-auto shadow-lg shadow-sky-950/40" />
 
           <div className="space-y-1">
             <h3 className="text-base sm:text-lg font-bold text-white">
-              Proyecto de Cámaras para PC
+              {BRAND_NAME} para PC
             </h3>
             <p className="text-xs text-neutral-400">
               Aplicación nativa ejecutable para Windows 10 y 11. Conecta directamente a la nube en tiempo real.

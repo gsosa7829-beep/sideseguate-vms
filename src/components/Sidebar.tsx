@@ -1,6 +1,8 @@
 import React from 'react';
 import { NavigationTab } from '../lib/types';
 import { NAV_SECTIONS, sectionOfTab, defaultTabOfSection } from '../lib/navigation';
+import { BRAND_NAME, BRAND_SUBTITLE } from '../lib/assets';
+import { BrandSquareIcon } from './BrandMark';
 import {
   Monitor,
   Smartphone,
@@ -63,13 +65,16 @@ export const Sidebar: React.FC<SidebarProps> = ({
         {/* Marca */}
         <div className="h-14 border-b border-neutral-800/90 px-3 flex items-center justify-between gap-2 bg-neutral-900/40">
           <div className="flex items-center gap-2.5 overflow-hidden">
-            <div className="w-8 h-8 rounded-lg bg-sky-950/80 border border-sky-500/40 flex items-center justify-center shrink-0 text-sky-400 shadow-sm">
-              <Video className="w-4 h-4" />
-            </div>
+            <BrandSquareIcon size={32} className="w-8 h-8 rounded-lg" />
             {!isCollapsed && (
-              <span className="font-display font-bold text-sm text-white tracking-tight truncate">
-                Proyecto de Cámaras
-              </span>
+              <div className="min-w-0">
+                <span className="font-display font-bold text-sm text-white tracking-tight truncate block leading-tight">
+                  {BRAND_NAME}
+                </span>
+                <span className="text-[10px] text-sky-400/90 truncate block leading-tight">
+                  {BRAND_SUBTITLE}
+                </span>
+              </div>
             )}
           </div>
 

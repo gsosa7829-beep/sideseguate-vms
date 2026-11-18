@@ -13,6 +13,8 @@ import { syncEzvizAuthFromRemote, extractEzvizTokenFromCamera } from '../lib/ezv
 import { isCamera4gDevice } from '../lib/ocos4gMonitor';
 import { getOcosMetadataForCamera } from '../lib/ocosMetadata';
 import { OcosTenderPlaque } from './OcosTenderPlaque';
+import { BrandSquareIcon } from './BrandMark';
+import { BRAND_NAME, BRAND_SUBTITLE } from '../lib/assets';
 import { 
   ShieldCheck, 
   Lock, 
@@ -476,7 +478,7 @@ export const ClientLivePortal: React.FC<ClientLivePortalProps> = ({
 
           <div className="pt-2 border-t border-neutral-800 text-[11px] text-neutral-500 flex items-center justify-center gap-1.5">
             <ShieldCheck className="w-4 h-4 text-emerald-500" />
-            <span>Monitoreo de Cámaras en Vivo</span>
+            <span>{BRAND_NAME} · {BRAND_SUBTITLE}</span>
           </div>
         </div>
       </div>
@@ -488,8 +490,8 @@ export const ClientLivePortal: React.FC<ClientLivePortalProps> = ({
     return (
       <div className="min-h-dvh bg-neutral-950 text-neutral-100 flex flex-col items-center justify-center p-6">
         <div className="max-w-md w-full bg-neutral-900 border border-neutral-800 rounded-2xl p-8 shadow-2xl">
-          <div className="relative w-16 h-16 rounded-2xl bg-sky-950/80 border border-sky-500/40 mx-auto mb-4 flex items-center justify-center shadow-xl text-sky-400">
-            <Video className="w-8 h-8" />
+          <div className="relative w-16 h-16 mx-auto mb-4">
+            <BrandSquareIcon size={64} className="w-16 h-16 rounded-2xl shadow-xl" />
             <div className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-sky-600 border-2 border-neutral-900 flex items-center justify-center text-white">
               <KeyRound className="w-3.5 h-3.5" />
             </div>
@@ -560,14 +562,12 @@ export const ClientLivePortal: React.FC<ClientLivePortalProps> = ({
       {/* Top Client Header: No Admin buttons, Clean branding & prominent countdown */}
       <header className="bg-neutral-900 border-b border-neutral-800 px-3.5 sm:px-5 py-3 sticky top-0 z-40 backdrop-blur-md">
         <div className="max-w-7xl mx-auto flex items-center justify-between gap-2.5">
-          {/* Proyecto de Cámaras Branding */}
+          {/* GLOBAL TECH Branding */}
           <div className="flex items-center gap-2.5 min-w-0 flex-1">
-            <div className="w-8 h-8 rounded-lg bg-sky-950/80 border border-sky-500/40 flex items-center justify-center shrink-0 text-sky-400 shadow-sm">
-              <Video className="w-4 h-4" />
-            </div>
+            <BrandSquareIcon size={36} className="w-9 h-9 rounded-lg" />
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-1.5">
-                <h1 className="text-sm font-bold text-white tracking-tight">Proyecto de Cámaras</h1>
+                <h1 className="text-sm font-bold text-white tracking-tight">{BRAND_NAME}</h1>
                 <span className="text-neutral-600 text-xs font-mono">/</span>
                 <span className="text-xs text-emerald-400 font-semibold flex items-center gap-1 shrink-0">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
@@ -889,7 +889,7 @@ export const ClientLivePortal: React.FC<ClientLivePortalProps> = ({
       {/* Footer */}
       <footer className="bg-neutral-900 border-t border-neutral-800 px-4 py-3 text-center text-xs text-neutral-500">
         <p>
-          © 2026 Proyecto de Cámaras • Videovigilancia y Monitoreo en Vivo
+          © 2026 {BRAND_NAME} · {BRAND_SUBTITLE} • Monitoreo en Vivo
         </p>
       </footer>
     </div>

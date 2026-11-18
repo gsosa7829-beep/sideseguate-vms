@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, lazy, Suspense } from 'react';
 import { Camera, Project, ShareLink, AccessLog, NavigationTab } from './lib/types';
 import { storage, deduplicateCameras, cameraListsDiffer } from './lib/storage';
 import { INITIAL_PROJECTS, INITIAL_SHARE_LINKS, INITIAL_CAMERAS, isLegacyDemoCamera } from './lib/initialData';
+import { BRAND_NAME } from './lib/assets';
 import {
   upsertCloudProject,
   deleteCloudProject,
@@ -998,7 +999,7 @@ function AppShell() {
   const getWhatsAppShareUrl = (link: ShareLink) => {
     const fullUrl = buildPublicShareUrl(link.token);
     const pinNote = link.pinCode ? `\n🔒 Código PIN: ${link.pinCode}` : '';
-    const text = `Hola ${link.clientName}, aquí tienes tu enlace privado para ver las cámaras en vivo desde tu celular o PC (4G/Wi-Fi):\n\n${fullUrl}${pinNote}\n\nÁbrelo directo en tu navegador sin descargar ninguna aplicación.`;
+    const text = `📹 *${BRAND_NAME}*\nHola ${link.clientName}, aquí tienes tu enlace privado para ver las cámaras en vivo desde tu celular o PC (4G/Wi-Fi):\n\n${fullUrl}${pinNote}\n\nÁbrelo directo en tu navegador sin descargar ninguna aplicación.`;
     const project = projects.find((p) => p.id === link.projectId);
     return buildWhatsAppUrl({ text, phone: project?.clientPhone });
   };

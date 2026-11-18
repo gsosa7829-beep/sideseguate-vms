@@ -8,6 +8,8 @@ import {
   generateRealQrPngDataUrl,
   buildClientHandoverSummary,
 } from '../lib/qrGenerator';
+import { BrandSquareIcon } from './BrandMark';
+import { BRAND_NAME, BRAND_SUBTITLE } from '../lib/assets';
 import {
   X,
   QrCode,
@@ -173,9 +175,7 @@ export const ClientHandoverCardModal: React.FC<ClientHandoverCardModalProps> = (
                 )}
               </svg>
               <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                <div className="w-8 h-8 rounded-md bg-sky-950 shadow border border-sky-500/40 flex items-center justify-center text-sky-400">
-                  <Video className="w-4 h-4" />
-                </div>
+                <BrandSquareIcon size={32} className="w-8 h-8 rounded-md shadow border border-sky-400/50" />
               </div>
             </div>
 
@@ -183,7 +183,7 @@ export const ClientHandoverCardModal: React.FC<ClientHandoverCardModalProps> = (
             <div className="flex-1 min-w-0 space-y-2.5 text-center sm:text-left">
               <div>
                 <div className="text-[11px] text-neutral-400 font-medium">
-                  Proyecto de Cámaras · Videovigilancia Web
+                  {BRAND_NAME} · {BRAND_SUBTITLE}
                 </div>
                 <h3 className="text-base font-bold text-white truncate">
                   {shareLink.title}

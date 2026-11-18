@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import { AdminAccount, PASSWORD_MIN_LENGTH, createAdminAccount } from '../lib/adminAuth';
+import { BrandLogoBanner } from './BrandMark';
+import { BRAND_NAME } from '../lib/assets';
 import {
   ShieldCheck,
   KeyRound,
@@ -84,22 +86,13 @@ export const FirstRunSetup: React.FC<FirstRunSetupProps> = ({ onComplete }) => {
       />
 
       <div className="w-full max-w-md bg-neutral-900/90 backdrop-blur-xl border border-neutral-800 rounded-3xl shadow-2xl p-6 sm:p-8 relative z-10 space-y-6">
-        <div className="text-center space-y-2.5">
-          <div className="inline-flex relative">
-            <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-emerald-600 to-teal-500 p-0.5 shadow-lg shadow-emerald-500/20">
-              <div className="w-full h-full bg-neutral-950 rounded-[14px] flex items-center justify-center">
-                <ShieldCheck className="w-7 h-7 text-emerald-400" />
-              </div>
-            </div>
-            <div className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-sky-500 border-2 border-neutral-900 flex items-center justify-center">
-              <Sparkles className="w-2.5 h-2.5 text-neutral-950" />
-            </div>
-          </div>
+        <div className="text-center space-y-3">
+          <BrandLogoBanner className="mx-auto" />
 
           <div>
             <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-950/80 border border-emerald-500/30 text-[10px] font-mono font-semibold text-emerald-400 mb-1">
               <Building2 className="w-2.5 h-2.5" />
-              <span>PRIMER ARRANQUE</span>
+              <span>PRIMER ARRANQUE · {BRAND_NAME}</span>
             </div>
             <h1 className="text-lg sm:text-xl font-bold text-white tracking-tight">
               Define la contraseña del administrador

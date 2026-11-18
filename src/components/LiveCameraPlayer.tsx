@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import Hls from 'hls.js';
 import { Camera } from '../lib/types';
+import { BRAND_NAME } from '../lib/assets';
 import { ivmsLiveBridge, computeIvmsChannelSourceRect } from '../lib/ivmsLiveBridge';
 import { cloudP2pClient } from '../lib/cloudP2pClient';
 import { clampCameraChannel, getLiveResumePosition, getPlaybackEnvironment } from '../lib/livePlayback';
@@ -1423,7 +1424,7 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
       }
 
       if (showWatermark) {
-        drawWatermarkOverlay(ctx, width, height, watermarkText || 'PROYECTO DE CÁMARAS');
+        drawWatermarkOverlay(ctx, width, height, watermarkText || BRAND_NAME);
       }
 
       if (isSyntheticDemo || ivmsBridgeActive) {

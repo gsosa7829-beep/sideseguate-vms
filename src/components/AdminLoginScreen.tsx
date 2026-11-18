@@ -4,17 +4,17 @@ import {
   authenticateAdminAccount,
   getLockoutState,
 } from '../lib/adminAuth';
+import { BrandLogoBanner } from './BrandMark';
+import { BRAND_NAME } from '../lib/assets';
 import {
   Shield,
-  Lock,
   KeyRound,
   User,
   Eye,
   EyeOff,
   AlertCircle,
   ArrowRight,
-  ShieldCheck,
-  Server,
+  Lock,
 } from 'lucide-react';
 
 interface AdminLoginScreenProps {
@@ -71,25 +71,12 @@ export const AdminLoginScreen: React.FC<AdminLoginScreenProps> = ({
 
       <div className="w-full max-w-sm bg-neutral-900/90 backdrop-blur-xl border border-neutral-800 rounded-3xl shadow-2xl p-6 sm:p-7 relative z-10 space-y-6">
         {/* Brand Header */}
-        <div className="text-center space-y-2.5">
-          <div className="inline-flex relative">
-            <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-sky-600 to-sky-500 p-0.5 shadow-lg shadow-sky-500/20">
-              <div className="w-full h-full bg-neutral-950 rounded-[14px] flex items-center justify-center">
-                <ShieldCheck className="w-7 h-7 text-sky-400" />
-              </div>
-            </div>
-            <div className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-emerald-500 border-2 border-neutral-900 flex items-center justify-center">
-              <Lock className="w-2.5 h-2.5 text-neutral-950 font-bold" />
-            </div>
-          </div>
+        <div className="text-center space-y-3">
+          <BrandLogoBanner className="mx-auto" />
 
           <div>
-            <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-sky-950/80 border border-sky-500/30 text-[10px] font-mono font-semibold text-sky-400 mb-1">
-              <Server className="w-2.5 h-2.5" />
-              <span>PROYECTO DE CÁMARAS</span>
-            </div>
             <h1 className="text-lg sm:text-xl font-bold text-white tracking-tight">
-              Acceso al Panel
+              Acceso al Panel · {BRAND_NAME}
             </h1>
             <p className="text-xs text-neutral-400 mt-0.5">
               Acceso restringido al personal autorizado

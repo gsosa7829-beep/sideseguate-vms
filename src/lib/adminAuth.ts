@@ -54,7 +54,7 @@ export const DEFAULT_ADMIN_ACCOUNT: AdminAccount = {
   username: 'admin',
   email: 'admin@proyectosdecamaras.com',
   displayName: 'Administrador Principal',
-  description: 'Administrador general - Proyecto de Cámaras',
+  description: 'Administrador general - GLOBAL TECH',
   role: 'superadmin',
   roleLabel: 'Super Administrador',
   active: true,

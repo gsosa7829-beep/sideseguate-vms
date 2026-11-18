@@ -2,6 +2,7 @@ import { ShareLink } from './types';
 import { formatExpirationText } from './tokenSecurity';
 import { buildPublicShareUrl } from './publicUrl';
 import { getPublicBaseUrl } from './publicUrl';
+import { BRAND_NAME, BRAND_SUBTITLE } from './assets';
 
 export interface BandwidthReport {
   perCameraKbps: number;
@@ -184,7 +185,7 @@ export function buildClientHandoverSummary(
   }
 
   const lines = [
-    `SIDESEGUATE - MONITOREO WEB EN VIVO`,
+    `${BRAND_NAME} · ${BRAND_SUBTITLE}`,
     `Cliente: ${link.clientName}`,
     `Acceso: ${link.title}`,
     `Cámaras habilitadas: ${camerasCount}`,

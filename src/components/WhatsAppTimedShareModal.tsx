@@ -3,6 +3,7 @@ import { Camera, Project, ShareLink } from '../lib/types';
 import { generateShareToken } from '../lib/tokenSecurity';
 import { buildPublicShareUrl } from '../lib/publicUrl';
 import { buildWhatsAppUrl, normalizePhoneNumber } from '../lib/whatsapp';
+import { BRAND_NAME } from '../lib/assets';
 import {
   X,
   Clock,
@@ -173,7 +174,7 @@ export const WhatsAppTimedShareModal: React.FC<WhatsAppTimedShareModalProps> = (
       ? '♾️ *Vigencia:* Enlace permanente sin caducidad'
       : `⏳ *Vigencia del enlace:* ${durationLabel} (Vence: ${expiryTimeFormatted})`;
 
-    return `📹 *Proyecto de Cámaras - En Vivo*\nHola${namePart}, aquí tienes tu enlace privado temporal para ver la transmisión de seguridad en directo:\n\n🔗 *Enlace de Video:* ${fullPublicUrl}${pinPart}\n${vigenciaPart}\n🛡️ *Seguridad:* No requiere descargar ninguna aplicación. Abre directo en cualquier celular o PC (4G/Wi-Fi).\n\n_Toca el enlace azul para abrir la transmisión._`;
+    return `📹 *${BRAND_NAME} - Videovigilancia en Vivo*\nHola${namePart}, aquí tienes tu enlace privado temporal para ver la transmisión de seguridad en directo:\n\n🔗 *Enlace de Video:* ${fullPublicUrl}${pinPart}\n${vigenciaPart}\n🛡️ *Seguridad:* No requiere descargar ninguna aplicación. Abre directo en cualquier celular o PC (4G/Wi-Fi).\n\n_Toca el enlace azul para abrir la transmisión._`;
   }, [clientName, fullPublicUrl, usePin, pinCode, isPermanent, durationLabel, expiryTimeFormatted]);
 
   // Enlace directo a WhatsApp

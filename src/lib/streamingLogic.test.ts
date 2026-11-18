@@ -19,6 +19,7 @@ import {
 import { ShareLink, Camera } from './types.ts';
 import { mergeCloudShareLinks, shareLinkListsDiffer } from './shareLinkMerge.ts';
 import { getLiveResumePosition, getPlaybackEnvironment } from './livePlayback.ts';
+import { BRAND_NAME, BRAND_SUBTITLE, BRAND_ICON_URL, LOGO_URL } from './assets.ts';
 
 test('reconoce iPad con agente de escritorio y distingue Android de Safari móvil', () => {
   const ipadAgent = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15) Version/18.0 Safari/605.1.15';
@@ -207,6 +208,7 @@ test('buildClientHandoverSummary includes token URL and PIN when present', () =>
     createdAt: new Date().toISOString()
   };
   const summary = buildClientHandoverSummary(link, 'https://sideseguate.vercel.app', 2);
+  assert.ok(summary.includes('GLOBAL TECH'));
   assert.ok(summary.includes('PIN de Seguridad: 2026'));
   assert.ok(summary.includes('https://sideseguate.vercel.app/?token=sdg_live_test999'));
 });
@@ -1926,4 +1928,11 @@ test('isAuthorizedOwnerDevice oculta la barra admin en rutas limpias compartidas
       (globalThis as any).localStorage = prevStorage;
     }
   }
+});
+
+test('identidad visual GLOBAL TECH expone marca y rutas de logo válidas', () => {
+  assert.equal(BRAND_NAME, 'GLOBAL TECH');
+  assert.match(BRAND_SUBTITLE, /Seguridad Electrónica/i);
+  assert.ok(LOGO_URL.endsWith('logo-global-tech.png'));
+  assert.ok(BRAND_ICON_URL.endsWith('global-tech-icon.png'));
 });
