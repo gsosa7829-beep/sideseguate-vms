@@ -662,18 +662,20 @@ export const ClientLivePortal: React.FC<ClientLivePortalProps> = ({
           /* Focused Single-Camera View: Full Width, Clean & Immersive */
           <div className="max-w-5xl mx-auto w-full min-w-0 flex flex-col gap-3">
             {selectedCamera && (
-              <LiveCameraPlayer
-                key={selectedCamera.id}
-                camera={selectedCamera}
-                allowPtz={activeShareLink.allowPtz}
-                allowAudio={activeShareLink.allowAudio}
-                allowSnapshot={activeShareLink.allowSnapshot}
-                showWatermark={activeShareLink.showWatermark}
-                watermarkText={activeShareLink.clientName}
-                isClientView={true}
-                ecoSleepOverrideSec={60}
-                autoPlay={true}
-              />
+              <div className="w-full min-w-0 max-w-full rounded-xl sm:rounded-2xl overflow-hidden border border-neutral-800/90 bg-neutral-900 shadow-2xl shadow-black/60">
+                <LiveCameraPlayer
+                  key={selectedCamera.id}
+                  camera={selectedCamera}
+                  allowPtz={activeShareLink.allowPtz}
+                  allowAudio={activeShareLink.allowAudio}
+                  allowSnapshot={activeShareLink.allowSnapshot}
+                  showWatermark={activeShareLink.showWatermark}
+                  watermarkText={activeShareLink.clientName}
+                  isClientView={true}
+                  ecoSleepOverrideSec={60}
+                  autoPlay={true}
+                />
+              </div>
             )}
 
             {/* Ficha Oficial de Licitación Ocós o Información de Cámara */}
@@ -721,20 +723,22 @@ export const ClientLivePortal: React.FC<ClientLivePortalProps> = ({
         ) : viewMode === 'single' ? (
           /* Multi-Camera View: Focused Player + Clean Camera Selector */
           <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
-            <div className="lg:col-span-3 flex flex-col gap-3">
+            <div className="lg:col-span-3 flex flex-col gap-3 min-w-0">
               {selectedCamera && (
-                <LiveCameraPlayer
-                  key={selectedCamera.id}
-                  camera={selectedCamera}
-                  allowPtz={activeShareLink.allowPtz}
-                  allowAudio={activeShareLink.allowAudio}
-                  allowSnapshot={activeShareLink.allowSnapshot}
-                  showWatermark={activeShareLink.showWatermark}
-                  watermarkText={activeShareLink.clientName}
-                  isClientView={true}
-                  ecoSleepOverrideSec={60}
-                  autoPlay={true}
-                />
+                <div className="w-full min-w-0 max-w-full rounded-xl sm:rounded-2xl overflow-hidden border border-neutral-800/90 bg-neutral-900 shadow-2xl shadow-black/60">
+                  <LiveCameraPlayer
+                    key={selectedCamera.id}
+                    camera={selectedCamera}
+                    allowPtz={activeShareLink.allowPtz}
+                    allowAudio={activeShareLink.allowAudio}
+                    allowSnapshot={activeShareLink.allowSnapshot}
+                    showWatermark={activeShareLink.showWatermark}
+                    watermarkText={activeShareLink.clientName}
+                    isClientView={true}
+                    ecoSleepOverrideSec={60}
+                    autoPlay={true}
+                  />
+                </div>
               )}
 
               {/* Ficha Oficial de Licitación Ocós o Información de Cámara */}

@@ -38,6 +38,10 @@ import {
   Trash2,
   Cctv,
   Signal,
+  MapPin,
+  Activity,
+  Zap,
+  Leaf,
 } from 'lucide-react';
 
 interface VideoWallProps {
@@ -284,8 +288,8 @@ const CameraFeedCard: React.FC<CameraFeedCardProps> = ({
 
         {/* Fila 2: Sub-info técnica espaciosa */}
         <div className="flex items-center justify-between gap-2 text-[11px] font-mono text-neutral-400 pt-1 border-t border-neutral-900/80">
-          <div className="truncate text-neutral-400 flex items-center gap-1 min-w-0">
-            <span className="text-neutral-500 shrink-0">📍</span>
+          <div className="truncate text-neutral-400 flex items-center gap-1.5 min-w-0">
+            <MapPin className="w-3.5 h-3.5 text-neutral-500 shrink-0" />
             <span className="truncate text-neutral-300">{camera.locationDesc || `Canal ${camera.channel}`}</span>
           </div>
 
@@ -504,54 +508,126 @@ export const VideoWall: React.FC<VideoWallProps> = ({
 
         {/* Project Filter Pills & Mode Switcher */}
         <div className="flex flex-wrap items-center gap-2">
-          {/* Selector Móvil */}
-          <div className="md:hidden w-full">
-            <select
-              aria-label="Filtrar por proyecto o carpeta"
-              value={
-                layoutMode === 'folders'
-                  ? activeFolderId || 'folders-dir'
-                  : layoutMode === 'grid'
-                  ? 'grid'
-                  : filterProjectId
-              }
-              onChange={(e) => {
-                onClearFocus?.();
-                const val = e.target.value;
-                if (val === 'folders-dir') {
+          {/* Selector Móvil Segmentado (Iconografía técnica uniforme) */}
+          <div className="md:hidden w-full flex flex-col gap-2">
+            <div className="grid grid-cols-3 gap-1 p-1 bg-neutral-900 border border-neutral-800 rounded-xl text-xs">
+              <button
+                type="button"
+                onClick={() => {
+                  onClearFocus?.();
                   setLayoutMode('folders');
                   setActiveFolderId(null);
-                } else if (projectBuckets.some((b) => b.id === val)) {
-                  setLayoutMode('folders');
-                  setActiveFolderId(val);
-                } else if (val === 'grid') {
-                  setLayoutMode('grid');
-                  setActiveFolderId(null);
-                } else {
+                }}
+                className={`min-h-[40px] px-2.5 py-1.5 rounded-lg transition flex items-center justify-center gap-1.5 font-medium cursor-pointer ${
+                  layoutMode === 'folders' && !focusedCamera
+                    ? 'bg-neutral-800 text-white border border-neutral-700/80 font-semibold shadow-xs'
+                    : 'text-neutral-400 hover:text-white border border-transparent'
+                }`}
+              >
+                <Folder className="w-3.5 h-3.5 text-sky-400 shrink-0" />
+                <span className="truncate">Carpetas</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  onClearFocus?.();
                   setLayoutMode('sections');
-                  setActiveFolderId(null);
-                  setFilterProjectId(val);
-                }
-              }}
-              className="min-h-[46px] w-full rounded-xl border border-neutral-800 bg-neutral-900 px-3.5 text-white text-xs font-medium focus:outline-hidden focus:border-neutral-700"
-            >
-              <option value="folders-dir">📁 Carpetas de Proyectos (Directorio)</option>
-              {projectBuckets.map((b) => (
-                <option key={b.id} value={b.id}>
-                  📂 Carpeta: {b.title} ({b.cameras.length}{' '}
-                  {b.has4gCameras
-                    ? b.cameras.length === 1
-                      ? 'Canal 4G'
-                      : 'Canales 4G'
-                    : b.cameras.length === 1
-                    ? 'Canal'
-                    : 'Canales'}
-                  )
-                </option>
-              ))}
-              <option value="all">📑 Muro Completo (Todos los Proyectos)</option>
-              <option value="grid">⊞ Vista Mosaico</option>
-            </select>
+                }}
+                className={`min-h-[40px] px-2.5 py-1.5 rounded-lg transition flex items-center justify-center gap-1.5 font-medium cursor-pointer ${
+                  layoutMode === 'sections' && !focusedCamera
+                    ? 'bg-neutral-800 text-white border border-neutral-700/80 font-semibold shadow-xs'
+                    : 'text-neutral-400 hover:text-white border border-transparent'
+                }`}
+              >
+                <Layers className="w-3.5 h-3.5 text-neutral-300 shrink-0" />
+                <span className="truncate">Muro</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  onClearFocus?.();
+                  setLayoutMode('grid');
+                }}
+                className={`min-h-[40px] px-2.5 py-1.5 rounded-lg transition flex items-center justify-center gap-1.5 font-medium cursor-pointer ${
+                  layoutMode === 'grid' && !focusedCamera
+                    ? 'bg-neutral-800 text-white border border-neutral-700/80 font-semibold shadow-xs'
+                    : 'text-neutral-400 hover:text-white border border-transparent'
+                }`}
+              >
+                <LayoutGrid className="w-3.5 h-3.5 text-neutral-300 shrink-0" />
+                <span className="truncate">Mosaico</span>
+              </button>
+            </div>
+
+            {layoutMode === 'folders' ? (
+              <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 text-xs">
+                <button
+                  type="button"
+                  onClick={() => {
+                    onClearFocus?.();
+                    setActiveFolderId(null);
+                  }}
+                  className={`min-h-[38px] px-3 py-1.5 rounded-xl border transition inline-flex items-center gap-1.5 whitespace-nowrap shrink-0 cursor-pointer ${
+                    activeFolderId === null && !focusedCamera
+                      ? 'bg-neutral-800 text-white border-neutral-700 font-semibold'
+                      : 'bg-neutral-900 text-neutral-400 border-neutral-800 hover:text-white'
+                  }`}
+                >
+                  <Folder className="w-3.5 h-3.5 text-sky-400 shrink-0" />
+                  <span>Todas ({totalFolders})</span>
+                </button>
+                {projectBuckets.map((bucket) => {
+                  const isActive = activeFolderId === bucket.id && !focusedCamera;
+                  return (
+                    <button
+                      key={bucket.id}
+                      type="button"
+                      onClick={() => {
+                        onClearFocus?.();
+                        setActiveFolderId(bucket.id);
+                      }}
+                      className={`min-h-[38px] px-3 py-1.5 rounded-xl border transition inline-flex items-center gap-1.5 whitespace-nowrap shrink-0 cursor-pointer ${
+                        isActive
+                          ? 'bg-neutral-800 text-white border-neutral-700 font-semibold'
+                          : 'bg-neutral-900 text-neutral-400 border-neutral-800 hover:text-white'
+                      }`}
+                    >
+                      {isActive ? (
+                        <FolderOpen className="w-3.5 h-3.5 text-sky-400 shrink-0" />
+                      ) : (
+                        <Folder className="w-3.5 h-3.5 text-neutral-400 shrink-0" />
+                      )}
+                      <span>
+                        {bucket.title} ({bucket.cameras.length})
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            ) : layoutMode === 'sections' ? (
+              <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 text-xs">
+                {filterTabs.map((tab) => {
+                  const active = filterProjectId === tab.id && !focusedCamera;
+                  return (
+                    <button
+                      key={tab.id}
+                      type="button"
+                      onClick={() => {
+                        onClearFocus?.();
+                        setFilterProjectId(tab.id);
+                      }}
+                      className={`min-h-[38px] px-3 py-1.5 rounded-xl border transition inline-flex items-center gap-1.5 whitespace-nowrap shrink-0 cursor-pointer ${
+                        active
+                          ? 'bg-neutral-800 text-white border-neutral-700 font-semibold'
+                          : 'bg-neutral-900 text-neutral-400 border-neutral-800 hover:text-white'
+                      }`}
+                    >
+                      <span>{tab.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            ) : null}
           </div>
 
           {/* Desktop Pills */}
@@ -563,31 +639,42 @@ export const VideoWall: React.FC<VideoWallProps> = ({
                   onClearFocus?.();
                   setActiveFolderId(null);
                 }}
-                className={`min-h-[36px] px-3.5 py-1 rounded-lg transition whitespace-nowrap shrink-0 font-medium cursor-pointer ${
+                className={`min-h-[36px] px-3.5 py-1 rounded-lg transition inline-flex items-center gap-1.5 whitespace-nowrap shrink-0 font-medium cursor-pointer ${
                   activeFolderId === null && !focusedCamera
                     ? 'bg-neutral-800 text-white border border-neutral-700/80 font-semibold shadow-xs'
                     : 'text-neutral-400 hover:text-white border border-transparent'
                 }`}
               >
-                📁 Todas las Carpetas ({totalFolders})
+                <Folder className="w-3.5 h-3.5 text-sky-400 shrink-0" />
+                <span>Todas las Carpetas ({totalFolders})</span>
               </button>
-              {projectBuckets.map((bucket) => (
-                <button
-                  key={bucket.id}
-                  type="button"
-                  onClick={() => {
-                    onClearFocus?.();
-                    setActiveFolderId(bucket.id);
-                  }}
-                  className={`min-h-[36px] px-3.5 py-1 rounded-lg transition whitespace-nowrap shrink-0 font-medium cursor-pointer ${
-                    activeFolderId === bucket.id && !focusedCamera
-                      ? 'bg-neutral-800 text-white border border-neutral-700/80 font-semibold shadow-xs'
-                      : 'text-neutral-400 hover:text-white border border-transparent'
-                  }`}
-                >
-                  📂 {bucket.title} ({bucket.cameras.length})
-                </button>
-              ))}
+              {projectBuckets.map((bucket) => {
+                const isActive = activeFolderId === bucket.id && !focusedCamera;
+                return (
+                  <button
+                    key={bucket.id}
+                    type="button"
+                    onClick={() => {
+                      onClearFocus?.();
+                      setActiveFolderId(bucket.id);
+                    }}
+                    className={`min-h-[36px] px-3.5 py-1 rounded-lg transition inline-flex items-center gap-1.5 whitespace-nowrap shrink-0 font-medium cursor-pointer ${
+                      isActive
+                        ? 'bg-neutral-800 text-white border border-neutral-700/80 font-semibold shadow-xs'
+                        : 'text-neutral-400 hover:text-white border border-transparent'
+                    }`}
+                  >
+                    {isActive ? (
+                      <FolderOpen className="w-3.5 h-3.5 text-sky-400 shrink-0" />
+                    ) : (
+                      <Folder className="w-3.5 h-3.5 text-neutral-400 shrink-0" />
+                    )}
+                    <span>
+                      {bucket.title} ({bucket.cameras.length})
+                    </span>
+                  </button>
+                );
+              })}
             </div>
           ) : layoutMode === 'sections' ? (
             <div className="hidden md:flex items-center flex-wrap gap-1 p-1 bg-neutral-900 border border-neutral-800 rounded-xl text-xs">
@@ -765,7 +852,7 @@ export const VideoWall: React.FC<VideoWallProps> = ({
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-neutral-900/60 border border-neutral-800/80 px-4 py-3 rounded-2xl text-xs text-neutral-300">
             <div className="flex items-center gap-2.5 min-w-0">
               <div className="w-7 h-7 rounded-lg bg-sky-950/60 border border-sky-500/30 text-sky-400 flex items-center justify-center shrink-0 font-bold">
-                📁
+                <Folder className="w-4 h-4" />
               </div>
               <div className="min-w-0">
                 <span className="font-semibold text-white">Carpetas de Vigilancia:</span>{' '}
@@ -905,12 +992,18 @@ export const VideoWall: React.FC<VideoWallProps> = ({
                             4G LTE En Línea ({bucket.cameras.length}/{bucket.cameras.length})
                           </span>
                           <span className="flex items-center gap-1 bg-neutral-950 px-2 py-0.5 rounded-md border border-neutral-800 text-emerald-300">
-                            📊 {formatMobileDataUsage(folderMetrics4g.sessionBytes)}
+                            <Activity className="w-3 h-3 text-emerald-400 shrink-0" />
+                            <span>{formatMobileDataUsage(folderMetrics4g.sessionBytes)}</span>
                           </span>
                           <span className="flex items-center gap-1 bg-neutral-950 px-2 py-0.5 rounded-md border border-neutral-800 text-neutral-300">
-                            {folderMetrics4g.isStreaming
-                              ? `~${folderMetrics4g.currentRateKBs} KB/s`
-                              : '🍃 0 KB/s Reposo'}
+                            {folderMetrics4g.isStreaming ? (
+                              `~${folderMetrics4g.currentRateKBs} KB/s`
+                            ) : (
+                              <>
+                                <Leaf className="w-3 h-3 text-emerald-400 shrink-0" />
+                                <span>0 KB/s Reposo</span>
+                              </>
+                            )}
                           </span>
                         </>
                       ) : (
@@ -920,7 +1013,8 @@ export const VideoWall: React.FC<VideoWallProps> = ({
                             DVR TurboHD En Línea
                           </span>
                           <span className="flex items-center gap-1 bg-neutral-950 px-2 py-0.5 rounded-md border border-neutral-800 text-neutral-300">
-                            <span className="text-emerald-400">⚡</span> Transmisión bajo demanda
+                            <Zap className="w-3 h-3 text-emerald-400 shrink-0" />
+                            <span>Transmisión bajo demanda</span>
                           </span>
                           <span className="flex items-center gap-1 bg-neutral-950 px-2 py-0.5 rounded-md border border-neutral-800 text-neutral-300">
                             <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" /> P2P / RTSP
@@ -992,19 +1086,22 @@ export const VideoWall: React.FC<VideoWallProps> = ({
                   <span className="text-neutral-400 hidden sm:inline">Muro de Video</span>
                   <span className="text-neutral-600 hidden sm:inline">/</span>
                   <span
-                    className={`font-bold truncate text-xs sm:text-sm ${
+                    className={`font-bold truncate text-xs sm:text-sm inline-flex items-center gap-1.5 ${
                       getBucketAccent(activeBucket, Math.max(0, activeFolderIndex)).breadcrumbText
                     }`}
                   >
-                    📁 {activeBucket.title} ({activeBucket.cameras.length}{' '}
-                    {activeBucket.has4gCameras
-                      ? activeBucket.cameras.length === 1
-                        ? 'Canal 4G'
-                        : 'Canales 4G'
-                      : activeBucket.cameras.length === 1
-                      ? 'Canal'
-                      : 'Canales'}
-                    )
+                    <FolderOpen className="w-4 h-4 shrink-0" />
+                    <span className="truncate">
+                      {activeBucket.title} ({activeBucket.cameras.length}{' '}
+                      {activeBucket.has4gCameras
+                        ? activeBucket.cameras.length === 1
+                          ? 'Canal 4G'
+                          : 'Canales 4G'
+                        : activeBucket.cameras.length === 1
+                        ? 'Canal'
+                        : 'Canales'}
+                      )
+                    </span>
                   </span>
                 </div>
               </div>
@@ -1016,7 +1113,8 @@ export const VideoWall: React.FC<VideoWallProps> = ({
                     onClick={() => setActiveFolderId(nextBucket.id)}
                     className="h-8 px-3 rounded-lg bg-neutral-950 hover:bg-neutral-800 text-neutral-300 hover:text-white border border-neutral-800 text-xs font-medium flex items-center gap-1.5 transition cursor-pointer"
                   >
-                    <span>Ver {nextBucket.title} ➔</span>
+                    <span>Ver {nextBucket.title}</span>
+                    <ArrowRight className="w-3.5 h-3.5 shrink-0" />
                   </button>
                 </div>
               )}

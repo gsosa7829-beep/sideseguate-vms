@@ -4,7 +4,7 @@ import { Camera } from '../lib/types';
 import { BRAND_NAME } from '../lib/assets';
 import { ivmsLiveBridge, computeIvmsChannelSourceRect } from '../lib/ivmsLiveBridge';
 import { cloudP2pClient } from '../lib/cloudP2pClient';
-import { clampCameraChannel, getEzPlayerCanvasDimensions, getLiveResumePosition, getPlaybackEnvironment, shouldUseNativeDvrHls } from '../lib/livePlayback';
+import { clampCameraChannel, formatChannelBadge, getEzPlayerCanvasDimensions, getLiveResumePosition, getPlaybackEnvironment, shouldUseNativeDvrHls } from '../lib/livePlayback';
 import { isDeprecatedServerUrl, isPlaceholderStreamUrl, loadGateway, resolveStreamUrls, isPublicGateway } from '../lib/streamGateway';
 import {
   captureContainerFrameDataUrl,
@@ -2182,58 +2182,114 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
         )}
       </div>
 
-      {/* Barra de Controles: Espaciosa y Limpia (Solo Pausa/Reanudar y Ampliar) */}
-      <div className="relative z-20 bg-neutral-950/95 border-t border-neutral-800/90 px-4 py-2.5 sm:py-3 text-neutral-300">
-        <div className="flex items-center justify-center gap-4 sm:gap-6 max-w-md mx-auto">
-          {/* Botón Pausa / Reanudar */}
-          <button
-            type="button"
-            aria-label={isStreamPlaying ? 'Pausar transmisión de video' : 'Reanudar transmisión en vivo'}
-            onClick={() => handleToggleStream(!isStreamPlaying)}
-            className={`flex-1 h-11 min-h-[44px] px-5 rounded-xl border text-xs sm:text-sm font-semibold transition-all flex items-center justify-center gap-2 active:scale-95 cursor-pointer shadow-sm ${
-              isStreamPlaying
-                ? 'bg-neutral-900 hover:bg-neutral-850 border-neutral-700/80 text-neutral-200 hover:text-white'
-                : 'bg-sky-600 hover:bg-sky-500 border-sky-400 text-white shadow-md shadow-sky-950/50'
-            }`}
-            title={isStreamPlaying ? 'Pausar transmisión' : 'Reanudar transmisión'}
-          >
-            {isStreamPlaying ? (
-              <>
-                <Pause className="w-4 h-4 text-neutral-300 shrink-0" />
-                <span className="font-bold whitespace-nowrap">Pausar</span>
-              </>
-            ) : (
-              <>
-                <Play className="w-4 h-4 fill-current text-white shrink-0" />
-                <span className="font-bold whitespace-nowrap">Reanudar</span>
-              </>
-            )}
-          </button>
+      {/* Barra de Controles Unificada e Integrada al Marco del Reproductor */}
+      <div className="relative z-20 bg-neutral-900/95 border-t border-neutral-800/90 px-3 sm:px-4 py-2.5 sm:py-3 text-neutral-300">
+        <div
+          className={
+            isClientView && !isCompact
+              ? 'flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5 sm:gap-4 w-full'
+              : 'w-full'
+          }
+        >
+          {isClientView && !isCompact && (
+            <div className="hidden sm:flex items-center gap-2.5 min-w-0 flex-1">
+              <span
+                className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-[11px] font-semibold shrink-0 ${
+                  isOffline
+                    ? 'bg-red-950/70 border-red-800/60 text-red-300'
+                    : isStreamPlaying && !is4gEcoPaused
+                    ? 'bg-emerald-950/70 border-emerald-700/60 text-emerald-300'
+                    : 'bg-amber-950/70 border-amber-700/60 text-amber-300'
+                }`}
+              >
+                <span
+                  className={`w-1.5 h-1.5 rounded-full ${
+                    isOffline
+                      ? 'bg-red-400'
+                      : isStreamPlaying && !is4gEcoPaused
+                      ? 'bg-emerald-400 animate-pulse'
+                      : 'bg-amber-400'
+                  }`}
+                />
+                {isOffline ? 'Sin señal' : isStreamPlaying && !is4gEcoPaused ? 'En Vivo' : 'En espera'}
+              </span>
+              <span className="font-mono text-[11px] font-bold px-2 py-0.5 rounded-md bg-sky-950/80 border border-sky-800/60 text-sky-300 shrink-0">
+                {formatChannelBadge(channel)}
+              </span>
+              <span className="text-xs md:text-sm font-semibold text-white truncate">
+                {camera.name}
+              </span>
+              <span className="hidden md:inline-flex items-center gap-1.5 text-[11px] font-mono text-neutral-400 shrink-0 tabular-nums">
+                <span>{camera.resolution.split(' ')[0]}</span>
+                <span className="text-neutral-600">·</span>
+                <span>{camera.fps || 25} FPS</span>
+                <span className="text-neutral-600">·</span>
+                <span>{camera.codec}</span>
+              </span>
+            </div>
+          )}
 
-          {/* Botón Ampliar (Pantalla Completa / Modo Teatro) */}
-          <button
-            type="button"
-            aria-label={isFullscreen ? 'Salir de pantalla completa' : 'Ampliar video'}
-            onClick={toggleFullscreen}
-            className={`flex-1 h-11 min-h-[44px] px-5 rounded-xl border text-xs sm:text-sm font-semibold transition-all flex items-center justify-center gap-2 active:scale-95 cursor-pointer shadow-sm ${
-              isFullscreen
-                ? 'bg-neutral-800 hover:bg-neutral-750 border-neutral-700 text-white'
-                : 'bg-sky-600/25 hover:bg-sky-600/35 border-sky-500/60 text-sky-200 shadow-sm'
-            }`}
-            title={isFullscreen ? 'Salir de modo ampliado' : 'Ampliar video'}
+          <div
+            className={
+              isClientView && !isCompact
+                ? 'grid grid-cols-2 sm:flex sm:items-center gap-2.5 w-full sm:w-auto sm:shrink-0'
+                : 'grid grid-cols-2 gap-2.5 w-full'
+            }
           >
-            {isFullscreen ? (
-              <>
-                <Minimize2 className="w-4 h-4 text-neutral-300 shrink-0" />
-                <span className="font-bold whitespace-nowrap">Salir</span>
-              </>
-            ) : (
-              <>
-                <Maximize2 className="w-4 h-4 text-sky-400 shrink-0" />
-                <span className="font-bold whitespace-nowrap">Ampliar</span>
-              </>
-            )}
-          </button>
+            {/* Botón Pausa / Reanudar */}
+            <button
+              type="button"
+              aria-label={isStreamPlaying ? 'Pausar transmisión de video' : 'Reanudar transmisión en vivo'}
+              onClick={() => handleToggleStream(!isStreamPlaying)}
+              className={`h-11 sm:h-10 min-h-[40px] ${
+                isClientView && !isCompact ? 'sm:min-w-[132px]' : ''
+              } px-4 sm:px-5 rounded-xl border text-xs sm:text-sm font-semibold transition-all flex items-center justify-center gap-2 active:scale-95 cursor-pointer shadow-sm ${
+                isStreamPlaying
+                  ? 'bg-neutral-950/90 hover:bg-neutral-800 border-neutral-700/80 text-neutral-200 hover:text-white'
+                  : 'bg-sky-600 hover:bg-sky-500 border-sky-400 text-white shadow-md shadow-sky-950/50'
+              }`}
+              title={isStreamPlaying ? 'Pausar transmisión' : 'Reanudar transmisión'}
+            >
+              {isStreamPlaying ? (
+                <>
+                  <Pause className="w-4 h-4 text-neutral-300 shrink-0" />
+                  <span className="font-bold whitespace-nowrap">Pausar</span>
+                </>
+              ) : (
+                <>
+                  <Play className="w-4 h-4 fill-current text-white shrink-0" />
+                  <span className="font-bold whitespace-nowrap">Reanudar</span>
+                </>
+              )}
+            </button>
+
+            {/* Botón Ampliar (Pantalla Completa / Modo Teatro) */}
+            <button
+              type="button"
+              aria-label={isFullscreen ? 'Salir de pantalla completa' : 'Ampliar video'}
+              onClick={toggleFullscreen}
+              className={`h-11 sm:h-10 min-h-[40px] ${
+                isClientView && !isCompact ? 'sm:min-w-[132px]' : ''
+              } px-4 sm:px-5 rounded-xl border text-xs sm:text-sm font-semibold transition-all flex items-center justify-center gap-2 active:scale-95 cursor-pointer shadow-sm ${
+                isFullscreen
+                  ? 'bg-neutral-800 hover:bg-neutral-750 border-neutral-700 text-white'
+                  : 'bg-sky-600/20 hover:bg-sky-600/35 border-sky-500/55 text-sky-200 shadow-sm'
+              }`}
+              title={isFullscreen ? 'Salir de modo ampliado' : 'Ampliar video'}
+            >
+              {isFullscreen ? (
+                <>
+                  <Minimize2 className="w-4 h-4 text-neutral-300 shrink-0" />
+                  <span className="font-bold whitespace-nowrap">Salir</span>
+                </>
+              ) : (
+                <>
+                  <Maximize2 className="w-4 h-4 text-sky-400 shrink-0" />
+                  <span className="font-bold whitespace-nowrap">Ampliar</span>
+                </>
+              )}
+            </button>
+          </div>
         </div>
       </div>
       </div>
