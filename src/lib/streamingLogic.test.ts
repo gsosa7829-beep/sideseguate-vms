@@ -18,7 +18,7 @@ import {
 } from './cloudSyncHelpers.ts';
 import { ShareLink, Camera } from './types.ts';
 import { mergeCloudShareLinks, shareLinkListsDiffer } from './shareLinkMerge.ts';
-import { getEzPlayerCanvasDimensions, getLiveResumePosition, getPlaybackEnvironment } from './livePlayback.ts';
+import { getEzPlayerCanvasDimensions, getLiveResumePosition, getPlaybackEnvironment, shouldUseNativeDvrHls } from './livePlayback.ts';
 import { BRAND_NAME, BRAND_SUBTITLE, BRAND_ICON_URL, LOGO_URL } from './assets.ts';
 
 test('reconoce iPad con agente de escritorio y distingue Android de Safari móvil', () => {
@@ -1971,4 +1971,40 @@ test('isDeprecatedServerUrl y resolveAppCameraUrls descartan el servidor retirad
     emptyGateway()
   );
   assert.match(regularCamFallback.hlsStreamUrl, /^http:\/\/localhost:8888\//);
+});
+
+test('shouldUseNativeDvrHls prioriza HLS fijo 1080p en DVR H.264 Cementerio y mantiene EZUIKit en Ocós 4G H.265', () => {
+  assert.equal(
+    shouldUseNativeDvrHls({
+      isCementerioCamera: true,
+      is4gCamera: false,
+      codec: 'H.264',
+      hasRealPublicHls: false,
+      useHlsFallback: false,
+      tryEzFallback: false,
+    }),
+    true
+  );
+  assert.equal(
+    shouldUseNativeDvrHls({
+      isCementerioCamera: false,
+      is4gCamera: true,
+      codec: 'H.265',
+      hasRealPublicHls: false,
+      useHlsFallback: false,
+      tryEzFallback: false,
+    }),
+    false
+  );
+  assert.equal(
+    shouldUseNativeDvrHls({
+      isCementerioCamera: true,
+      is4gCamera: false,
+      codec: 'H.264',
+      hasRealPublicHls: false,
+      useHlsFallback: false,
+      tryEzFallback: true,
+    }),
+    false
+  );
 });

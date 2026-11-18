@@ -4,7 +4,7 @@ import { Camera } from '../lib/types';
 import { BRAND_NAME } from '../lib/assets';
 import { ivmsLiveBridge, computeIvmsChannelSourceRect } from '../lib/ivmsLiveBridge';
 import { cloudP2pClient } from '../lib/cloudP2pClient';
-import { clampCameraChannel, getEzPlayerCanvasDimensions, getLiveResumePosition, getPlaybackEnvironment } from '../lib/livePlayback';
+import { clampCameraChannel, getEzPlayerCanvasDimensions, getLiveResumePosition, getPlaybackEnvironment, shouldUseNativeDvrHls } from '../lib/livePlayback';
 import { isDeprecatedServerUrl, isPlaceholderStreamUrl, loadGateway, resolveStreamUrls, isPublicGateway } from '../lib/streamGateway';
 import {
   captureContainerFrameDataUrl,
@@ -500,13 +500,14 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
   const lastPlaybackTimeRef = useRef<number>(0);
   const stallCountRef = useRef<number>(0);
   const [useHlsFallback, setUseHlsFallback] = useState(false);
-  const [tryEzOnMobile, setTryEzOnMobile] = useState(false);
-  const preferMobileHls = isMobile && isCementerioCamera && !is4gCamera && camera.codec !== 'H.265';
-  const tryMobileEzFallback = useCallback(() => {
-    if (!preferMobileHls || tryEzOnMobile || useHlsFallback) return false;
-    setTryEzOnMobile(true);
+  const [tryEzFallback, setTryEzFallback] = useState(false);
+  const hlsRetryCountRef = useRef(0);
+  const preferNativeDvrHls = isCementerioCamera && !is4gCamera && camera.codec !== 'H.265';
+  const tryDvrEzFallback = useCallback(() => {
+    if (!preferNativeDvrHls || tryEzFallback || useHlsFallback) return false;
+    setTryEzFallback(true);
     return true;
-  }, [preferMobileHls, tryEzOnMobile, useHlsFallback]);
+  }, [preferNativeDvrHls, tryEzFallback, useHlsFallback]);
 
   // =========================================================================
   // MODO ULTRA-AHORRO DE DATOS SIM 4G (PROYECTO OCOS - FF9363270)
@@ -550,9 +551,18 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
     (gatewayStream.hlsUrl && isPublicGateway(gatewayStream.hlsUrl) && !isDeprecatedServerUrl(gatewayStream.hlsUrl))
   );
 
-  // Cámaras 4G y HiLook transmiten vía EZopen (WASM Player / Canvas) si no hay gateway público real
+  const useNativeDvrHls = shouldUseNativeDvrHls({
+    isCementerioCamera,
+    is4gCamera,
+    codec: camera.codec,
+    hasRealPublicHls,
+    useHlsFallback,
+    tryEzFallback,
+  });
+
+  // Cámaras 4G (H.265) y respaldo P2P usan EZUIKit; Cementerio H.264 usa HLS fijo HD directo en <video>
   const isEzopenDevice = Boolean(
-    !useHlsFallback && !hasRealPublicHls && (
+    !useHlsFallback && !hasRealPublicHls && !useNativeDvrHls && (
       camera.codec === 'H.265' ||
       camera.deviceSerial === 'FF9363270' ||
       camera.deviceSerial === 'FF9363192' ||
@@ -671,8 +681,10 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
     } else {
       // Al reanudar, restaurar ruta principal consistente sin quedar en fallback HLS/SD previo.
       setUseHlsFallback(false);
+      setTryEzFallback(false);
       setIsOffline(false);
       ezErrorCountRef.current = 0;
+      hlsRetryCountRef.current = 0;
       stallCountRef.current = 0;
       setStreamQuality(!isMobile && !is4gCamera && isCementerioCamera ? '1' : '2');
     }
@@ -826,6 +838,8 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
     setUseHlsFallback(false);
     ezErrorCountRef.current = 0;
     if (userInitiated) {
+      setTryEzFallback(false);
+      hlsRetryCountRef.current = 0;
       setNeedsEncryptionCode(false);
       setUnlockFeedback(null);
       setIsOffline(false);
@@ -1073,7 +1087,11 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
         setIsOffline(false);
         return;
       }
-      if (tryMobileEzFallback()) return;
+      if (result.errorCode !== '60019' && !refresh && preferNativeDvrHls) {
+        void resolve(true);
+        return;
+      }
+      if (tryDvrEzFallback()) return;
 
       if (result.errorCode === '60019' || /encrypt/i.test(result.error || '')) {
         setNeedsEncryptionCode(true);
@@ -1098,7 +1116,7 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
       clearTimeout(retryTimer);
     };
   }, [canLoadVideo, isEzopenDevice, directHlsUrl, channel, deviceSerial, streamQuality,
-    effectiveVerificationCode, hlsSourceKey, reconnectVersion, tryMobileEzFallback]);
+    effectiveVerificationCode, hlsSourceKey, reconnectVersion, preferNativeDvrHls, tryDvrEzFallback]);
 
   useEffect(() => ivmsLiveBridge.subscribe(() => {
     setIvmsBridgeActive(ivmsLiveBridge.isActive());
@@ -1233,7 +1251,14 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
       clearTimeout(startupTimer);
       setHlsLiveReady(false);
       hlsLiveReadyRef.current = false;
-      if (tryMobileEzFallback()) return;
+      if (preferNativeDvrHls && hlsRetryCountRef.current < 2) {
+        hlsRetryCountRef.current += 1;
+        retryTimer = setTimeout(() => {
+          if (!disposed) handleForceReconnect(false);
+        }, 900);
+        return;
+      }
+      if (tryDvrEzFallback()) return;
       setIsOffline(true);
       setIsReconnecting(false);
       setIsSwitchingQuality(false);
@@ -1273,6 +1298,7 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
       blocked = false;
       networkRecovery = false;
       mediaRecovery = false;
+      hlsRetryCountRef.current = 0;
       reconnectDelay.current = 2_000;
       lastPlaybackTimeRef.current = video.currentTime;
       stallCountRef.current = 0;
@@ -1366,7 +1392,7 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
         video.load();
       }
     };
-  }, [liveHlsUrl, streamQuality, isMobile, appleMobile, reconnectVersion, handleForceReconnect, tryMobileEzFallback]);
+  }, [liveHlsUrl, streamQuality, isMobile, appleMobile, reconnectVersion, handleForceReconnect, preferNativeDvrHls, tryDvrEzFallback]);
 
   // Canvas de respaldo: en cámaras reales dibuja bajo demanda (0% uso de CPU/GPU en reposo)
   useEffect(() => {
@@ -1974,7 +2000,7 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
             ref={videoRef}
             width={1280}
             height={720}
-            className={`absolute inset-0 w-full h-full object-fill z-10 transition-opacity duration-200 ${hasHls ? 'opacity-100' : 'opacity-90'}`}
+            className={`absolute inset-0 w-full h-full object-fill z-10 transition-opacity duration-200 ${hasHls ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
             muted={isMuted}
             playsInline
             autoPlay

@@ -51,3 +51,20 @@ export function getEzPlayerCanvasDimensions(
   const height = Math.round((width * 9) / 16);
   return { width, height };
 }
+
+/**
+ * Decide si el reproductor debe usar HLS nativo fijo (<video> + hls.js)
+ * en lugar de EZUIKit WASM. El DVR H.264 de Cementerio (F31700438) entrega en
+ * EZVIZ HLS un flujo fijo 1080p ('1') en PC sin el override interno HD/SD de EZUIKit.
+ */
+export function shouldUseNativeDvrHls(params: {
+  isCementerioCamera: boolean;
+  is4gCamera: boolean;
+  codec?: string;
+  hasRealPublicHls: boolean;
+  useHlsFallback: boolean;
+  tryEzFallback: boolean;
+}): boolean {
+  if (params.useHlsFallback || params.hasRealPublicHls || params.tryEzFallback) return false;
+  return params.isCementerioCamera && !params.is4gCamera && params.codec !== 'H.265';
+}
