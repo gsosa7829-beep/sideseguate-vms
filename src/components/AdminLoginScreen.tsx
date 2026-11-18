@@ -130,7 +130,7 @@ export const AdminLoginScreen: React.FC<AdminLoginScreenProps> = ({
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
-                className="text-[11px] text-sky-400 hover:text-sky-300 flex items-center gap-1 transition"
+                className="min-h-[36px] sm:min-h-0 px-2 -my-1.5 rounded-lg text-[11px] text-sky-400 hover:text-sky-300 hover:bg-neutral-800/60 flex items-center gap-1 transition cursor-pointer"
               >
                 {showPassword ? (
                   <>
@@ -162,7 +162,7 @@ export const AdminLoginScreen: React.FC<AdminLoginScreenProps> = ({
           <button
             type="submit"
             disabled={isSubmitting || lock.locked}
-            className="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-sky-500 to-sky-600 hover:from-sky-400 hover:to-sky-500 text-white font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 transition shadow-lg shadow-sky-500/25 active:scale-[0.99] disabled:opacity-50"
+            className="w-full min-h-[44px] py-2.5 px-4 rounded-xl bg-gradient-to-r from-sky-500 to-sky-600 hover:from-sky-400 hover:to-sky-500 text-white font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 transition shadow-lg shadow-sky-500/25 active:scale-[0.99] disabled:opacity-50 cursor-pointer"
           >
             {isSubmitting ? (
               <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />

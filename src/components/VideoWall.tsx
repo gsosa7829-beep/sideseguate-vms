@@ -867,7 +867,7 @@ export const VideoWall: React.FC<VideoWallProps> = ({
               <button
                 type="button"
                 onClick={onOpenNewProject}
-                className="min-h-[36px] px-3 py-1.5 rounded-xl bg-sky-600 hover:bg-sky-500 active:scale-95 text-white font-semibold text-xs flex items-center gap-1.5 transition cursor-pointer shadow-sm"
+                className="w-full sm:w-auto min-h-[40px] sm:min-h-[36px] px-3.5 py-2 sm:py-1.5 rounded-xl bg-sky-600 hover:bg-sky-500 active:scale-95 text-white font-semibold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer shadow-sm"
               >
                 <FolderPlus className="w-3.5 h-3.5 shrink-0" />
                 <span>Nueva Carpeta</span>
@@ -1039,7 +1039,7 @@ export const VideoWall: React.FC<VideoWallProps> = ({
                             e.stopPropagation();
                             onDeleteProject(bucket.id);
                           }}
-                          className="h-9 px-2.5 rounded-xl bg-neutral-950 hover:bg-red-950/70 text-neutral-500 hover:text-red-400 border border-neutral-800 hover:border-red-500/40 transition flex items-center justify-center cursor-pointer"
+                          className="min-h-[40px] h-10 min-w-[40px] sm:min-w-0 sm:min-h-0 sm:h-9 px-2.5 rounded-xl bg-neutral-950 hover:bg-red-950/70 text-neutral-500 hover:text-red-400 border border-neutral-800 hover:border-red-500/40 transition flex items-center justify-center cursor-pointer"
                           title={`Eliminar carpeta ${bucket.title}`}
                         >
                           <Trash2 className="w-3.5 h-3.5" />
@@ -1051,7 +1051,7 @@ export const VideoWall: React.FC<VideoWallProps> = ({
                           e.stopPropagation();
                           setActiveFolderId(bucket.id);
                         }}
-                        className={`h-9 px-4 rounded-xl bg-neutral-800 ${theme.btnHover} text-neutral-200 group-hover:text-white border border-neutral-700 font-semibold text-xs transition flex items-center gap-2 shadow-sm cursor-pointer`}
+                        className={`min-h-[40px] h-10 sm:min-h-0 sm:h-9 px-4 rounded-xl bg-neutral-800 ${theme.btnHover} text-neutral-200 group-hover:text-white border border-neutral-700 font-semibold text-xs transition flex items-center gap-2 shadow-sm cursor-pointer`}
                       >
                         <span>Abrir Proyecto</span>
                         <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition" />
@@ -1073,7 +1073,7 @@ export const VideoWall: React.FC<VideoWallProps> = ({
                 <button
                   type="button"
                   onClick={() => setActiveFolderId(null)}
-                  className="h-9 min-h-[36px] px-3.5 rounded-xl bg-neutral-800 hover:bg-neutral-750 active:bg-neutral-700 text-white font-semibold flex items-center gap-2 transition cursor-pointer border border-neutral-700 shadow-sm shrink-0"
+                  className="min-h-[42px] h-[42px] sm:min-h-[36px] sm:h-9 px-3.5 rounded-xl bg-neutral-800 hover:bg-neutral-750 active:bg-neutral-700 text-white font-semibold flex items-center justify-center gap-2 transition cursor-pointer border border-neutral-700 shadow-sm shrink-0"
                   title="Volver a la vista de carpetas"
                 >
                   <ArrowLeft className="w-4 h-4 text-sky-400" />
@@ -1111,7 +1111,7 @@ export const VideoWall: React.FC<VideoWallProps> = ({
                   <button
                     type="button"
                     onClick={() => setActiveFolderId(nextBucket.id)}
-                    className="h-8 px-3 rounded-lg bg-neutral-950 hover:bg-neutral-800 text-neutral-300 hover:text-white border border-neutral-800 text-xs font-medium flex items-center gap-1.5 transition cursor-pointer"
+                    className="w-full sm:w-auto min-h-[40px] h-10 sm:min-h-0 sm:h-8 px-3 rounded-lg bg-neutral-950 hover:bg-neutral-800 text-neutral-300 hover:text-white border border-neutral-800 text-xs font-medium flex items-center justify-center gap-1.5 transition cursor-pointer"
                   >
                     <span>Ver {nextBucket.title}</span>
                     <ArrowRight className="w-3.5 h-3.5 shrink-0" />
@@ -1194,7 +1194,7 @@ export const VideoWall: React.FC<VideoWallProps> = ({
                             <button
                               type="button"
                               onClick={() => resetOcosDataUsage(bucket4gIds)}
-                              className="p-1 rounded-lg bg-neutral-900 hover:bg-neutral-800 text-neutral-400 hover:text-white border border-neutral-800 transition cursor-pointer shrink-0"
+                              className="min-h-[36px] min-w-[36px] sm:min-h-0 sm:min-w-0 p-1 rounded-lg bg-neutral-900 hover:bg-neutral-800 text-neutral-400 hover:text-white border border-neutral-800 transition flex items-center justify-center cursor-pointer shrink-0"
                               title={`Acumulado SIM en este proyecto: ${formatMobileDataUsage(metrics4g.accumulatedBytes)} · Reiniciar medidor`}
                             >
                               <RotateCcw className="w-3.5 h-3.5" />
@@ -1214,7 +1214,7 @@ export const VideoWall: React.FC<VideoWallProps> = ({
                                   key={opt.value}
                                   type="button"
                                   onClick={() => setOcosEcoSleepOption(opt.value)}
-                                  className={`h-7 px-1.5 sm:px-2 rounded-lg text-[10px] sm:text-[11px] font-bold transition cursor-pointer text-center ${
+                                  className={`min-h-[36px] h-9 sm:min-h-0 sm:h-7 px-1.5 sm:px-2 rounded-lg text-[10px] sm:text-[11px] font-bold transition cursor-pointer text-center flex items-center justify-center ${
                                     isSelected
                                       ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/50 shadow-xs'
                                       : 'bg-neutral-900 hover:bg-neutral-800 text-neutral-400 hover:text-neutral-200 border border-transparent'
@@ -1235,7 +1235,7 @@ export const VideoWall: React.FC<VideoWallProps> = ({
                             <button
                               type="button"
                               onClick={() => handleSetBucketStreams(bucket.cameras, true)}
-                              className="h-9 sm:h-[42px] min-h-[36px] sm:min-h-[42px] px-3 sm:px-4 py-1.5 sm:py-2 bg-neutral-800 hover:bg-neutral-700 active:bg-neutral-600 text-white text-xs font-semibold rounded-lg sm:rounded-xl transition border border-neutral-700 shadow-sm flex items-center gap-2 cursor-pointer"
+                              className="h-[42px] min-h-[42px] px-3.5 sm:px-4 py-2 bg-neutral-800 hover:bg-neutral-700 active:bg-neutral-600 text-white text-xs font-semibold rounded-xl transition border border-neutral-700 shadow-sm flex items-center gap-2 cursor-pointer"
                             >
                               <Play className="w-3.5 h-3.5 fill-current text-white" />
                               <span>{bucket.cameras.length === 2 ? 'Iniciar Ambos' : 'Iniciar Todas'}</span>
@@ -1244,7 +1244,7 @@ export const VideoWall: React.FC<VideoWallProps> = ({
                             <button
                               type="button"
                               onClick={() => handleSetBucketStreams(bucket.cameras, false)}
-                              className="h-9 sm:h-[42px] min-h-[36px] sm:min-h-[42px] px-3 sm:px-3.5 py-1.5 sm:py-2 bg-neutral-900 hover:bg-neutral-850 active:bg-neutral-800 text-neutral-400 hover:text-white text-xs font-medium rounded-lg sm:rounded-xl transition border border-neutral-800 flex items-center gap-1.5 cursor-pointer"
+                              className="h-[42px] min-h-[42px] px-3.5 py-2 bg-neutral-900 hover:bg-neutral-850 active:bg-neutral-800 text-neutral-400 hover:text-white text-xs font-medium rounded-xl transition border border-neutral-800 flex items-center gap-1.5 cursor-pointer"
                             >
                               <Pause className="w-3.5 h-3.5" />
                               <span>Detener</span>
@@ -1256,7 +1256,7 @@ export const VideoWall: React.FC<VideoWallProps> = ({
                           <button
                             type="button"
                             onClick={() => onOpenNewCamera(bucket.id)}
-                            className="h-9 sm:h-[42px] px-3 py-1.5 bg-sky-600 hover:bg-sky-500 text-white text-xs font-semibold rounded-lg sm:rounded-xl transition flex items-center gap-1.5 cursor-pointer"
+                            className="h-[42px] min-h-[42px] px-3.5 py-2 bg-sky-600 hover:bg-sky-500 text-white text-xs font-semibold rounded-xl transition flex items-center gap-1.5 cursor-pointer"
                           >
                             <Plus className="w-3.5 h-3.5" />
                             <span>Agregar Cámara</span>

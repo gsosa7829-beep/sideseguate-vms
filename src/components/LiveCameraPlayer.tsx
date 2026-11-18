@@ -1767,7 +1767,7 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
             <button
               type="button"
               onClick={() => setIsTheaterMode(false)}
-              className="h-8 sm:min-h-[44px] sm:h-[44px] px-2.5 sm:px-3.5 py-1 sm:py-1.5 rounded-lg sm:rounded-xl bg-neutral-800 hover:bg-neutral-700 active:bg-neutral-600 text-white font-medium flex items-center gap-1.5 transition cursor-pointer border border-neutral-700 shadow-md text-xs shrink-0"
+              className="min-h-[44px] h-11 sm:h-[44px] px-3 sm:px-3.5 py-1.5 rounded-xl bg-neutral-800 hover:bg-neutral-700 active:bg-neutral-600 text-white font-medium flex items-center gap-1.5 transition cursor-pointer border border-neutral-700 shadow-md text-xs shrink-0"
               title="Cerrar modo teatro (Escape o clic fuera)"
             >
               <span className="text-xs font-semibold">Cerrar</span>

@@ -1282,7 +1282,7 @@ function AppShell() {
                     <button
                       type="button"
                       onClick={handleExpireAllLinksNow}
-                      className="px-3 py-2 bg-red-950/80 hover:bg-red-900 border border-red-800/80 text-red-200 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition whitespace-nowrap cursor-pointer"
+                      className="min-h-[42px] sm:min-h-0 px-3 py-2 bg-red-950/80 hover:bg-red-900 border border-red-800/80 text-red-200 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition whitespace-nowrap cursor-pointer"
                       title="Eliminar todos los enlaces inmediatamente"
                     >
                       <Trash2 className="w-3.5 h-3.5 text-red-400" />
@@ -1297,7 +1297,7 @@ function AppShell() {
                       setShareDefaultProjectId(null);
                       setIsShareModalOpen(true);
                     }}
-                    className="px-4 py-2 bg-sky-600 hover:bg-sky-500 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 shadow-sm transition shrink-0 whitespace-nowrap cursor-pointer"
+                    className="min-h-[42px] sm:min-h-0 px-4 py-2 bg-sky-600 hover:bg-sky-500 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 shadow-sm transition shrink-0 whitespace-nowrap cursor-pointer"
                   >
                     <Plus className="w-4 h-4" />
                     <span>Nuevo Enlace</span>
@@ -1365,7 +1365,7 @@ function AppShell() {
                                 type="button"
                                 aria-label={link.isActive ? 'Pausar enlace' : 'Activar enlace'}
                                 onClick={() => handleToggleLinkActive(link.id)}
-                                className={`px-2 py-1 rounded-lg border text-[11px] font-medium flex items-center gap-1 transition cursor-pointer ${
+                                className={`min-h-[36px] sm:min-h-0 px-2.5 sm:px-2 py-1 rounded-lg border text-[11px] font-medium flex items-center gap-1 transition cursor-pointer ${
                                   link.isActive
                                     ? 'bg-neutral-950 border-neutral-800 text-neutral-400 hover:text-white'
                                     : 'bg-emerald-950/80 border-emerald-800 text-emerald-300'
@@ -1383,7 +1383,7 @@ function AppShell() {
                                   setEditingShareLink(link);
                                   setIsShareModalOpen(true);
                                 }}
-                                className="p-1.5 bg-neutral-950 hover:bg-neutral-800 border border-neutral-800 text-neutral-400 hover:text-white rounded-lg text-xs transition cursor-pointer"
+                                className="min-h-[36px] min-w-[36px] sm:min-h-0 sm:min-w-0 p-1.5 bg-neutral-950 hover:bg-neutral-800 border border-neutral-800 text-neutral-400 hover:text-white rounded-lg text-xs flex items-center justify-center transition cursor-pointer"
                                 title="Editar enlace"
                               >
                                 <Edit3 className="w-3.5 h-3.5" />
@@ -1393,7 +1393,7 @@ function AppShell() {
                                 type="button"
                                 aria-label="Eliminar enlace permanentemente"
                                 onClick={() => handleDeleteShareLink(link.id)}
-                                className="px-2 py-1 bg-red-950/60 hover:bg-red-900/90 border border-red-800/60 text-red-300 hover:text-white rounded-lg text-[11px] font-semibold flex items-center gap-1 transition cursor-pointer"
+                                className="min-h-[36px] sm:min-h-0 px-2.5 sm:px-2 py-1 bg-red-950/60 hover:bg-red-900/90 border border-red-800/60 text-red-300 hover:text-white rounded-lg text-[11px] font-semibold flex items-center gap-1 transition cursor-pointer"
                                 title="Eliminar este enlace permanentemente"
                               >
                                 <Trash2 className="w-3 h-3" />
@@ -1441,7 +1441,7 @@ function AppShell() {
                               href={getWhatsAppShareUrl(link)}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="px-3 py-2 bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 text-white rounded-xl text-xs font-semibold transition flex items-center justify-center gap-1.5 shadow-sm whitespace-nowrap cursor-pointer"
+                              className="min-h-[42px] sm:min-h-0 px-3 py-2 bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 text-white rounded-xl text-xs font-semibold transition flex items-center justify-center gap-1.5 shadow-sm whitespace-nowrap cursor-pointer"
                               title="Enviar enlace directo por WhatsApp en 1 clic"
                             >
                               <MessageCircle className="w-3.5 h-3.5 shrink-0" />
@@ -1451,7 +1451,7 @@ function AppShell() {
                             <button
                               type="button"
                               onClick={() => handleCopyLinkUrl(link.token)}
-                              className={`px-3 py-2 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 border transition whitespace-nowrap cursor-pointer ${
+                              className={`min-h-[42px] sm:min-h-0 px-3 py-2 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 border transition whitespace-nowrap cursor-pointer ${
                                 copiedToken === link.token
                                   ? 'bg-emerald-950 border-emerald-500 text-emerald-300'
                                   : 'bg-sky-600 hover:bg-sky-500 border-sky-500 text-white shadow-sm'
@@ -1477,7 +1477,7 @@ function AppShell() {
                               type="button"
                               aria-label={`Ver código QR de ${link.title}`}
                               onClick={() => setHandoverShareLink(link)}
-                              className="px-2.5 py-1.5 bg-neutral-950 hover:bg-neutral-800 text-neutral-300 hover:text-white border border-neutral-800 rounded-lg text-xs font-medium transition flex items-center justify-center gap-1.5 whitespace-nowrap cursor-pointer"
+                              className="min-h-[40px] sm:min-h-0 px-2.5 py-1.5 bg-neutral-950 hover:bg-neutral-800 text-neutral-300 hover:text-white border border-neutral-800 rounded-lg text-xs font-medium transition flex items-center justify-center gap-1.5 whitespace-nowrap cursor-pointer"
                               title="Mostrar Código QR"
                             >
                               <QrCode className="w-3.5 h-3.5 text-sky-400 shrink-0" />
@@ -1487,7 +1487,7 @@ function AppShell() {
                             <button
                               type="button"
                               onClick={() => setClientTokenView(link.token)}
-                              className="px-2.5 py-1.5 bg-neutral-950 hover:bg-neutral-800 text-neutral-300 hover:text-white border border-neutral-800 rounded-lg text-xs font-medium flex items-center justify-center gap-1.5 transition whitespace-nowrap cursor-pointer"
+                              className="min-h-[40px] sm:min-h-0 px-2.5 py-1.5 bg-neutral-950 hover:bg-neutral-800 text-neutral-300 hover:text-white border border-neutral-800 rounded-lg text-xs font-medium flex items-center justify-center gap-1.5 transition whitespace-nowrap cursor-pointer"
                               title="Abrir y probar cómo lo ve el cliente"
                             >
                               <Eye className="w-3.5 h-3.5 text-sky-400 shrink-0" />
@@ -1536,7 +1536,7 @@ function AppShell() {
                     aria-label="Filtrar cámaras por proyecto"
                     value={projectFilter}
                     onChange={(e) => setProjectFilter(e.target.value)}
-                    className="bg-neutral-950 border border-neutral-800 text-xs text-neutral-300 rounded-lg px-3 py-1.5 focus:outline-none"
+                    className="min-h-[40px] sm:min-h-0 bg-neutral-950 border border-neutral-800 text-xs text-neutral-300 rounded-lg px-3 py-1.5 focus:outline-none"
                   >
                     <option value="all">Todos los proyectos ({projects.length})</option>
                     {projects.map((p) => (
@@ -1550,7 +1550,7 @@ function AppShell() {
                       setEditingProject(null);
                       setIsProjectModalOpen(true);
                     }}
-                    className="px-3 py-1.5 bg-neutral-800 hover:bg-neutral-700 text-white border border-neutral-700 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition shrink-0 cursor-pointer"
+                    className="min-h-[40px] sm:min-h-0 px-3 py-1.5 bg-neutral-800 hover:bg-neutral-700 text-white border border-neutral-700 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition shrink-0 cursor-pointer"
                   >
                     <FolderPlus className="w-3.5 h-3.5 text-sky-400" />
                     <span>Nueva Carpeta</span>
@@ -1559,7 +1559,7 @@ function AppShell() {
                   <button
                     type="button"
                     onClick={() => setIsAiAssistantOpen(true)}
-                    className="px-3.5 py-1.5 bg-sky-600 hover:bg-sky-500 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 transition shadow-sm shrink-0 cursor-pointer"
+                    className="min-h-[40px] sm:min-h-0 px-3.5 py-1.5 bg-sky-600 hover:bg-sky-500 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 transition shadow-sm shrink-0 cursor-pointer"
                   >
                     <Sparkles className="w-3.5 h-3.5 text-amber-300" />
                     <span>Asistente IA</span>
@@ -1572,7 +1572,7 @@ function AppShell() {
                       setCameraModalDefaultProjectId(projectFilter !== 'all' ? projectFilter : null);
                       setIsCameraModalOpen(true);
                     }}
-                    className="px-3.5 py-1.5 bg-white hover:bg-neutral-100 text-neutral-950 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition shadow-sm shrink-0 cursor-pointer"
+                    className="min-h-[40px] sm:min-h-0 px-3.5 py-1.5 bg-white hover:bg-neutral-100 text-neutral-950 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition shadow-sm shrink-0 cursor-pointer"
                   >
                     <Plus className="w-3.5 h-3.5 text-neutral-700" />
                     <span>Nueva Cámara</span>
@@ -1740,7 +1740,7 @@ function AppShell() {
                                               handleMoveCameraProject(cam.id, e.target.value);
                                             }
                                           }}
-                                          className="bg-neutral-950 border border-neutral-800 text-[11px] text-neutral-300 rounded-lg px-2 py-1.5 focus:outline-none max-w-[185px]"
+                                          className="min-h-[40px] sm:min-h-0 bg-neutral-950 border border-neutral-800 text-[11px] text-neutral-300 rounded-lg px-2 py-1.5 focus:outline-none max-w-[185px]"
                                           title="Cambiar carpeta o proyecto asignado"
                                         >
                                           {!knownIds.has(cam.projectId) && (
@@ -1762,7 +1762,7 @@ function AppShell() {
                                           setFocusedCameraId(cam.id);
                                           setActiveTab('videowall');
                                         }}
-                                        className="px-2.5 py-1.5 bg-neutral-800/90 hover:bg-neutral-700 text-neutral-200 hover:text-white rounded-lg text-[11px] font-medium transition flex items-center gap-1 cursor-pointer"
+                                        className="min-h-[40px] min-w-[40px] sm:min-h-0 sm:min-w-0 px-2.5 py-1.5 bg-neutral-800/90 hover:bg-neutral-700 text-neutral-200 hover:text-white rounded-lg text-[11px] font-medium transition flex items-center justify-center gap-1 cursor-pointer"
                                         title="Ver en Monitor"
                                       >
                                         <Eye className="w-3.5 h-3.5" />
@@ -1776,7 +1776,7 @@ function AppShell() {
                                           setEditingCamera(cam);
                                           setIsCameraModalOpen(true);
                                         }}
-                                        className="px-2.5 py-1.5 bg-neutral-800/90 hover:bg-neutral-700 text-neutral-200 hover:text-white rounded-lg text-[11px] font-medium transition flex items-center gap-1 cursor-pointer"
+                                        className="min-h-[40px] min-w-[40px] sm:min-h-0 sm:min-w-0 px-2.5 py-1.5 bg-neutral-800/90 hover:bg-neutral-700 text-neutral-200 hover:text-white rounded-lg text-[11px] font-medium transition flex items-center justify-center gap-1 cursor-pointer"
                                         title="Editar"
                                       >
                                         <Edit3 className="w-3.5 h-3.5" />
@@ -1787,7 +1787,7 @@ function AppShell() {
                                         type="button"
                                         aria-label={`Eliminar cámara ${cam.name}`}
                                         onClick={() => handleDeleteCamera(cam.id)}
-                                        className="px-2.5 py-1.5 bg-neutral-800/90 hover:bg-red-950/90 text-neutral-400 hover:text-red-300 border border-transparent hover:border-red-500/30 rounded-lg text-[11px] font-medium transition flex items-center gap-1 cursor-pointer"
+                                        className="min-h-[40px] min-w-[40px] sm:min-h-0 sm:min-w-0 px-2.5 py-1.5 bg-neutral-800/90 hover:bg-red-950/90 text-neutral-400 hover:text-red-300 border border-transparent hover:border-red-500/30 rounded-lg text-[11px] font-medium transition flex items-center justify-center gap-1 cursor-pointer"
                                         title="Eliminar"
                                       >
                                         <Trash2 className="w-3.5 h-3.5" />
