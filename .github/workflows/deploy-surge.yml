@@ -41,9 +41,15 @@ jobs:
         run: npx tsc --noEmit
 
       - name: Build Production Bundle
-        env:
-          VITE_PUBLIC_APP_URL: ${{ vars.PUBLIC_APP_URL || 'https://global-tech.surge.sh' }}
-        run: npm run build
+        run: |
+          APP_URL="${{ vars.PUBLIC_APP_URL }}"
+          case "$APP_URL" in
+            ""|*proyectos-de-camaras*)
+              APP_URL="https://global-tech.surge.sh"
+              ;;
+          esac
+          echo "Compilando con VITE_PUBLIC_APP_URL=$APP_URL"
+          VITE_PUBLIC_APP_URL="$APP_URL" npm run build
 
       - name: Comprobar el secreto SURGE_TOKEN
         env:
@@ -58,13 +64,31 @@ jobs:
       - name: Publish to Surge
         env:
           SURGE_TOKEN: ${{ secrets.SURGE_TOKEN || inputs.surge_token }}
-          SURGE_DOMAIN: ${{ vars.SURGE_DOMAIN }}
         run: |
-          TARGET="${SURGE_DOMAIN:-global-tech.surge.sh}"
+          REQ_DOMAIN="${{ vars.SURGE_DOMAIN }}"
+          case "$REQ_DOMAIN" in
+            ""|*proyectos-de-camaras*)
+              TARGET="global-tech.surge.sh"
+              ;;
+            *)
+              TARGET="$REQ_DOMAIN"
+              ;;
+          esac
           echo "TARGET=$TARGET" >> "$GITHUB_ENV"
+
+          echo "$TARGET" > dist/CNAME
+          cp dist/index.html dist/200.html
           echo "Publicando en https://$TARGET"
           npx --yes surge ./dist "$TARGET" --token "$SURGE_TOKEN"
+
+          if [ "$TARGET" != "global-tech.surge.sh" ]; then
+            echo "global-tech.surge.sh" > dist/CNAME
+            echo "Sincronizando en https://global-tech.surge.sh"
+            npx --yes surge ./dist "global-tech.surge.sh" --token "$SURGE_TOKEN"
+          fi
+
           if [ "$TARGET" != "proyectos-de-camaras.surge.sh" ]; then
+            echo "proyectos-de-camaras.surge.sh" > dist/CNAME
             echo "Sincronizando espejo compatible en https://proyectos-de-camaras.surge.sh"
             npx --yes surge ./dist "proyectos-de-camaras.surge.sh" --token "$SURGE_TOKEN"
           fi
@@ -77,16 +101,22 @@ jobs:
             echo "::error::No se pudo leer el asset de dist/index.html"
             exit 1
           fi
-          LIVE=""
-          for i in $(seq 1 12); do
-            LIVE=$(curl -fsS "https://${TARGET}/?cachebust=$(date +%s)" \
-              | grep -o 'assets/index-[A-Za-z0-9_-]*\.js' | head -1 || true)
-            echo "Intento $i → $LIVE"
-            if [ "$LIVE" = "$EXPECTED" ]; then
-              echo "::notice title=Despliegue verificado::https://${TARGET} sirve $EXPECTED"
-              exit 0
+          for DOM in $(printf '%s\n' "$TARGET" "global-tech.surge.sh" "proyectos-de-camaras.surge.sh" | awk 'NF && !seen[$0]++'); do
+            LIVE=""
+            OK=0
+            for i in $(seq 1 12); do
+              LIVE=$(curl -fsS "https://${DOM}/?cachebust=$(date +%s)" \
+                | grep -o 'assets/index-[A-Za-z0-9_-]*\.js' | head -1 || true)
+              echo "[$DOM] Intento $i → $LIVE"
+              if [ "$LIVE" = "$EXPECTED" ]; then
+                echo "::notice title=Despliegue verificado::https://${DOM} sirve $EXPECTED"
+                OK=1
+                break
+              fi
+              sleep 10
+            done
+            if [ "$OK" -ne 1 ]; then
+              echo "::error title=El sitio quedó viejo::https://${DOM} sirve '${LIVE}' pero el build es '${EXPECTED}'"
+              exit 1
             fi
-            sleep 10
           done
-          echo "::error title=El sitio quedó viejo::https://${TARGET} sirve '${LIVE}' pero el build es '${EXPECTED}'"
-          exit 1
