@@ -259,7 +259,7 @@ $form.Controls.Add($infoCard)
 
 $lblHeadline = New-Object System.Windows.Forms.Label
 $lblHeadline.Text = 'Consultando estado en la nube...'
-$lblHeadline.Font = New-Object System.Drawing.Font('Segoe UI', 11, [System.Drawing.FontStyle]::Bold)
+$lblHeadline.Font = New-Object System.Drawing.Font('Segoe UI', 10.5, [System.Drawing.FontStyle]::Bold)
 $lblHeadline.ForeColor = $colCyan
 $lblHeadline.Location = New-Object System.Drawing.Point((Px 12), (Px 9))
 $lblHeadline.Size = New-Object System.Drawing.Size((Px 290), (Px 24))
@@ -400,9 +400,13 @@ function Apply-UiFromState {
   $expireMs = [double]($d.expireMs)
   $nowMs = [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()
   $remMs = [Math]::Max(0, $expireMs - $nowMs)
-  $remHours = [Math]::Floor($remMs / 3600000)
-  $remDays = [Math]::Floor($remHours / 24)
-  $modHours = $remHours % 24
+  $totalSecs = [int][Math]::Floor($remMs / 1000)
+  $remDays = [Math]::Floor($totalSecs / 86400)
+  $modHours = [Math]::Floor(($totalSecs % 86400) / 3600)
+  $modMins = [Math]::Floor(($totalSecs % 3600) / 60)
+  $modSecs = $totalSecs % 60
+  $mm = $modMins.ToString('00')
+  $ss = $modSecs.ToString('00')
 
   $computedStatus = 'expired'
   if ($d.hasToken -and $remMs -gt 86400000) {
@@ -417,33 +421,50 @@ function Apply-UiFromState {
     'Caché local'
   }
 
+  $nextHeadline = ''
+  $nextExpire = ''
+  $nextTray = ''
+
   if ($computedStatus -eq 'active') {
-    $script:dotColor = $colGreen
-    $tray.Icon = $icoActive
-    $lblHeadline.ForeColor = $colGreen
-    $lblHeadline.Text = "Token Activo · Quedan ${remDays}d ${modHours}h"
-    $lblExpire.Text = "Vence: $($d.expireDateStr)"
-    $tray.Text = Safe-TrayText "GLOBAL TECH: Token activo (${remDays}d ${modHours}h · $($d.shortExpireDateStr))"
+    $nextHeadline = "Token Activo · ${remDays}d ${modHours}h ${mm}m ${ss}s"
+    $nextExpire = "Vence: $($d.expireDateStr)"
+    $nextTray = Safe-TrayText "GLOBAL TECH: ${remDays}d ${modHours}h ${mm}m ($($d.shortExpireDateStr))"
+    if ($script:lastStatusState -ne $computedStatus) {
+      $script:dotColor = $colGreen
+      $tray.Icon = $icoActive
+      $lblHeadline.ForeColor = $colGreen
+      $dotPanel.Invalidate()
+    }
   } elseif ($computedStatus -eq 'expiring') {
-    $script:dotColor = $colAmber
-    $tray.Icon = $icoWarning
-    $lblHeadline.ForeColor = $colAmber
-    $lblHeadline.Text = "¡Por Vencer! · Quedan ${remHours}h"
-    $lblExpire.Text = "Vence: $($d.expireDateStr)"
-    $tray.Text = Safe-TrayText "GLOBAL TECH: Token vence en ${remHours}h ($($d.shortExpireDateStr))"
+    $nextHeadline = "¡Por Vencer! · ${modHours}h ${mm}m ${ss}s"
+    $nextExpire = "Vence: $($d.expireDateStr)"
+    $nextTray = Safe-TrayText "GLOBAL TECH: vence en ${modHours}h ${mm}m ($($d.shortExpireDateStr))"
+    if ($script:lastStatusState -ne $computedStatus) {
+      $script:dotColor = $colAmber
+      $tray.Icon = $icoWarning
+      $lblHeadline.ForeColor = $colAmber
+      $dotPanel.Invalidate()
+    }
   } else {
-    $script:dotColor = $colRed
-    $tray.Icon = $icoExpired
-    $lblHeadline.ForeColor = $colRed
-    $lblHeadline.Text = 'Token Vencido · Requiere Renovar'
-    $lblExpire.Text = if ($d.expireDateStr -and $d.expireDateStr -ne 'Desconocido') { "Venció: $($d.expireDateStr)" } else { 'Sin token vigente en la nube' }
-    $tray.Text = Safe-TrayText 'GLOBAL TECH: Token VENCIDO - Clic para renovar'
+    $nextHeadline = 'Token Vencido · Requiere Renovar'
+    $nextExpire = if ($d.expireDateStr -and $d.expireDateStr -ne 'Desconocido') { "Venció: $($d.expireDateStr)" } else { 'Sin token vigente en la nube' }
+    $nextTray = Safe-TrayText 'GLOBAL TECH: Token VENCIDO - Clic para renovar'
+    if ($script:lastStatusState -ne $computedStatus) {
+      $script:dotColor = $colRed
+      $tray.Icon = $icoExpired
+      $lblHeadline.ForeColor = $colRed
+      $dotPanel.Invalidate()
+    }
   }
 
-  $lblDetails.Text = "Nube: $camInfo · Próx. auto: $nextRunStr"
-  $dotPanel.Invalidate()
+  $nextDetails = "Nube: $camInfo · Próx. auto: $nextRunStr"
+  if ($lblHeadline.Text -ne $nextHeadline) { $lblHeadline.Text = $nextHeadline }
+  if ($lblExpire.Text -ne $nextExpire) { $lblExpire.Text = $nextExpire }
+  if ($lblDetails.Text -ne $nextDetails) { $lblDetails.Text = $nextDetails }
+  if ($tray.Text -ne $nextTray) { $tray.Text = $nextTray }
 
   if ($script:lastStatusState -and $script:lastStatusState -ne $computedStatus) {
+    $remHours = [Math]::Floor($totalSecs / 3600)
     if ($computedStatus -eq 'expiring') {
       $tray.ShowBalloonTip(6000, 'GLOBAL TECH · Token 4G', "El token vence en ${remHours}h ($($d.expireDateStr)).", [System.Windows.Forms.ToolTipIcon]::Warning)
     } elseif ($computedStatus -eq 'expired') {
@@ -596,9 +617,9 @@ $pollTimer.Add_Tick({
 })
 $pollTimer.Start()
 
-# Contador visual cada 60s y consulta remota cada 5 minutos
+# Contador visual cada 1s y consulta remota cada 5 minutos
 $countdownTimer = New-Object System.Windows.Forms.Timer
-$countdownTimer.Interval = 60000
+$countdownTimer.Interval = 1000
 $countdownTimer.Add_Tick({ Apply-UiFromState })
 $countdownTimer.Start()
 
