@@ -1160,7 +1160,7 @@ test('multi-tenant: el tenant se resuelve por URL, subdominio o valor guardado',
   // Un subdominio reservado jamás se toma como tenant.
   assert.equal(resolveTenantId({ hostname: 'www.sideseguate.com' }), 'sideseguate');
   // Dominios de hosting público (Surge, GitHub Pages, etc.) resuelven al tenant principal
-  assert.equal(resolveTenantId({ hostname: 'proyectos-de-camaras.surge.sh' }), 'sideseguate');
+  assert.equal(resolveTenantId({ hostname: 'global-tech.surge.sh' }), 'sideseguate');
   assert.equal(resolveTenantId({ hostname: 'proyectos-de-camaras.surge.sh' }), 'sideseguate');
 });
 
@@ -1237,7 +1237,7 @@ test('el dominio configurado gana al de compilación y al origen', async () => {
 
   const info = resolvePublicUrl({
     configuredUrl: 'sideseguate.gt',
-    buildUrl: 'https://proyectos-de-camaras.surge.sh',
+    buildUrl: 'https://global-tech.surge.sh',
     origin: 'https://gsosa7829-beep.github.io',
     pathname: '/sideseguate-vms/',
     protocol: 'https:',
@@ -1285,6 +1285,7 @@ test('sin configuración, GitHub Pages se detecta como dominio personal (conserv
 test('isPersonalLookingHost distingue marca de hosting personal', () => {
   assert.equal(isPersonalLookingHost('gsosa7829-beep.github.io'), true);
   assert.equal(isPersonalLookingHost('mi-proyecto.vercel.app'), true);
+  assert.equal(isPersonalLookingHost('global-tech.surge.sh'), false);
   assert.equal(isPersonalLookingHost('proyectos-de-camaras.surge.sh'), false);
   assert.equal(isPersonalLookingHost('camaras.sideseguate.com'), false);
   assert.equal(isPersonalLookingHost('localhost'), false);
@@ -1930,9 +1931,11 @@ test('isAuthorizedOwnerDevice oculta la barra admin en rutas limpias compartidas
   }
 });
 
-test('identidad visual GLOBAL TECH expone marca y rutas de logo válidas', () => {
+test('identidad visual GLOBAL TECH expone marca y rutas de logo válidas', async () => {
+  const { DEFAULT_PUBLIC_APP_URL } = await import('./publicUrl.ts');
   assert.equal(BRAND_NAME, 'GLOBAL TECH');
   assert.match(BRAND_SUBTITLE, /Seguridad Electrónica/i);
   assert.ok(LOGO_URL.endsWith('logo-global-tech.png'));
   assert.ok(BRAND_ICON_URL.endsWith('global-tech-icon.png'));
+  assert.equal(DEFAULT_PUBLIC_APP_URL, 'https://global-tech.surge.sh');
 });

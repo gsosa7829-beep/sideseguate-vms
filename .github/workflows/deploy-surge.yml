@@ -1,6 +1,6 @@
-name: Deploy to Surge (proyectos-de-camaras.surge.sh)
+name: Deploy to Surge (global-tech.surge.sh)
 
-# Despliegue automático del panel al dominio oficial de Surge: proyectos-de-camaras.surge.sh.
+# Despliegue automático del panel al dominio oficial de Surge: global-tech.surge.sh (y espejo compatible proyectos-de-camaras.surge.sh).
 
 on:
   push:
@@ -42,7 +42,7 @@ jobs:
 
       - name: Build Production Bundle
         env:
-          VITE_PUBLIC_APP_URL: ${{ vars.PUBLIC_APP_URL || 'https://proyectos-de-camaras.surge.sh' }}
+          VITE_PUBLIC_APP_URL: ${{ vars.PUBLIC_APP_URL || 'https://global-tech.surge.sh' }}
         run: npm run build
 
       - name: Comprobar el secreto SURGE_TOKEN
@@ -60,10 +60,14 @@ jobs:
           SURGE_TOKEN: ${{ secrets.SURGE_TOKEN || inputs.surge_token }}
           SURGE_DOMAIN: ${{ vars.SURGE_DOMAIN }}
         run: |
-          TARGET="${SURGE_DOMAIN:-proyectos-de-camaras.surge.sh}"
+          TARGET="${SURGE_DOMAIN:-global-tech.surge.sh}"
           echo "TARGET=$TARGET" >> "$GITHUB_ENV"
           echo "Publicando en https://$TARGET"
           npx --yes surge ./dist "$TARGET" --token "$SURGE_TOKEN"
+          if [ "$TARGET" != "proyectos-de-camaras.surge.sh" ]; then
+            echo "Sincronizando espejo compatible en https://proyectos-de-camaras.surge.sh"
+            npx --yes surge ./dist "proyectos-de-camaras.surge.sh" --token "$SURGE_TOKEN"
+          fi
 
       - name: Verificar que el dominio sirve el build nuevo
         run: |

@@ -36,7 +36,7 @@ const LOCAL_HOSTS = ['localhost', '127.0.0.1', '0.0.0.0', '[::1]'];
 export function emptyGateway(): StreamGateway {
   return {
     baseUrl: '',
-    publicAppUrl: 'https://proyectos-de-camaras.surge.sh',
+    publicAppUrl: 'https://global-tech.surge.sh',
     updatedAt: new Date().toISOString()
   };
 }

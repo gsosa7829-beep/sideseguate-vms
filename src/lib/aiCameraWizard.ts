@@ -598,7 +598,7 @@ export async function processConversationWithAi(
       )
       .join('\n');
 
-    const systemInstruction = `Eres el "Asistente de Cámaras", el especialista inteligente en CCTV, videovigilancia y streaming de la plataforma "Proyecto de Cámaras" (https://proyectos-de-camaras.surge.sh).
+    const systemInstruction = `Eres el "Asistente de Cámaras", el especialista inteligente en CCTV, videovigilancia y streaming de la plataforma "GLOBAL TECH" (https://global-tech.surge.sh).
 Cámaras actualmente registradas en el sistema:
 ${camerasSummary || '- Ninguna cámara registrada aún.'}
 

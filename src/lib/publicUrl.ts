@@ -1,4 +1,4 @@
-export const DEFAULT_PUBLIC_APP_URL = 'https://proyectos-de-camaras.surge.sh';
+export const DEFAULT_PUBLIC_APP_URL = 'https://global-tech.surge.sh';
 import { loadGateway, normalizeGatewayUrl } from './streamGateway';
 
 /**
@@ -25,7 +25,7 @@ import { loadGateway, normalizeGatewayUrl } from './streamGateway';
 export type PublicUrlSource = 'configured' | 'build' | 'origin' | 'preview';
 
 export interface PublicUrlInfo {
-  /** Base sin barra final, ej. `https://proyectos-de-camaras.surge.sh`. */
+  /** Base sin barra final, ej. `https://global-tech.surge.sh`. */
   baseUrl: string;
   source: PublicUrlSource;
   /** `false` cuando el enlace NO servirá en el celular del cliente. */
@@ -59,7 +59,7 @@ export function isPrivateHost(hostname: string): boolean {
  * interno del repositorio en lugar de la marca.
  *
  * `*.surge.sh` queda fuera a propósito: el subdominio lo elige el operador
- * (`proyectos-de-camaras.surge.sh`), así que no revela datos personales.
+ * (`global-tech.surge.sh`), así que no revela datos personales.
  */
 const PERSONAL_HOST_PATTERNS: RegExp[] = [
   /\.github\.io$/i,

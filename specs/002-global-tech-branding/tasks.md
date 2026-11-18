@@ -5,4 +5,4 @@
 - [X] T003 Actualizar metadatos HTML, PWA y OpenGraph en `index.html`, `vite.config.ts` y `metadata.json`
 - [X] T004 Actualizar vistas administrativas y públicas (`AdminLoginScreen.tsx`, `FirstRunSetup.tsx`, `Sidebar.tsx`, `TopNavbar.tsx`, `ClientLivePortal.tsx`, `ClientHandoverCardModal.tsx`, `DesktopProgramModal.tsx`)
 - [X] T005 Actualizar mensajes compartidos, QR resumen y marca de agua (`WhatsAppTimedShareModal.tsx`, `ShareLinkModal.tsx`, `qrGenerator.ts`, `LiveCameraPlayer.tsx`, `adminAuth.ts`)
-- [X] T006 Verificar `npx tsc --noEmit`, tests (`84/84` + test de branding), `npm run build`, vista previa en navegador, publicar a Surge y sincronizar en `main`
+- [X] T006 Verificar `npx tsc --noEmit`, tests (`85/85` + test de branding), `npm run build`, vista previa en navegador, publicar a Surge (`global-tech.surge.sh` y espejo compatible `proyectos-de-camaras.surge.sh`) y sincronizar en `main`

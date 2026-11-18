@@ -137,7 +137,7 @@ export const StreamGatewayCard: React.FC<StreamGatewayCardProps> = ({
                 inputMode="url"
                 value={publicAppUrl}
                 onChange={(e) => setPublicAppUrl(e.target.value)}
-                placeholder="https://proyectos-de-camaras.surge.sh"
+                placeholder="https://global-tech.surge.sh"
                 className="w-full bg-neutral-950 border border-neutral-800 rounded-lg pl-9 pr-3 py-2 text-xs font-mono text-white placeholder-neutral-600 focus:outline-none focus:border-sky-500"
               />
             </div>
