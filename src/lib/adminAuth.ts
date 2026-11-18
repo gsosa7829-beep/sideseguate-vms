@@ -11,6 +11,8 @@
  *  - **Fail-closed**: ante cualquier error de almacenamiento se deniega.
  */
 
+import { extractTokenFromUrl } from './publicUrl';
+
 export type AdminRole = 'superadmin' | 'engineer' | 'operator';
 
 export interface AdminAccount {
@@ -569,7 +571,14 @@ export const adminAuthStorage = {
         params.has('onboarding') ||
         window.location.hash.startsWith('#token=') ||
         window.location.hash.startsWith('#share=');
-      if (hasExternalShareParam) return false;
+      const hasCleanShareRoute = Boolean(
+        extractTokenFromUrl(
+          window.location.search,
+          window.location.hash,
+          window.location.pathname
+        )
+      );
+      if (hasExternalShareParam || hasCleanShareRoute) return false;
       return localStorage.getItem(STORAGE_KEY_OWNER_DEVICE) === 'OWNER_DEVICE_AUTHORIZED';
     } catch {
       // Fail-closed: si no podemos leer el almacenamiento, no hay autorización.

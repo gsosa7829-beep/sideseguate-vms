@@ -6,6 +6,12 @@ import { cloudP2pClient } from '../lib/cloudP2pClient';
 import { clampCameraChannel, getLiveResumePosition, getPlaybackEnvironment } from '../lib/livePlayback';
 import { isPlaceholderStreamUrl, loadGateway, resolveStreamUrls, isPublicGateway } from '../lib/streamGateway';
 import {
+  captureContainerFrameDataUrl,
+  captureMediaFrameDataUrl,
+  getFreshCaptureUrl,
+  saveCaptureEntry,
+} from '../lib/captureCache';
+import {
   disableEzvizEncryption,
   getAccessToken,
   getDeviceVerificationCode,
@@ -121,15 +127,31 @@ export function getCachedHlsUrl(channel: number, serial: string, quality: '1' | 
   return null;
 }
 
-let prewarmStarted = false;
-export function prewarmHikvisionCameras() {
-  if (prewarmStarted || typeof window === 'undefined') return;
+const warmedPrewarmKeys = new Set<string>();
+export function prewarmHikvisionCameras(
+  targets?: Array<Pick<Camera, 'channel' | 'deviceSerial'>>
+) {
+  if (typeof window === 'undefined') return;
   const { mobile } = getPlaybackEnvironment(navigator.userAgent, navigator.maxTouchPoints, window.innerWidth);
   if (mobile) return;
 
-  prewarmStarted = true;
-  void fetchEzvizLiveHls(1, 'FF9363270', '2');
-  void fetchEzvizLiveHls(1, 'F31700438', '1');
+  const list = targets && targets.length > 0
+    ? targets
+    : [
+        { channel: 1, deviceSerial: 'FF9363270' },
+        { channel: 1, deviceSerial: 'F31700438' },
+      ];
+
+  for (const item of list) {
+    const serial = (item.deviceSerial || '').trim();
+    if (!serial) continue;
+    const ch = clampCameraChannel(item.channel);
+    const quality: '1' | '2' = is4gSerial(serial) ? '2' : '1';
+    const key = `${serial}_${ch}_${quality}`;
+    if (warmedPrewarmKeys.has(key)) continue;
+    warmedPrewarmKeys.add(key);
+    void fetchEzvizLiveHls(ch, serial, quality);
+  }
 }
 
 export async function fetchEzvizLiveHls(
@@ -218,30 +240,8 @@ export async function fetchEzvizLiveHls(
   return requestPromise;
 }
 
-const CAPTURE_CACHE_STORAGE_KEY = 'sideseguate_ezviz_capture_cache_v2';
-
-function loadPersistedCaptureCache(): Record<string, string> {
-  try {
-    const raw = typeof localStorage !== 'undefined' ? localStorage.getItem(CAPTURE_CACHE_STORAGE_KEY) : null;
-    return raw ? JSON.parse(raw) : {};
-  } catch {
-    return {};
-  }
-}
-
-function savePersistedCaptureCache(cache: Record<string, string>) {
-  try {
-    if (typeof localStorage !== 'undefined') {
-      localStorage.setItem(CAPTURE_CACHE_STORAGE_KEY, JSON.stringify(cache));
-    }
-  } catch {}
-}
-
-const ezvizCaptureCache: Record<string, string> = loadPersistedCaptureCache();
-
 async function fetchEzvizLiveCapture(channel: number, serial: string): Promise<string | null> {
   const devSerial = serial || 'F31700438';
-  const cacheKey = `${devSerial}_${channel}`;
   const queryCapture = async (overrideToken?: string) => {
     const res = await fetch('https://iusopen.ezvizlife.com/api/lapp/device/capture', {
       method: 'POST',
@@ -263,14 +263,13 @@ async function fetchEzvizLiveCapture(channel: number, serial: string): Promise<s
       }
     }
     if (data?.code === '200' && data.data?.picUrl) {
-      ezvizCaptureCache[cacheKey] = data.data.picUrl;
-      savePersistedCaptureCache(ezvizCaptureCache);
+      saveCaptureEntry(devSerial, channel, data.data.picUrl);
       return data.data.picUrl;
     }
   } catch {
     // network or offline
   }
-  return ezvizCaptureCache[cacheKey] || null;
+  return getFreshCaptureUrl(devSerial, channel);
 }
 
 const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
@@ -319,15 +318,23 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
 
   const isStreamPlaying = externalIsPlaying !== undefined ? externalIsPlaying : internalPlaying;
 
-  const resolvedPoster = posterUrl || (() => {
-    if (camera.deviceSerial === 'F31700438' || camera.id.includes('hilook')) {
-      return camera.channel === 2 ? '/frames/f317-ch2.jpg' : '/frames/f317-ch1.jpg';
+  const [latestPosterUrl, setLatestPosterUrl] = useState<string | null>(() => {
+    if (posterUrl) return posterUrl;
+    const devSerial = camera.deviceSerial || cloudP2pClient.resolveDevice(camera)?.serial || '';
+    if (!devSerial) return null;
+    return getFreshCaptureUrl(devSerial, clampCameraChannel(camera.channel));
+  });
+
+  useEffect(() => {
+    if (posterUrl) {
+      setLatestPosterUrl(posterUrl);
+      return;
     }
-    if (camera.deviceSerial === 'FF9363270' || camera.id.includes('ocos')) {
-      return '/frames/ocos-ch1.jpg';
-    }
-    return null;
-  })();
+    const devSerial = camera.deviceSerial || cloudP2pClient.resolveDevice(camera)?.serial || '';
+    setLatestPosterUrl(
+      devSerial ? getFreshCaptureUrl(devSerial, clampCameraChannel(camera.channel)) : null
+    );
+  }, [posterUrl, camera.deviceSerial, camera.channel]);
 
   useEffect(() => {
     if (!isTheaterMode) return;
@@ -449,7 +456,7 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
   const [nativeP2pReady, setNativeP2pReady] = useState<boolean>(() => {
     const ch = clampCameraChannel(camera.channel);
     const devSerial = camera.deviceSerial || cloudP2pClient.resolveDevice(camera)?.serial || 'F31700438';
-    const cached = ezvizCaptureCache[`${devSerial}_${ch}`];
+    const cached = getFreshCaptureUrl(devSerial, ch);
     if (cached) {
       const img = new Image();
       img.crossOrigin = 'anonymous';
@@ -592,23 +599,30 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
     ? cementerioDirectHls || directHlsUrl || (resolvedHls?.key === hlsSourceKey ? resolvedHls.url : null)
     : null;
 
+  const captureLiveFrameSnapshot = useCallback((): string | null => {
+    const ch = clampCameraChannel(camera.channel);
+    const devSerial = camera.deviceSerial || cloudP2pClient.resolveDevice(camera)?.serial || '';
+    const container = typeof document !== 'undefined' ? document.getElementById(ezuikitContainerId) : null;
+    const dataUrl =
+      captureMediaFrameDataUrl(videoRef.current) ||
+      captureContainerFrameDataUrl(container);
+
+    if (!dataUrl) return null;
+
+    if (devSerial) {
+      saveCaptureEntry(devSerial, ch, dataUrl);
+    }
+    setLatestPosterUrl(dataUrl);
+    const snapImg = new Image();
+    snapImg.src = dataUrl;
+    nativeP2pImgRef.current = snapImg;
+    setNativeP2pReady(true);
+    return dataUrl;
+  }, [camera.channel, camera.deviceSerial, ezuikitContainerId]);
+
   const pause4gStreamForDataSaving = useCallback(() => {
     // Capturar último fotograma visible antes de apagar el flujo 4G para mantener vista previa nítida
-    const container = document.getElementById(ezuikitContainerId);
-    const existingCanvas = container?.querySelector('canvas');
-    if (existingCanvas && existingCanvas.width > 0 && existingCanvas.height > 0) {
-      try {
-        const dataUrl = existingCanvas.toDataURL('image/jpeg', 0.82);
-        const snapImg = new Image();
-        snapImg.src = dataUrl;
-        nativeP2pImgRef.current = snapImg;
-        setNativeP2pReady(true);
-        const ch = clampCameraChannel(camera.channel);
-        const devSerial = camera.deviceSerial || 'FF9363270';
-        ezvizCaptureCache[`${devSerial}_${ch}`] = dataUrl;
-        savePersistedCaptureCache(ezvizCaptureCache);
-      } catch {}
-    }
+    captureLiveFrameSnapshot();
     if (ezPlayerRef.current) {
       try {
         ezPlayerRef.current.stop();
@@ -628,7 +642,7 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
     setIs4gEcoPaused(true);
     is4gEcoPausedRef.current = true;
     setCamera4gStreamingStatus(camera.id, false, 0);
-  }, [camera.id, camera.channel, camera.deviceSerial, ezuikitContainerId]);
+  }, [camera.id, captureLiveFrameSnapshot]);
 
   const resume4gStream = useCallback(() => {
     const targetSec = ecoSleepSec;
@@ -648,6 +662,9 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
   }, [camera.id, camera.bitrateKbps, ecoSleepSec]);
 
   const handleToggleStream = useCallback((play: boolean) => {
+    if (!play) {
+      captureLiveFrameSnapshot();
+    }
     setInternalPlaying(play);
     onPlayStateChange?.(play);
     if (is4gCamera) {
@@ -657,7 +674,7 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
         pause4gStreamForDataSaving();
       }
     }
-  }, [is4gCamera, onPlayStateChange, pause4gStreamForDataSaving, resume4gStream]);
+  }, [captureLiveFrameSnapshot, is4gCamera, onPlayStateChange, pause4gStreamForDataSaving, resume4gStream]);
 
   // Suspensión estricta al minimizar pestaña, cambiar de aplicación o salir del enlace en cámara 4G (0 KB/s)
   useEffect(() => {
@@ -836,6 +853,7 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
     }
     let active = true;
     let startupTimer: ReturnType<typeof setTimeout> | undefined;
+    let captureWarmTimer: ReturnType<typeof setTimeout> | undefined;
     let tokenRetried = false;
     const fallbackToHls = () => {
       if (!active) return;
@@ -884,16 +902,7 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
       if (!container) return;
 
       // Preservar el último fotograma visible de la cámara antes de reiniciar para transición limpia sin parpadeo
-      const existingCanvas = container.querySelector('canvas');
-      if (existingCanvas && existingCanvas.width > 0 && existingCanvas.height > 0) {
-        try {
-          const dataUrl = existingCanvas.toDataURL('image/jpeg', 0.85);
-          const snapImg = new Image();
-          snapImg.src = dataUrl;
-          nativeP2pImgRef.current = snapImg;
-          setNativeP2pReady(true);
-        } catch {}
-      }
+      captureLiveFrameSnapshot();
 
       if (ezPlayerRef.current) {
         try {
@@ -904,7 +913,7 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
       }
 
       if (container.childNodes.length > 0) {
-        container.innerHTML = '';
+        container.replaceChildren();
         await new Promise((r) => setTimeout(r, 20));
       }
       if (!active) return;
@@ -958,6 +967,13 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
             } else {
               try { player.openSound(); } catch {}
             }
+            // Capturar fotograma real en vivo tras estabilizarse la imagen para la vista previa de pausa
+            clearTimeout(captureWarmTimer);
+            captureWarmTimer = setTimeout(() => {
+              if (active && ezuikitLiveReadyRef.current) {
+                captureLiveFrameSnapshot();
+              }
+            }, 2500);
           },
           handleError: (err: unknown) => {
             void handleEzPlayerError(err);
@@ -980,6 +996,7 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
     return () => {
       active = false;
       clearTimeout(startupTimer);
+      clearTimeout(captureWarmTimer);
       if (ezPlayerRef.current) {
         try {
           ezPlayerRef.current.stop();
@@ -990,7 +1007,7 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
       setEzuikitLiveReady(false);
       ezuikitLiveReadyRef.current = false;
     };
-  }, [deviceSerial, camera.channel, effectiveVerificationCode, isEzopenDevice, streamQuality, canLoadVideo, isMobile, reconnectVersion, ezuikitContainerId]);
+  }, [deviceSerial, camera.channel, effectiveVerificationCode, isEzopenDevice, streamQuality, canLoadVideo, isMobile, reconnectVersion, ezuikitContainerId, captureLiveFrameSnapshot]);
 
   useEffect(() => {
     if (!canLoadVideo || isEzopenDevice || directHlsUrl) {
@@ -1099,6 +1116,7 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
         if (!active || hlsLiveReadyRef.current || ezuikitLiveReadyRef.current) return;
         const livePicUrl = await fetchEzvizLiveCapture(ch, deviceSerial || (is4gCamera ? 'FF9363270' : 'F31700438'));
         if (livePicUrl && active && !hlsLiveReadyRef.current && !ezuikitLiveReadyRef.current) {
+          setLatestPosterUrl(livePicUrl);
           const img = new Image();
           img.crossOrigin = 'anonymous';
           img.onload = () => {
@@ -1686,10 +1704,12 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
         {/* Overlay de Reposo / Video en Espera (0 KB/s · Reproducción Bajo Demanda) */}
         {(!isStreamPlaying || (is4gCamera && is4gEcoPaused)) && (
           <div className="absolute inset-0 z-30 flex flex-col items-center justify-center p-4 bg-neutral-950/90 backdrop-blur-xs text-center select-none overflow-hidden">
-            {resolvedPoster && (
+            {latestPosterUrl && (
               <img
-                src={resolvedPoster}
+                src={latestPosterUrl}
                 alt={camera.name}
+                width={1280}
+                height={720}
                 className="absolute inset-0 w-full h-full object-cover opacity-25 filter blur-[1px]"
               />
             )}
@@ -1912,6 +1932,8 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
         {liveHlsUrl && (
           <video
             ref={videoRef}
+            width={1280}
+            height={720}
             className={`absolute inset-0 w-full h-full object-fill z-10 transition-opacity duration-200 ${hasHls ? 'opacity-100' : 'opacity-90'}`}
             muted={isMuted}
             playsInline
@@ -1919,24 +1941,17 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
             preload="metadata"
             onPlaying={(event) => {
               const video = event.currentTarget;
-              const key = deviceSerial + "_" + channel;
-              if (!video.videoWidth || ezvizCaptureCache[key]) return;
-              try {
-                const canvas = document.createElement('canvas');
-                canvas.width = 480;
-                canvas.height = 270;
-                canvas.getContext('2d')?.drawImage(video, 0, 0, 480, 270);
-                const url = canvas.toDataURL('image/jpeg', 0.7);
-                ezvizCaptureCache[key] = url;
-                savePersistedCaptureCache(ezvizCaptureCache);
+              if (!video.videoWidth) return;
+              const captured = captureMediaFrameDataUrl(video);
+              if (captured) {
+                saveCaptureEntry(deviceSerial, channel, captured);
+                setLatestPosterUrl(captured);
                 const image = new Image();
                 image.onload = () => {
                   nativeP2pImgRef.current = image;
                   setNativeP2pReady(true);
                 };
-                image.src = url;
-              } catch {
-                // El proveedor de video puede restringir la lectura de fotogramas.
+                image.src = captured;
               }
             }}
             style={

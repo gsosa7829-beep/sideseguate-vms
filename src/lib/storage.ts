@@ -6,7 +6,7 @@ const STORAGE_KEYS = {
   CAMERAS: 'sideseguate_cameras_v11_ocos',
   DELETED_CAMERAS: 'sideseguate_deleted_cameras_v1',
   DELETED_PROJECTS: 'sideseguate_deleted_projects_v1',
-  SHARE_LINKS: 'sideseguate_share_links_v12_revoked',
+  SHARE_LINKS: 'sideseguate_share_links_v13_ocos_only',
   DELETED_SHARE_LINKS: 'sideseguate_deleted_share_links_v1',
   ACCESS_LOGS: 'sideseguate_access_logs_v6',
 };
@@ -256,6 +256,7 @@ export const storage = {
       localStorage.removeItem('sideseguate_share_links_v6');
       localStorage.removeItem('sideseguate_share_links_v7');
       localStorage.removeItem('sideseguate_share_links_v11_ocos');
+      localStorage.removeItem('sideseguate_share_links_v12_revoked');
       const data = localStorage.getItem(STORAGE_KEYS.SHARE_LINKS);
       if (data !== null) {
         const parsed = JSON.parse(data);

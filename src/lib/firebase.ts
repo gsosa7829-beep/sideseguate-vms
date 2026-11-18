@@ -528,24 +528,24 @@ export function subscribeToCloudState(callbacks: {
 
 export function subscribeToSingleShareLinkByToken(
   token: string,
-  callback: (link: ShareLink | null, isLoading: boolean) => void
+  callback: (link: ShareLink | null, isLoading: boolean, serverMissing?: boolean) => void
 ): () => void {
   const cleanToken = sanitizeCloudId(token, 'sdg_live');
   const docRef = doc(db, 'cloud_share_links', cleanToken);
-  callback(null, true);
+  callback(null, true, false);
 
   return onSnapshot(
     docRef,
     (snap) => {
       if (snap.exists()) {
-        callback(fromCloudShareLinkDoc(snap.data() as Record<string, unknown>), false);
+        callback(fromCloudShareLinkDoc(snap.data() as Record<string, unknown>), false, false);
       } else {
-        callback(null, false);
+        callback(null, false, !snap.metadata.fromCache);
       }
     },
     (err) => {
       console.warn('No se pudo leer enlace compartido por token:', err);
-      callback(null, false);
+      callback(null, false, false);
     }
   );
 }

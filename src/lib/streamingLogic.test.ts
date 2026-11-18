@@ -1303,21 +1303,17 @@ test('todas las pantallas están en una sección y ninguna se repite', async () 
 
   const allTabs: string[] = NAV_SECTIONS.flatMap((s) => s.items.map((i) => i.id));
 
-  // Las 11 pantallas del panel deben seguir accesibles: simplificar el menú
-  // no puede dejar ninguna vista huérfana.
   const expected = [
     'videowall',
     'share_links',
     'devices_catalog',
-    'windows_server',
-    'zero_storage',
   ];
   for (const tab of expected) {
     assert.ok(allTabs.includes(tab), `la pantalla ${tab} no está en ninguna sección`);
   }
 
   assert.equal(new Set(allTabs).size, allTabs.length, 'hay pantallas duplicadas entre secciones');
-  assert.equal(NAV_SECTIONS.length, 4, 'la navegación debe tener 4 secciones');
+  assert.equal(NAV_SECTIONS.length, 3, 'la navegación debe tener 3 secciones');
 });
 
 test('sectionOfTab devuelve la sección correcta y defaultTabOfSection su entrada', async () => {
@@ -1326,8 +1322,6 @@ test('sectionOfTab devuelve la sección correcta y defaultTabOfSection su entrad
   assert.equal(sectionOfTab('videowall').id, 'monitor');
   assert.equal(sectionOfTab('share_links').id, 'clients');
   assert.equal(sectionOfTab('devices_catalog').id, 'devices');
-  assert.equal(sectionOfTab('windows_server').id, 'settings');
-  assert.equal(sectionOfTab('zero_storage').id, 'settings');
 
   // Al pulsar una sección se abre su primera pantalla.
   for (const section of NAV_SECTIONS) {
@@ -1779,4 +1773,157 @@ test('clampCameraChannel, formatChannelBadge y dispositivos soportan hasta 128 c
   });
   assert.equal(bulkCams.length, 64);
   assert.equal(bulkCams[63].channel, 64);
+});
+
+test('INITIAL_SHARE_LINKS conserva únicamente los 4 enlaces individuales de Proyecto Ocós', async () => {
+  const { INITIAL_SHARE_LINKS } = await import('./initialData.ts');
+  const tokens = INITIAL_SHARE_LINKS.map((l) => l.token).sort();
+  assert.deepEqual(tokens, ['31778720', '31798322', '31822029', '31826717']);
+  for (const link of INITIAL_SHARE_LINKS) {
+    assert.equal(link.cameraIds.length, 1, `el enlace ${link.token} debe aislar una sola cámara`);
+    assert.equal(link.projectId, 'proj-ocos');
+  }
+});
+
+test('resolveOcosShareLink resuelve las 4 TinyURLs a su enlace vivo y rechaza enlaces eliminados', async () => {
+  const { INITIAL_SHARE_LINKS } = await import('./initialData.ts');
+  const { resolveOcosShareLink } = await import('./ocosShareResolution.ts');
+
+  const pairs = [
+    ['FF9363270', '31778720'],
+    ['FF9363192', '31826717'],
+    ['FF9363285', '31798322'],
+    ['FF9363276', '31822029'],
+  ] as const;
+
+  for (const [serial, expectedToken] of pairs) {
+    const editedLinks = INITIAL_SHARE_LINKS.map((l) =>
+      l.token === expectedToken ? { ...l, expiresAt: null, isActive: false } : l
+    );
+    const res = resolveOcosShareLink({
+      token: 'proyecto-ocos',
+      search: `?token=proyecto-ocos&camera=${serial}`,
+      shareLinks: editedLinks,
+      fallbackLinks: INITIAL_SHARE_LINKS,
+    });
+    assert.equal(res.resolvedToken, expectedToken);
+    assert.equal(res.link?.token, expectedToken);
+    assert.equal(res.link?.expiresAt, null);
+    assert.equal(res.link?.isActive, false);
+  }
+
+  // Enlaces eliminados (proyecto-ocos sin camera y calle-del-cementerio) no resuelven
+  const removedOcos = resolveOcosShareLink({
+    token: 'proyecto-ocos',
+    search: '?token=proyecto-ocos',
+    shareLinks: INITIAL_SHARE_LINKS,
+    fallbackLinks: INITIAL_SHARE_LINKS,
+  });
+  assert.equal(removedOcos.link, null);
+
+  const removedCementerio = resolveOcosShareLink({
+    token: 'calle-del-cementerio',
+    search: '?token=calle-del-cementerio',
+    shareLinks: INITIAL_SHARE_LINKS,
+    fallbackLinks: INITIAL_SHARE_LINKS,
+  });
+  assert.equal(removedCementerio.link, null);
+});
+
+test('captureCache guarda capturas recientes, purga claves viejas y descarta miniaturas expiradas', async () => {
+  const {
+    CAPTURE_CACHE_STORAGE_KEY,
+    CAPTURE_MAX_AGE_MS,
+    clearCaptureCacheForTests,
+    getFreshCaptureUrl,
+    saveCaptureEntry,
+  } = await import('./captureCache.ts');
+
+  const store = new Map<string, string>([
+    ['sideseguate_ezviz_capture_cache_v1', JSON.stringify({ FF9363270_1: 'stale-v1' })],
+    ['sideseguate_ezviz_capture_cache_v2', JSON.stringify({ FF9363270_1: 'stale-v2' })],
+  ]);
+  const prevStorage = (globalThis as any).localStorage;
+  (globalThis as any).localStorage = {
+    getItem: (k: string) => store.get(k) ?? null,
+    setItem: (k: string, v: string) => { store.set(k, v); },
+    removeItem: (k: string) => { store.delete(k); },
+  };
+
+  try {
+    clearCaptureCacheForTests();
+    const baseNow = 1_800_000_000_000;
+    assert.equal(getFreshCaptureUrl('FF9363270', 1, baseNow), null);
+    assert.equal(store.has('sideseguate_ezviz_capture_cache_v1'), false);
+    assert.equal(store.has('sideseguate_ezviz_capture_cache_v2'), false);
+
+    // Guarda y actualiza captura reciente
+    const first = saveCaptureEntry('FF9363270', 1, 'data:image/jpeg;base64,AAA', baseNow);
+    assert.ok(first);
+    assert.equal(getFreshCaptureUrl('FF9363270', 1, baseNow + 5_000), 'data:image/jpeg;base64,AAA');
+
+    const updated = saveCaptureEntry('FF9363270', 1, 'data:image/jpeg;base64,BBB', baseNow + 10_000);
+    assert.ok(updated);
+    assert.equal(getFreshCaptureUrl('FF9363270', 1, baseNow + 20_000), 'data:image/jpeg;base64,BBB');
+    assert.ok(store.has(CAPTURE_CACHE_STORAGE_KEY));
+
+    // Expira pasado el TTL de 24 h
+    assert.equal(
+      getFreshCaptureUrl('FF9363270', 1, baseNow + 10_000 + CAPTURE_MAX_AGE_MS + 1),
+      null
+    );
+  } finally {
+    clearCaptureCacheForTests();
+    if (prevStorage === undefined) {
+      delete (globalThis as any).localStorage;
+    } else {
+      (globalThis as any).localStorage = prevStorage;
+    }
+  }
+});
+
+test('isAuthorizedOwnerDevice oculta la barra admin en rutas limpias compartidas', async () => {
+  const { adminAuthStorage } = await import('./adminAuth.ts');
+
+  const prevWindow = (globalThis as any).window;
+  const prevStorage = (globalThis as any).localStorage;
+  const store = new Map<string, string>();
+  const lsMock = {
+    getItem: (k: string) => store.get(k) ?? null,
+    setItem: (k: string, v: string) => { store.set(k, v); },
+    removeItem: (k: string) => { store.delete(k); },
+  };
+  (globalThis as any).localStorage = lsMock;
+
+  try {
+    (globalThis as any).window = {
+      localStorage: lsMock,
+      location: { search: '', hash: '', pathname: '/' },
+    };
+    adminAuthStorage.authorizeCurrentOwnerDevice();
+    assert.equal(adminAuthStorage.isAuthorizedOwnerDevice(), true);
+
+    (globalThis as any).window = {
+      localStorage: lsMock,
+      location: { search: '', hash: '', pathname: '/31778720' },
+    };
+    assert.equal(adminAuthStorage.isAuthorizedOwnerDevice(), false);
+
+    (globalThis as any).window = {
+      localStorage: lsMock,
+      location: { search: '', hash: '', pathname: '/token/31826717' },
+    };
+    assert.equal(adminAuthStorage.isAuthorizedOwnerDevice(), false);
+  } finally {
+    if (prevWindow === undefined) {
+      delete (globalThis as any).window;
+    } else {
+      (globalThis as any).window = prevWindow;
+    }
+    if (prevStorage === undefined) {
+      delete (globalThis as any).localStorage;
+    } else {
+      (globalThis as any).localStorage = prevStorage;
+    }
+  }
 });

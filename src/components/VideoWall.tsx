@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Camera, Project } from '../lib/types';
 import { LiveCameraPlayer, prewarmHikvisionCameras } from './LiveCameraPlayer';
+import { getFreshCaptureUrl } from '../lib/captureCache';
 import { cloudP2pClient } from '../lib/cloudP2pClient';
 import { formatChannelBadge } from '../lib/livePlayback';
 import { getTokenHealth, subscribeEzvizAuth, refreshEzvizToken, TokenHealthInfo } from '../lib/ezvizAuth';
@@ -128,13 +129,9 @@ function getBucketAccent(bucket: ProjectBucket, index: number): AccentTheme {
 }
 
 function getCameraPoster(cam: Camera): string | undefined {
-  if (cam.deviceSerial === 'F31700438' || cam.id.includes('hilook')) {
-    return cam.channel === 2 ? '/frames/f317-ch2.jpg' : '/frames/f317-ch1.jpg';
-  }
-  if (cam.deviceSerial === 'FF9363270') {
-    return '/frames/ocos-ch1.jpg';
-  }
-  return undefined;
+  const serial = (cam.deviceSerial || '').trim();
+  if (!serial) return undefined;
+  return getFreshCaptureUrl(serial, cam.channel || 1) || undefined;
 }
 
 function getProjectGridClass(count: number): string {

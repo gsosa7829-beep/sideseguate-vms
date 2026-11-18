@@ -25,6 +25,7 @@ import {
   subscribeOcos4gState,
 } from './lib/ocos4gMonitor';
 import { mergeCloudShareLinks, shareLinkListsDiffer } from './lib/shareLinkMerge';
+import { resolveOcosShareLink } from './lib/ocosShareResolution';
 import { buildPublicShareUrl, getPublicUrlInfo, describeShareUrlWarning, extractTokenFromUrl } from './lib/publicUrl';
 import {
   StreamGateway,
@@ -399,7 +400,11 @@ function AppShell() {
     // Check URL query param ?flash=45 or ?token=xyz or ?share=xyz or ?onboarding=xyz or hash #token=xyz
     const urlFlashSecs = params.get('flash') || params.get('previewSecs');
     const urlOnboarding = params.get('onboarding');
-    const parsedToken = extractTokenFromUrl(window.location.search, window.location.hash);
+    const parsedToken = extractTokenFromUrl(
+      window.location.search,
+      window.location.hash,
+      window.location.pathname
+    );
     const isVisitorClientRoute = Boolean(urlFlashSecs || urlOnboarding || parsedToken);
 
     if (urlFlashSecs) {
@@ -1021,44 +1026,19 @@ function AppShell() {
 
   // If in Client Portal View directly (client opening private token link)
   if (clientTokenView) {
-    let matchedShareLink =
-      shareLinks.find((l) => l.token === clientTokenView) ||
-      INITIAL_SHARE_LINKS.find((l) => l.token === clientTokenView) ||
-      null;
-
-    if (!matchedShareLink) {
-      const lower = clientTokenView.toLowerCase();
-      if (lower.includes('31778720') || lower.includes('instituto') || lower.includes('ff9363270')) {
-        matchedShareLink = INITIAL_SHARE_LINKS.find((l) => l.id === 'link-ocos-instituto') || null;
-      } else if (lower.includes('31826717') || lower.includes('tabernaculo') || lower.includes('ff9363192')) {
-        matchedShareLink = INITIAL_SHARE_LINKS.find((l) => l.id === 'link-ocos-tabernaculo') || null;
-      } else if (lower.includes('31798322') || lower.includes('mezquital') || lower.includes('ff9363285')) {
-        matchedShareLink = INITIAL_SHARE_LINKS.find((l) => l.id === 'link-ocos-mezquital') || null;
-      } else if (lower.includes('31822029') || lower.includes('campo') || lower.includes('ff9363276')) {
-        matchedShareLink = INITIAL_SHARE_LINKS.find((l) => l.id === 'link-ocos-campo') || null;
-      } else if (lower.includes('ocos') || lower.includes('proyecto') || lower.startsWith('sdg_') || lower === 'cam-ocos-ch1') {
-        matchedShareLink = INITIAL_SHARE_LINKS.find((l) => l.id === 'link-proyecto-ocos') || null;
-      } else if (lower.includes('cementerio') || lower === 'f31700438' || lower.includes('hilook')) {
-        matchedShareLink = INITIAL_SHARE_LINKS.find((l) => l.id === 'link-calle-del-cementerio') || null;
-      }
-    }
-
-    // Si viene un parámetro explícito de cámara (por ejemplo desde TinyURL o enlace de canal)
-    if (typeof window !== 'undefined') {
-      const p = new URLSearchParams(window.location.search);
-      const cam = p.get('camera') || p.get('cam') || p.get('serial');
-      if (cam) {
-        if (cam.includes('FF9363270') || cam.toLowerCase().includes('instituto')) {
-          matchedShareLink = INITIAL_SHARE_LINKS.find((l) => l.id === 'link-ocos-instituto') || matchedShareLink;
-        } else if (cam.includes('FF9363192') || cam.toLowerCase().includes('tabernaculo')) {
-          matchedShareLink = INITIAL_SHARE_LINKS.find((l) => l.id === 'link-ocos-tabernaculo') || matchedShareLink;
-        } else if (cam.includes('FF9363285') || cam.toLowerCase().includes('mezquital')) {
-          matchedShareLink = INITIAL_SHARE_LINKS.find((l) => l.id === 'link-ocos-mezquital') || matchedShareLink;
-        } else if (cam.includes('FF9363276') || cam.toLowerCase().includes('campo')) {
-          matchedShareLink = INITIAL_SHARE_LINKS.find((l) => l.id === 'link-ocos-campo') || matchedShareLink;
-        }
-      }
-    }
+    const deletedShareTokens = storage.getDeletedShareTokens();
+    const activeFallbackLinks = INITIAL_SHARE_LINKS.filter(
+      (l) => !deletedShareTokens.has(l.token) && !deletedShareTokens.has(l.id)
+    );
+    const resolvedShare = resolveOcosShareLink({
+      token: clientTokenView,
+      search: typeof window !== 'undefined' ? window.location.search : '',
+      pathname: typeof window !== 'undefined' ? window.location.pathname : '',
+      shareLinks,
+      fallbackLinks: activeFallbackLinks,
+    });
+    const matchedShareLink = resolvedShare.link;
+    const effectiveClientToken = resolvedShare.resolvedToken || clientTokenView;
     const matchedProject = projects.find((p) => p.id === matchedShareLink?.projectId) ||
       INITIAL_PROJECTS.find((p) => p.id === matchedShareLink?.projectId);
     const isMobileSimulatorIframe = typeof window !== 'undefined' && window.location.search.includes('preview=mobile');
@@ -1066,7 +1046,7 @@ function AppShell() {
 
     return (
       <ClientLivePortal
-        token={clientTokenView}
+        token={effectiveClientToken}
         // Si el token existe en este dispositivo (por ejemplo un enlace
         // relámpago recién creado o uno que aún no llegó a Firestore), se usa
         // como respaldo para no mostrar un falso "enlace expirado".

@@ -295,45 +295,6 @@ export const INITIAL_SHARE_LINKS: ShareLink[] = [
     maxConcurrentViewers: 100,
     accessCount: 0,
     createdAt: '2026-11-13T10:00:00.000Z'
-  },
-  {
-    id: 'link-proyecto-ocos',
-    projectId: 'proj-ocos',
-    token: 'proyecto-ocos',
-    title: 'PROYECTO OCOS - Transmisión en Vivo',
-    clientName: 'Comité Proyecto Ocós',
-    cameraIds: [
-      'cam-ai-1794439370109-ch1',
-      'cam-ai-1794439784940-ch1',
-      'cam-ai-1794444422794-ch1',
-      'cam-ai-1794444552597-ch1'
-    ],
-    expiresAt: '2027-02-13T23:59:59.000Z',
-    isActive: true,
-    allowPtz: false,
-    allowAudio: false,
-    allowSnapshot: true,
-    showWatermark: true,
-    maxConcurrentViewers: 100,
-    accessCount: 0,
-    createdAt: '2026-10-31T20:00:00.000Z'
-  },
-  {
-    id: 'link-calle-del-cementerio',
-    projectId: 'proj-calle-cementerio',
-    token: 'calle-del-cementerio',
-    title: 'Calle del Cementerio - Monitoreo en Vivo',
-    clientName: 'Comité de Vecinos Calle del Cementerio',
-    cameraIds: ['cam-hilook-ch1', 'cam-hilook-ch2'],
-    expiresAt: null,
-    isActive: true,
-    allowPtz: true,
-    allowAudio: false,
-    allowSnapshot: true,
-    showWatermark: true,
-    maxConcurrentViewers: 50,
-    accessCount: 0,
-    createdAt: '2026-10-30T12:00:00.000Z'
   }
 ];
 
