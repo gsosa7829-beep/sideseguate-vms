@@ -74,10 +74,15 @@ const PERSONAL_HOST_PATTERNS: RegExp[] = [
   /\.trycloudflare\.com$/i,
 ];
 
+const OFFICIAL_BRAND_HOSTS = new Set([
+  'global-tech-vms.web.app',
+  'global-tech-vms.firebaseapp.com',
+]);
+
 /** `true` si el host revela el usuario personal del operador. */
 export function isPersonalLookingHost(hostname: string): boolean {
   const host = (hostname || '').toLowerCase();
-  if (!host) return false;
+  if (!host || OFFICIAL_BRAND_HOSTS.has(host)) return false;
   return PERSONAL_HOST_PATTERNS.some((re) => re.test(host));
 }
 

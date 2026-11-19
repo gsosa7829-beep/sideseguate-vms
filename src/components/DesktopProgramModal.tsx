@@ -86,7 +86,12 @@ export const DesktopProgramModal: React.FC<DesktopProgramModalProps> = ({
           {/* Primary Action Button */}
           <div className="pt-2">
             <a
-              href="/Proyecto-de-Camaras.exe"
+              href={
+                typeof window !== 'undefined' &&
+                /\.(web\.app|firebaseapp\.com)$/i.test(window.location.hostname)
+                  ? 'https://global-tech.surge.sh/Proyecto-de-Camaras.exe'
+                  : '/Proyecto-de-Camaras.exe'
+              }
               download="Proyecto-de-Camaras.exe"
               onClick={handleDownloadClick}
               className="w-full py-3.5 px-6 bg-gradient-to-r from-sky-600 to-sky-500 hover:from-sky-500 hover:to-sky-400 active:scale-98 text-white rounded-xl font-bold flex items-center justify-center gap-2.5 transition shadow-lg shadow-sky-950/60 text-sm sm:text-base cursor-pointer"

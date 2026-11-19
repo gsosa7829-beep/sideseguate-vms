@@ -1288,6 +1288,7 @@ test('isPersonalLookingHost distingue marca de hosting personal', () => {
   assert.equal(isPersonalLookingHost('gsosa7829-beep.github.io'), true);
   assert.equal(isPersonalLookingHost('mi-proyecto.vercel.app'), true);
   assert.equal(isPersonalLookingHost('global-tech.surge.sh'), false);
+  assert.equal(isPersonalLookingHost('global-tech-vms.web.app'), false);
   assert.equal(isPersonalLookingHost('proyectos-de-camaras.surge.sh'), false);
   assert.equal(isPersonalLookingHost('camaras.sideseguate.com'), false);
   assert.equal(isPersonalLookingHost('localhost'), false);
