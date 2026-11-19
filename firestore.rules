@@ -13,7 +13,7 @@ service cloud.firestore {
     // - /vms_workspaces/{workspaceId}: { ownerId, gatewayHost, projectsCount, camerasCount, shareLinksCount, status, createdAt, updatedAt }
     // - /cloud_projects/{projectId}: { id, ownerId, name, clientName, clientPhone, location, status, equipmentNotes, createdAtIso, [tenantId], createdAt, updatedAt }
     // - /cloud_cameras/{cameraId}: { id, ownerId, projectId, name, deviceType, host, port, onvifPort, channel, streamType, hlsStreamUrl, webrtcUrl, status, fps, resolution, bitrateKbps, codec, locationDesc, ptzSupported, nightVision, cloudId, [deviceSerial], [tenantId], notes, createdAt, updatedAt }
-    // - /cloud_share_links/{token}: { id, ownerId, projectId, token, title, clientName, cameraIds, pinCode, expiresAtIso, isActive, allowPtz, allowAudio, allowSnapshot, showWatermark, maxConcurrentViewers, accessCount, lastAccessedAtIso, createdAtIso, [tenantId], createdAt, updatedAt }
+    // - /cloud_share_links/{token}: { id, ownerId, projectId, token, title, clientName, cameraIds, pinCode, expiresAtIso, isActive, allowPtz, allowAudio, allowSnapshot, showWatermark, maxConcurrentViewers, accessCount, lastAccessedAtIso, createdAtIso, [tenantId], [plaqueTitle], [plaqueDescription], [plaqueEntity], [plaquePurchaser], [plaqueNog], [plaqueSnip], [shareMessage], createdAt, updatedAt }
     // - /cloud_access_logs/{logId}: { id, ownerId, shareLinkId, clientIp, deviceInfo, timestampIso, durationSeconds, action, [tenantId], createdAt }
     // - /cloud_sub_users/{userId}: { id, ownerId, tenantId, username, email, displayName, description, role, roleLabel, allowedProjectIds, active, passwordHash, passwordSalt, hashIterations, hashAlgorithm, createdAtIso, lastLoginAtIso, createdAt, updatedAt }
     // ===============================================================
@@ -288,6 +288,16 @@ service cloud.firestore {
         data.updatedAt is timestamp;
     }
 
+    function hasValidShareLinkPlaqueFields(data) {
+      return (!data.keys().hasAny(['plaqueTitle']) || (data.plaqueTitle is string && data.plaqueTitle.size() <= 300)) &&
+        (!data.keys().hasAny(['plaqueDescription']) || (data.plaqueDescription is string && data.plaqueDescription.size() <= 800)) &&
+        (!data.keys().hasAny(['plaqueEntity']) || (data.plaqueEntity is string && data.plaqueEntity.size() <= 200)) &&
+        (!data.keys().hasAny(['plaquePurchaser']) || (data.plaquePurchaser is string && data.plaquePurchaser.size() <= 200)) &&
+        (!data.keys().hasAny(['plaqueNog']) || (data.plaqueNog is string && data.plaqueNog.size() <= 60)) &&
+        (!data.keys().hasAny(['plaqueSnip']) || (data.plaqueSnip is string && data.plaqueSnip.size() <= 60)) &&
+        (!data.keys().hasAny(['shareMessage']) || (data.shareMessage is string && data.shareMessage.size() <= 1200));
+    }
+
     function isValidCloudShareLink(data) {
       return data.keys().hasAll([
           'id',
@@ -331,12 +341,20 @@ service cloud.firestore {
           'lastAccessedAtIso',
           'createdAtIso',
           'tenantId',
+          'plaqueTitle',
+          'plaqueDescription',
+          'plaqueEntity',
+          'plaquePurchaser',
+          'plaqueNog',
+          'plaqueSnip',
+          'shareMessage',
           'createdAt',
           'updatedAt'
         ]) &&
         isValidId(data.id) &&
         isAuthorizedOperator(data.ownerId) &&
         hasValidTenant(data) &&
+        hasValidShareLinkPlaqueFields(data) &&
         isValidId(data.projectId) &&
         isValidId(data.token) &&
         data.title is string && data.title.size() >= 1 && data.title.size() <= 200 &&
@@ -682,6 +700,13 @@ service cloud.firestore {
             'maxConcurrentViewers',
             'accessCount',
             'lastAccessedAtIso',
+            'plaqueTitle',
+            'plaqueDescription',
+            'plaqueEntity',
+            'plaquePurchaser',
+            'plaqueNog',
+            'plaqueSnip',
+            'shareMessage',
             'updatedAt'
           ])
         );

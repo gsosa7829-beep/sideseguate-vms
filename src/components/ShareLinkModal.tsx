@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Camera, Project, ShareLink } from '../lib/types';
 import {
   generateShareToken,
@@ -7,6 +7,17 @@ import {
 import { buildPublicShareUrl } from '../lib/publicUrl';
 import { buildWhatsAppUrl } from '../lib/whatsapp';
 import { BRAND_NAME } from '../lib/assets';
+import { getOcosMetadataForCamera } from '../lib/ocosMetadata';
+import {
+  buildDefaultShareMessage,
+  hasCustomShareLinkPlaque,
+  ShareLinkPlaqueData,
+} from '../lib/shareLinkPlaque';
+import {
+  ShareLinkPlaqueEditor,
+  PlaqueDraft,
+  EMPTY_PLAQUE_DRAFT,
+} from './ShareLinkPlaqueEditor';
 import {
   X,
   Link2,
@@ -22,6 +33,8 @@ import {
   Copy,
   MessageCircle,
   Sliders,
+  RotateCcw,
+  Share2,
 } from 'lucide-react';
 
 interface ShareLinkModalProps {
@@ -73,11 +86,24 @@ export const ShareLinkModal: React.FC<ShareLinkModalProps> = ({
   const [showWatermark, setShowWatermark] = useState(initialLink?.showWatermark ?? true);
   const [showAdvanced, setShowAdvanced] = useState<boolean>(false);
 
+  const [draftToken, setDraftToken] = useState<string>(
+    () => initialLink?.token || generateShareToken('sdg')
+  );
+  const [plaqueDraft, setPlaqueDraft] = useState<PlaqueDraft>(EMPTY_PLAQUE_DRAFT);
+  const [customShareMessage, setCustomShareMessage] = useState<string>(
+    initialLink?.shareMessage || ''
+  );
+  const [shareMessageEdited, setShareMessageEdited] = useState<boolean>(
+    Boolean(initialLink?.shareMessage)
+  );
+  const [copiedFeedback, setCopiedFeedback] = useState<'url' | 'message' | null>(null);
+
   React.useEffect(() => {
     if (isOpen) {
       const pid = initialLink?.projectId || defaultProjectId || projects[0]?.id || '';
       const proj = projects.find((p) => p.id === pid);
       setProjectId(pid);
+      setDraftToken(initialLink?.token || generateShareToken('sdg'));
       setTitle(
         initialLink?.title || (proj ? `Cámaras en Vivo - ${proj.name}` : 'Acceso a Cámaras en Vivo')
       );
@@ -119,12 +145,49 @@ export const ShareLinkModal: React.FC<ShareLinkModalProps> = ({
       setAllowSnapshot(initialLink?.allowSnapshot ?? true);
       setShowWatermark(initialLink?.showWatermark ?? true);
       setShowAdvanced(Boolean(initialLink?.pinCode));
+
+      const hasPlaque = hasCustomShareLinkPlaque(initialLink);
+      setPlaqueDraft({
+        enabled: hasPlaque,
+        title: initialLink?.plaqueTitle || '',
+        description: initialLink?.plaqueDescription || '',
+        entity: initialLink?.plaqueEntity || '',
+        purchaser: initialLink?.plaquePurchaser || '',
+        nog: initialLink?.plaqueNog || '',
+        snip: initialLink?.plaqueSnip || '',
+      });
+      setCustomShareMessage(initialLink?.shareMessage || '');
+      setShareMessageEdited(Boolean(initialLink?.shareMessage));
+      setCopiedFeedback(null);
     }
   }, [isOpen, initialLink, defaultProjectId, projects, cameras]);
 
-  if (!isOpen) return null;
+  const projectCameras = useMemo(
+    () => cameras.filter((c) => c.projectId === projectId),
+    [cameras, projectId]
+  );
 
-  const projectCameras = cameras.filter((c) => c.projectId === projectId);
+  const ocosPresetPlaque: ShareLinkPlaqueData | null = useMemo(() => {
+    const activeIds = selectedCameraIds.length > 0 ? selectedCameraIds : projectCameras.map((c) => c.id);
+    for (const cid of activeIds) {
+      const cam = cameras.find((c) => c.id === cid);
+      if (cam) {
+        const meta = getOcosMetadataForCamera(cam);
+        if (meta) {
+          return {
+            title: meta.projectName,
+            entity: meta.entity,
+            purchaser: meta.purchaser,
+            nog: meta.nog,
+            snip: meta.snip,
+          };
+        }
+      }
+    }
+    return null;
+  }, [selectedCameraIds, projectCameras, cameras]);
+
+  if (!isOpen) return null;
 
   const handleProjectChange = (newProjId: string) => {
     setProjectId(newProjId);
@@ -191,14 +254,46 @@ export const ShareLinkModal: React.FC<ShareLinkModalProps> = ({
     return null;
   })();
 
+  const previewUrl = buildPublicShareUrl(draftToken);
+
+  const defaultShareMessage = buildDefaultShareMessage({
+    brandName: BRAND_NAME,
+    title: title.trim() || 'Enlace de Videovigilancia',
+    clientName: clientName.trim() || 'Cliente Autorizado',
+    url: previewUrl,
+    pinCode: usePin && pinCode.trim() ? pinCode.trim() : undefined,
+    isPermanent: durationMode === 'permanent',
+    expiryFormatted: durationMode === 'permanent' ? undefined : formattedExpiryDisplay,
+  });
+
+  const activeShareMessage = shareMessageEdited ? customShareMessage : defaultShareMessage;
+
   const buildLinkObject = (): ShareLink => {
     const effectiveCameraIds =
       selectedCameraIds.length > 0 ? selectedCameraIds : projectCameras.map((c) => c.id);
 
+    const plaqueFields = plaqueDraft.enabled
+      ? {
+          plaqueTitle: plaqueDraft.title.trim() || undefined,
+          plaqueDescription: plaqueDraft.description.trim() || undefined,
+          plaqueEntity: plaqueDraft.entity.trim() || undefined,
+          plaquePurchaser: plaqueDraft.purchaser.trim() || undefined,
+          plaqueNog: plaqueDraft.nog.trim() || undefined,
+          plaqueSnip: plaqueDraft.snip.trim() || undefined,
+        }
+      : {
+          plaqueTitle: undefined,
+          plaqueDescription: undefined,
+          plaqueEntity: undefined,
+          plaquePurchaser: undefined,
+          plaqueNog: undefined,
+          plaqueSnip: undefined,
+        };
+
     return {
       id: initialLink?.id || `link-${Date.now()}`,
       projectId,
-      token: initialLink?.token || generateShareToken('sdg'),
+      token: draftToken,
       title: title.trim() || 'Enlace de Videovigilancia',
       clientName: clientName.trim() || 'Cliente Autorizado',
       cameraIds: effectiveCameraIds,
@@ -213,31 +308,65 @@ export const ShareLinkModal: React.FC<ShareLinkModalProps> = ({
       accessCount: initialLink?.accessCount || 0,
       lastAccessedAt: initialLink?.lastAccessedAt || null,
       createdAt: initialLink?.createdAt || new Date().toISOString(),
+      ...plaqueFields,
+      shareMessage: shareMessageEdited && customShareMessage.trim()
+        ? customShareMessage.trim()
+        : undefined,
     };
   };
 
-  const handleAction = (mode: 'save_and_copy' | 'save_and_whatsapp') => {
+  const handleAction = async (
+    mode: 'save_and_copy' | 'save_and_copy_message' | 'save_and_whatsapp' | 'save_and_native_share'
+  ) => {
     if (expiryError) return;
     const link = buildLinkObject();
     const fullUrl = buildPublicShareUrl(link.token);
-
-    try {
-      navigator.clipboard?.writeText(fullUrl);
-    } catch {
-      // ignore clipboard errors
-    }
+    const finalText = activeShareMessage.trim() || defaultShareMessage;
 
     onSave(link);
 
-    if (mode === 'save_and_whatsapp') {
-      const proj = projects.find((p) => p.id === link.projectId);
-      const pinNote = link.pinCode ? `\nPIN: ${link.pinCode}` : '';
-      const text = `*${BRAND_NAME}*\nAcceso en vivo (${link.title}) para ${link.clientName}:\n\n${fullUrl}${pinNote}`;
-      const waUrl = buildWhatsAppUrl({ text, phone: proj?.clientPhone });
-      window.open(waUrl, '_blank', 'noopener,noreferrer');
+    if (mode === 'save_and_copy') {
+      try {
+        await navigator.clipboard?.writeText(fullUrl);
+        setCopiedFeedback('url');
+      } catch {
+        // ignore clipboard errors
+      }
+      onClose();
+      return;
     }
 
-    onClose();
+    if (mode === 'save_and_copy_message') {
+      try {
+        await navigator.clipboard?.writeText(finalText);
+        setCopiedFeedback('message');
+      } catch {
+        // ignore clipboard errors
+      }
+      onClose();
+      return;
+    }
+
+    if (mode === 'save_and_native_share' && typeof navigator !== 'undefined' && navigator.share) {
+      try {
+        await navigator.share({
+          title: link.title,
+          text: finalText,
+          url: fullUrl,
+        });
+      } catch {
+        // usuario canceló o no soportado
+      }
+      onClose();
+      return;
+    }
+
+    if (mode === 'save_and_whatsapp') {
+      const proj = projects.find((p) => p.id === link.projectId);
+      const waUrl = buildWhatsAppUrl({ text: finalText, phone: proj?.clientPhone });
+      window.open(waUrl, '_blank', 'noopener,noreferrer');
+      onClose();
+    }
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -552,8 +681,51 @@ export const ShareLinkModal: React.FC<ShareLinkModalProps> = ({
             )}
           </div>
 
-          {/* Botones de Envío Simples en 1 Clic */}
-          <div className="pt-3 border-t border-neutral-800 flex flex-col sm:flex-row items-stretch sm:items-center justify-end gap-2">
+          {/* 3. Recuadro negro informativo dentro del enlace (aparte del mensaje de envío) */}
+          <ShareLinkPlaqueEditor
+            value={plaqueDraft}
+            onChange={setPlaqueDraft}
+            presetPlaque={ocosPresetPlaque}
+          />
+
+          {/* 4. Mensaje editable para compartir por WhatsApp u otro medio (totalmente aparte) */}
+          <div className="bg-neutral-950/80 border border-neutral-800 rounded-2xl p-3.5 space-y-2">
+            <div className="flex items-center justify-between gap-2 flex-wrap">
+              <label className="text-white font-bold flex items-center gap-1.5 text-xs">
+                <MessageCircle className="w-3.5 h-3.5 text-emerald-400" />
+                <span>Mensaje para enviar (WhatsApp u otro medio)</span>
+              </label>
+              {shareMessageEdited && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShareMessageEdited(false);
+                    setCustomShareMessage('');
+                  }}
+                  className="text-[11px] text-sky-400 hover:text-sky-300 flex items-center gap-1 font-medium cursor-pointer"
+                >
+                  <RotateCcw className="w-3 h-3" />
+                  <span>Restablecer texto</span>
+                </button>
+              )}
+            </div>
+            <p className="text-[11px] text-neutral-400">
+              Edita la descripción que acompañará al enlace al enviarlo por WhatsApp, correo o cualquier chat. No modifica el recuadro negro del video.
+            </p>
+            <textarea
+              rows={4}
+              maxLength={1200}
+              value={activeShareMessage}
+              onChange={(e) => {
+                setShareMessageEdited(true);
+                setCustomShareMessage(e.target.value);
+              }}
+              className="w-full bg-neutral-900 border border-neutral-700 rounded-xl px-3 py-2 text-neutral-100 focus:border-emerald-500 focus:outline-none text-xs font-sans leading-relaxed resize-y"
+            />
+          </div>
+
+          {/* Botones de Envío */}
+          <div className="pt-3 border-t border-neutral-800 flex flex-wrap items-center justify-end gap-2">
             <button
               type="button"
               onClick={onClose}
@@ -566,11 +738,36 @@ export const ShareLinkModal: React.FC<ShareLinkModalProps> = ({
               type="button"
               disabled={Boolean(expiryError)}
               onClick={() => handleAction('save_and_copy')}
-              className="px-4 py-2.5 bg-sky-600 hover:bg-sky-500 disabled:opacity-50 text-white font-semibold rounded-xl transition shadow-md flex items-center justify-center gap-1.5 cursor-pointer"
+              className="px-3.5 py-2.5 bg-neutral-800 hover:bg-neutral-700 disabled:opacity-50 text-white font-semibold rounded-xl transition border border-neutral-700 flex items-center justify-center gap-1.5 cursor-pointer"
+              title="Guardar y copiar únicamente la URL del enlace"
             >
-              {initialLink ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
-              <span>{initialLink ? 'Guardar y Copiar Enlace' : 'Crear y Copiar Enlace'}</span>
+              {copiedFeedback === 'url' ? <Check className="w-4 h-4 text-emerald-400" /> : <Link2 className="w-4 h-4 text-sky-400" />}
+              <span>Solo Enlace</span>
             </button>
+
+            <button
+              type="button"
+              disabled={Boolean(expiryError)}
+              onClick={() => handleAction('save_and_copy_message')}
+              className="px-3.5 py-2.5 bg-sky-600 hover:bg-sky-500 disabled:opacity-50 text-white font-semibold rounded-xl transition shadow-md flex items-center justify-center gap-1.5 cursor-pointer"
+              title="Guardar y copiar el mensaje completo con descripción y enlace para pegarlo en cualquier app"
+            >
+              {copiedFeedback === 'message' ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+              <span>Copiar Mensaje</span>
+            </button>
+
+            {typeof navigator !== 'undefined' && typeof navigator.share === 'function' && (
+              <button
+                type="button"
+                disabled={Boolean(expiryError)}
+                onClick={() => handleAction('save_and_native_share')}
+                className="px-3.5 py-2.5 bg-neutral-800 hover:bg-neutral-700 disabled:opacity-50 text-neutral-100 font-semibold rounded-xl transition border border-neutral-700 flex items-center justify-center gap-1.5 cursor-pointer"
+                title="Compartir en otra aplicación del dispositivo"
+              >
+                <Share2 className="w-4 h-4 text-sky-400" />
+                <span>Compartir</span>
+              </button>
+            )}
 
             <button
               type="button"

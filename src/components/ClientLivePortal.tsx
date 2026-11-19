@@ -12,6 +12,7 @@ import { LiveCameraPlayer, prewarmHikvisionCameras } from './LiveCameraPlayer';
 import { syncEzvizAuthFromRemote, extractLatestEzvizTokenFromCameras } from '../lib/ezvizAuth';
 import { isCamera4gDevice } from '../lib/ocos4gMonitor';
 import { getOcosMetadataForCamera } from '../lib/ocosMetadata';
+import { resolvePlaqueForPortal } from '../lib/shareLinkPlaque';
 import { OcosTenderPlaque } from './OcosTenderPlaque';
 import { BrandSquareIcon } from './BrandMark';
 import { BRAND_NAME, BRAND_SUBTITLE } from '../lib/assets';
@@ -679,11 +680,12 @@ export const ClientLivePortal: React.FC<ClientLivePortalProps> = ({
               </div>
             )}
 
-            {/* Ficha Oficial de Licitación Ocós o Información de Cámara */}
+            {/* Ficha Informativa (Recuadro Negro) o Información de Cámara */}
             {selectedCamera && (() => {
               const ocosMeta = getOcosMetadataForCamera(selectedCamera);
-              if (ocosMeta) {
-                return <OcosTenderPlaque metadata={ocosMeta} className="mt-1" />;
+              const resolvedPlaque = resolvePlaqueForPortal(activeShareLink, ocosMeta);
+              if (resolvedPlaque) {
+                return <OcosTenderPlaque plaque={resolvedPlaque} className="mt-1" />;
               }
               return (
                 <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs shadow-md">
@@ -742,11 +744,12 @@ export const ClientLivePortal: React.FC<ClientLivePortalProps> = ({
                 </div>
               )}
 
-              {/* Ficha Oficial de Licitación Ocós o Información de Cámara */}
+              {/* Ficha Informativa (Recuadro Negro) o Información de Cámara */}
               {selectedCamera && (() => {
                 const ocosMeta = getOcosMetadataForCamera(selectedCamera);
-                if (ocosMeta) {
-                  return <OcosTenderPlaque metadata={ocosMeta} className="mt-1" />;
+                const resolvedPlaque = resolvePlaqueForPortal(activeShareLink, ocosMeta);
+                if (resolvedPlaque) {
+                  return <OcosTenderPlaque plaque={resolvedPlaque} className="mt-1" />;
                 }
                 return (
                   <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs shadow-md">
@@ -837,6 +840,7 @@ export const ClientLivePortal: React.FC<ClientLivePortalProps> = ({
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-5xl mx-auto w-full min-w-0">
             {allowedCameras.map((cam) => {
               const ocosMeta = getOcosMetadataForCamera(cam);
+              const resolvedPlaque = resolvePlaqueForPortal(activeShareLink, ocosMeta);
               return (
                 <div key={cam.id} className="flex flex-col min-w-0 max-w-full bg-neutral-900 border border-neutral-800 hover:border-neutral-700 transition-all duration-200 rounded-2xl overflow-hidden shadow-xl shadow-black/50 ring-1 ring-white/5 hover:shadow-2xl">
                   {/* Cabecera con Nombre Completo y Estado */}
@@ -869,9 +873,9 @@ export const ClientLivePortal: React.FC<ClientLivePortalProps> = ({
                     />
                   </div>
 
-                  {/* Placa Oficial de Licitación Ocós si corresponde, o pie con ubicación */}
-                  {ocosMeta ? (
-                    <OcosTenderPlaque metadata={ocosMeta} compact={true} className="border-t-2 border-x-0 border-b-0" />
+                  {/* Ficha informativa (recuadro negro) si corresponde, o pie con ubicación */}
+                  {resolvedPlaque ? (
+                    <OcosTenderPlaque plaque={resolvedPlaque} compact={true} className="border-t-2 border-x-0 border-b-0" />
                   ) : (
                     <div className="px-4 py-2.5 bg-neutral-950/95 border-t border-neutral-800 flex items-center justify-between text-xs text-neutral-400">
                       <span className="inline-flex items-center gap-1.5 truncate text-neutral-300 text-xs min-w-0">

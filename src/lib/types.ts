@@ -75,6 +75,15 @@ export interface ShareLink {
   accessCount: number;
   lastAccessedAt?: string | null;
   createdAt: string;
+  /** Ficha informativa opcional (recuadro negro visible en el portal público del enlace) */
+  plaqueTitle?: string;
+  plaqueDescription?: string;
+  plaqueEntity?: string;
+  plaquePurchaser?: string;
+  plaqueNog?: string;
+  plaqueSnip?: string;
+  /** Mensaje personalizado opcional para compartir por WhatsApp u otro medio */
+  shareMessage?: string;
 }
 
 export interface AccessLog {

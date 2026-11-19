@@ -4,6 +4,17 @@ import { generateShareToken } from '../lib/tokenSecurity';
 import { buildPublicShareUrl } from '../lib/publicUrl';
 import { buildWhatsAppUrl, normalizePhoneNumber } from '../lib/whatsapp';
 import { BRAND_NAME } from '../lib/assets';
+import { getOcosMetadataForCamera } from '../lib/ocosMetadata';
+import {
+  buildDefaultShareMessage,
+  hasCustomShareLinkPlaque,
+  ShareLinkPlaqueData,
+} from '../lib/shareLinkPlaque';
+import {
+  ShareLinkPlaqueEditor,
+  PlaqueDraft,
+  EMPTY_PLAQUE_DRAFT,
+} from './ShareLinkPlaqueEditor';
 import {
   X,
   Clock,
@@ -16,7 +27,9 @@ import {
   Calendar,
   Sparkles,
   RefreshCw,
-  Send
+  Send,
+  RotateCcw,
+  Share2,
 } from 'lucide-react';
 
 interface WhatsAppTimedShareModalProps {
@@ -72,6 +85,17 @@ export const WhatsAppTimedShareModal: React.FC<WhatsAppTimedShareModalProps> = (
   const [allowSnapshot, setAllowSnapshot] = useState(existingLink?.allowSnapshot ?? true);
   const [showWatermark, setShowWatermark] = useState(existingLink?.showWatermark ?? true);
 
+  // Recuadro negro informativo dentro del enlace (aparte del mensaje de WhatsApp)
+  const [plaqueDraft, setPlaqueDraft] = useState<PlaqueDraft>(EMPTY_PLAQUE_DRAFT);
+
+  // Mensaje editable para compartir por WhatsApp u otro medio
+  const [customShareMessage, setCustomShareMessage] = useState<string>(
+    existingLink?.shareMessage || ''
+  );
+  const [shareMessageEdited, setShareMessageEdited] = useState<boolean>(
+    Boolean(existingLink?.shareMessage)
+  );
+
   // Sincronizar estado cuando se abre el modal o cambia el enlace seleccionado
   useEffect(() => {
     if (isOpen) {
@@ -93,10 +117,42 @@ export const WhatsAppTimedShareModal: React.FC<WhatsAppTimedShareModalProps> = (
       setAllowAudio(existingLink?.allowAudio ?? true);
       setAllowSnapshot(existingLink?.allowSnapshot ?? true);
       setShowWatermark(existingLink?.showWatermark ?? true);
+
+      const hasPlaque = hasCustomShareLinkPlaque(existingLink);
+      setPlaqueDraft({
+        enabled: hasPlaque,
+        title: existingLink?.plaqueTitle || '',
+        description: existingLink?.plaqueDescription || '',
+        entity: existingLink?.plaqueEntity || '',
+        purchaser: existingLink?.plaquePurchaser || '',
+        nog: existingLink?.plaqueNog || '',
+        snip: existingLink?.plaqueSnip || '',
+      });
+      setCustomShareMessage(existingLink?.shareMessage || '');
+      setShareMessageEdited(Boolean(existingLink?.shareMessage));
       setCopiedText(false);
       setCopiedUrl(false);
     }
   }, [isOpen, existingLink, defaultProjectId, projects, cameras]);
+
+  const ocosPresetPlaque: ShareLinkPlaqueData | null = useMemo(() => {
+    for (const cid of selectedCameraIds) {
+      const cam = cameras.find((c) => c.id === cid);
+      if (cam) {
+        const meta = getOcosMetadataForCamera(cam);
+        if (meta) {
+          return {
+            title: meta.projectName,
+            entity: meta.entity,
+            purchaser: meta.purchaser,
+            nog: meta.nog,
+            snip: meta.snip,
+          };
+        }
+      }
+    }
+    return null;
+  }, [selectedCameraIds, cameras]);
 
   // Feedback de copiado
   const [copiedText, setCopiedText] = useState(false);
@@ -166,24 +222,31 @@ export const WhatsAppTimedShareModal: React.FC<WhatsAppTimedShareModalProps> = (
     return buildPublicShareUrl(token);
   }, [token]);
 
-  // Mensaje estructurado de WhatsApp
-  const formattedWhatsAppMessage = useMemo(() => {
-    const namePart = clientName.trim() ? ` *${clientName.trim()}*` : '';
-    const pinPart = usePin && pinCode.trim() ? `\n*PIN:* \`${pinCode.trim()}\`` : '';
-    const vigenciaPart = isPermanent
-      ? '*Vigencia:* Permanente'
-      : `*Vigencia:* ${durationLabel} (Vence: ${expiryTimeFormatted})`;
+  // Mensaje sugerido automático
+  const defaultWhatsAppMessage = useMemo(() => {
+    return buildDefaultShareMessage({
+      brandName: BRAND_NAME,
+      title: title.trim() || undefined,
+      clientName: clientName.trim() || undefined,
+      url: fullPublicUrl,
+      pinCode: usePin && pinCode.trim() ? pinCode.trim() : undefined,
+      durationLabel: isPermanent ? undefined : durationLabel,
+      expiryFormatted: isPermanent ? undefined : expiryTimeFormatted,
+      isPermanent,
+    });
+  }, [title, clientName, fullPublicUrl, usePin, pinCode, isPermanent, durationLabel, expiryTimeFormatted]);
 
-    return `*${BRAND_NAME} · Acceso en Vivo*\nHola${namePart}, enlace privado de monitoreo:\n\n*Enlace:* ${fullPublicUrl}${pinPart}\n${vigenciaPart}`;
-  }, [clientName, fullPublicUrl, usePin, pinCode, isPermanent, durationLabel, expiryTimeFormatted]);
+  const activeWhatsAppMessage = shareMessageEdited
+    ? customShareMessage
+    : defaultWhatsAppMessage;
 
   // Enlace directo a WhatsApp
   const whatsappUrl = useMemo(() => {
     return buildWhatsAppUrl({
-      text: formattedWhatsAppMessage,
+      text: activeWhatsAppMessage.trim() || defaultWhatsAppMessage,
       phone: clientPhone.trim() || null,
     });
-  }, [formattedWhatsAppMessage, clientPhone]);
+  }, [activeWhatsAppMessage, defaultWhatsAppMessage, clientPhone]);
 
   if (!isOpen) return null;
 
@@ -215,6 +278,24 @@ export const WhatsAppTimedShareModal: React.FC<WhatsAppTimedShareModalProps> = (
       ? selectedCameraIds
       : (projectCameras.length > 0 ? projectCameras.map((c) => c.id) : cameras.map((c) => c.id));
 
+    const plaqueFields = plaqueDraft.enabled
+      ? {
+          plaqueTitle: plaqueDraft.title.trim() || undefined,
+          plaqueDescription: plaqueDraft.description.trim() || undefined,
+          plaqueEntity: plaqueDraft.entity.trim() || undefined,
+          plaquePurchaser: plaqueDraft.purchaser.trim() || undefined,
+          plaqueNog: plaqueDraft.nog.trim() || undefined,
+          plaqueSnip: plaqueDraft.snip.trim() || undefined,
+        }
+      : {
+          plaqueTitle: undefined,
+          plaqueDescription: undefined,
+          plaqueEntity: undefined,
+          plaquePurchaser: undefined,
+          plaqueNog: undefined,
+          plaqueSnip: undefined,
+        };
+
     const link: ShareLink = {
       id: existingLink?.id || `link-${Date.now()}`,
       projectId: targetProjId,
@@ -233,6 +314,10 @@ export const WhatsAppTimedShareModal: React.FC<WhatsAppTimedShareModalProps> = (
       accessCount: existingLink?.accessCount || 0,
       lastAccessedAt: existingLink?.lastAccessedAt || null,
       createdAt: existingLink?.createdAt || new Date().toISOString(),
+      ...plaqueFields,
+      shareMessage: shareMessageEdited && customShareMessage.trim()
+        ? customShareMessage.trim()
+        : undefined,
     };
 
     onSaveLink(link);
@@ -245,9 +330,20 @@ export const WhatsAppTimedShareModal: React.FC<WhatsAppTimedShareModalProps> = (
 
   const handleCopyMessage = async () => {
     try {
-      await navigator.clipboard.writeText(formattedWhatsAppMessage);
+      await navigator.clipboard.writeText(activeWhatsAppMessage.trim() || defaultWhatsAppMessage);
       setCopiedText(true);
       setTimeout(() => setCopiedText(false), 2500);
+    } catch {}
+  };
+
+  const handleNativeShare = async () => {
+    if (typeof navigator === 'undefined' || typeof navigator.share !== 'function') return;
+    try {
+      await navigator.share({
+        title: title.trim() || 'Acceso en Vivo',
+        text: activeWhatsAppMessage.trim() || defaultWhatsAppMessage,
+        url: fullPublicUrl,
+      });
     } catch {}
   };
 
@@ -479,50 +575,90 @@ export const WhatsAppTimedShareModal: React.FC<WhatsAppTimedShareModalProps> = (
             )}
           </div>
 
-          {/* Fila 5: Vista Previa del Mensaje de WhatsApp */}
-          <div>
-            <div className="flex items-center justify-between mb-1.5">
-              <label className="text-neutral-300 font-semibold flex items-center gap-1.5">
+          {/* Fila 5: Recuadro negro informativo dentro del enlace (aparte del mensaje de envío) */}
+          <ShareLinkPlaqueEditor
+            value={plaqueDraft}
+            onChange={setPlaqueDraft}
+            presetPlaque={ocosPresetPlaque}
+          />
+
+          {/* Fila 6: Mensaje editable para enviar por WhatsApp u otro medio (totalmente aparte) */}
+          <div className="bg-neutral-950/80 border border-neutral-800 rounded-2xl p-3.5 space-y-2">
+            <div className="flex items-center justify-between gap-2 flex-wrap">
+              <label className="text-neutral-200 font-bold flex items-center gap-1.5 text-xs">
                 <MessageSquare className="w-3.5 h-3.5 text-emerald-400" />
-                <span>Vista Previa del Mensaje que recibirá el Cliente:</span>
+                <span>Mensaje para enviar (WhatsApp u otro medio):</span>
               </label>
-              <button
-                type="button"
-                onClick={handleCopyMessage}
-                className="text-[11px] text-emerald-400 hover:text-emerald-300 flex items-center gap-1 font-medium transition"
-              >
-                {copiedText ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
-                <span>{copiedText ? 'Copiado' : 'Copiar Texto'}</span>
-              </button>
-            </div>
-            {/* Globo de mensaje estilo WhatsApp */}
-            <div className="bg-[#0b141a] border border-[#202c33] rounded-2xl p-4 text-[#e9edef] font-sans text-xs leading-relaxed shadow-inner select-text">
-              <div className="whitespace-pre-line break-words font-normal">
-                {formattedWhatsAppMessage}
+              <div className="flex items-center gap-2.5">
+                {shareMessageEdited && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShareMessageEdited(false);
+                      setCustomShareMessage('');
+                    }}
+                    className="text-[11px] text-sky-400 hover:text-sky-300 flex items-center gap-1 font-medium transition cursor-pointer"
+                  >
+                    <RotateCcw className="w-3 h-3" />
+                    <span>Restablecer</span>
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={handleCopyMessage}
+                  className="text-[11px] text-emerald-400 hover:text-emerald-300 flex items-center gap-1 font-medium transition cursor-pointer"
+                >
+                  {copiedText ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+                  <span>{copiedText ? 'Mensaje Copiado' : 'Copiar Mensaje'}</span>
+                </button>
               </div>
             </div>
+            <p className="text-[11px] text-neutral-400">
+              Puedes modificar libremente este texto antes de enviarlo por WhatsApp o pegarlo en correo, Telegram o SMS. Es independiente del recuadro negro del video.
+            </p>
+            <textarea
+              rows={5}
+              maxLength={1200}
+              value={activeWhatsAppMessage}
+              onChange={(e) => {
+                setShareMessageEdited(true);
+                setCustomShareMessage(e.target.value);
+              }}
+              className="w-full bg-[#0b141a] border border-[#202c33] focus:border-emerald-500 focus:outline-none rounded-xl p-3.5 text-[#e9edef] font-sans text-xs leading-relaxed shadow-inner resize-y"
+            />
           </div>
         </div>
 
         {/* Footer / Botones de Acción */}
         <div className="px-5 py-3.5 bg-neutral-950 border-t border-neutral-800 flex flex-col sm:flex-row items-center justify-between gap-3 shrink-0">
-          <div className="flex items-center gap-2 w-full sm:w-auto">
+          <div className="flex items-center gap-2 w-full sm:w-auto flex-wrap">
             <button
               type="button"
               onClick={handleCopyUrlOnly}
-              className="flex-1 sm:flex-none px-3 py-2 bg-neutral-900 hover:bg-neutral-850 border border-neutral-800 text-neutral-300 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition active:scale-95"
+              className="flex-1 sm:flex-none px-3 py-2 bg-neutral-900 hover:bg-neutral-800 border border-neutral-800 text-neutral-300 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition active:scale-95 cursor-pointer"
             >
               {copiedUrl ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-              <span>{copiedUrl ? 'Enlace Copiado' : 'Copiar Solo Enlace'}</span>
+              <span>{copiedUrl ? 'Enlace Copiado' : 'Solo Enlace'}</span>
             </button>
+
+            {typeof navigator !== 'undefined' && typeof navigator.share === 'function' && (
+              <button
+                type="button"
+                onClick={handleNativeShare}
+                className="flex-1 sm:flex-none px-3 py-2 bg-neutral-900 hover:bg-neutral-800 border border-neutral-800 text-sky-300 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition active:scale-95 cursor-pointer"
+              >
+                <Share2 className="w-3.5 h-3.5" />
+                <span>Otro Medio</span>
+              </button>
+            )}
 
             <button
               type="button"
               onClick={() => window.open(fullPublicUrl, '_blank')}
-              className="flex-1 sm:flex-none px-3 py-2 bg-neutral-900 hover:bg-neutral-850 border border-neutral-800 text-sky-400 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition active:scale-95"
+              className="flex-1 sm:flex-none px-3 py-2 bg-neutral-900 hover:bg-neutral-800 border border-neutral-800 text-sky-400 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition active:scale-95 cursor-pointer"
             >
               <ExternalLink className="w-3.5 h-3.5" />
-              <span>Probar Enlace</span>
+              <span>Probar</span>
             </button>
           </div>
 

@@ -172,6 +172,13 @@ export function toCloudShareLinkPayload(
     accessCount: Math.max(0, Math.min(1000000, Math.floor(Number(link.accessCount) || 0))),
     lastAccessedAtIso: link.lastAccessedAt ? String(link.lastAccessedAt).slice(0, 64) : '',
     createdAtIso: (link.createdAt || new Date().toISOString()).slice(0, 64),
+    plaqueTitle: (link.plaqueTitle || '').trim().slice(0, 300),
+    plaqueDescription: (link.plaqueDescription || '').trim().slice(0, 800),
+    plaqueEntity: (link.plaqueEntity || '').trim().slice(0, 200),
+    plaquePurchaser: (link.plaquePurchaser || '').trim().slice(0, 200),
+    plaqueNog: (link.plaqueNog || '').trim().slice(0, 60),
+    plaqueSnip: (link.plaqueSnip || '').trim().slice(0, 60),
+    shareMessage: (link.shareMessage || '').trim().slice(0, 1200),
   };
 }
 
@@ -180,6 +187,13 @@ export function fromCloudShareLinkDoc(data: Record<string, unknown>): ShareLink 
   const pinStr = String(data.pinCode || '').trim();
   const expiresStr = String(data.expiresAtIso || '').trim();
   const lastAccessedStr = String(data.lastAccessedAtIso || '').trim();
+  const plaqueTitle = String(data.plaqueTitle || '').trim();
+  const plaqueDescription = String(data.plaqueDescription || '').trim();
+  const plaqueEntity = String(data.plaqueEntity || '').trim();
+  const plaquePurchaser = String(data.plaquePurchaser || '').trim();
+  const plaqueNog = String(data.plaqueNog || '').trim();
+  const plaqueSnip = String(data.plaqueSnip || '').trim();
+  const shareMessage = String(data.shareMessage || '').trim();
 
   return {
     id: String(data.id || ''),
@@ -199,6 +213,13 @@ export function fromCloudShareLinkDoc(data: Record<string, unknown>): ShareLink 
     accessCount: Number(data.accessCount) || 0,
     lastAccessedAt: lastAccessedStr || null,
     createdAt: String(data.createdAtIso || new Date().toISOString()),
+    ...(plaqueTitle ? { plaqueTitle } : {}),
+    ...(plaqueDescription ? { plaqueDescription } : {}),
+    ...(plaqueEntity ? { plaqueEntity } : {}),
+    ...(plaquePurchaser ? { plaquePurchaser } : {}),
+    ...(plaqueNog ? { plaqueNog } : {}),
+    ...(plaqueSnip ? { plaqueSnip } : {}),
+    ...(shareMessage ? { shareMessage } : {}),
   };
 }
 

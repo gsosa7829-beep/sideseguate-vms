@@ -2230,3 +2230,98 @@ test('parseDeviceQrPayload, detección de SN duplicado y selección/renombrado d
   assert.equal(selected[1].channel, 3);
   assert.equal(selected[1].name, 'Pasillo Trasero');
 });
+
+test('ficha informativa (recuadro negro) y mensaje de envío son independientes y sincronizan con Firestore', async () => {
+  const {
+    extractShareLinkPlaque,
+    hasCustomShareLinkPlaque,
+    resolvePlaqueForPortal,
+    buildDefaultShareMessage,
+  } = await import('./shareLinkPlaque.ts');
+  const { toCloudShareLinkPayload, fromCloudShareLinkDoc } = await import('./cloudSyncHelpers.ts');
+
+  const baseLink = {
+    id: 'link-custom-1',
+    projectId: 'proj-ocos',
+    token: 'sdg_custom_1',
+    title: 'Proyecto Zona 1',
+    clientName: 'Municipalidad',
+    cameraIds: ['cam-1'],
+    expiresAt: null,
+    isActive: true,
+    allowPtz: false,
+    allowAudio: true,
+    allowSnapshot: true,
+    showWatermark: true,
+    maxConcurrentViewers: 3,
+    accessCount: 0,
+    lastAccessedAt: null,
+    createdAt: '2026-11-19T12:00:00.000Z',
+    plaqueTitle: 'MEJORAMIENTO CALLE PRINCIPAL ZONA 1',
+    plaqueDescription: 'Supervisión en tiempo real frente al parque central.',
+    plaqueEntity: 'MUNICIPALIDAD DE EJEMPLO',
+    plaquePurchaser: 'DIRECCIÓN MUNICIPAL DE PLANIFICACIÓN',
+    plaqueNog: '99887766',
+    plaqueSnip: '445566',
+    shareMessage: 'Buen día, adjunto el enlace en vivo para supervisión.',
+  };
+
+  assert.equal(hasCustomShareLinkPlaque(baseLink), true);
+  const extracted = extractShareLinkPlaque(baseLink);
+  assert.ok(extracted);
+  assert.equal(extracted.title, 'MEJORAMIENTO CALLE PRINCIPAL ZONA 1');
+  assert.equal(extracted.nog, '99887766');
+  assert.equal(extracted.snip, '445566');
+
+  // La ficha personalizada del enlace tiene prioridad sobre el fallback heredado de Ocós
+  const ocosFallback = {
+    serial: 'TESTSERIAL123',
+    nog: '31778720',
+    snip: '375176',
+    projectName: 'OBRA OCOS ORIGINAL',
+    entity: 'MUNICIPALIDAD DE OCOS',
+    purchaser: 'OCOS',
+    cameraMatchKeywords: ['instituto'],
+  };
+  const resolvedCustom = resolvePlaqueForPortal(baseLink, ocosFallback);
+  assert.equal(resolvedCustom?.title, 'MEJORAMIENTO CALLE PRINCIPAL ZONA 1');
+  assert.equal(resolvedCustom?.snip, '445566');
+
+  // Sin ficha personalizada, conserva el fallback oficial de Ocós
+  const linkWithoutPlaque = { ...baseLink, plaqueTitle: '', plaqueDescription: '', plaqueEntity: '', plaquePurchaser: '', plaqueNog: '', plaqueSnip: '' };
+  assert.equal(hasCustomShareLinkPlaque(linkWithoutPlaque), false);
+  const resolvedFallback = resolvePlaqueForPortal(linkWithoutPlaque, ocosFallback);
+  assert.equal(resolvedFallback?.title, 'OBRA OCOS ORIGINAL');
+  assert.equal(resolvedFallback?.nog, '31778720');
+  assert.equal(resolvePlaqueForPortal(linkWithoutPlaque, null), null);
+
+  // Mensaje por defecto para WhatsApp u otros medios
+  const msg = buildDefaultShareMessage({
+    brandName: 'GLOBAL TECH',
+    title: 'Proyecto Zona 1',
+    clientName: 'Ing. Pérez',
+    url: 'https://global-tech.surge.sh/?share=sdg_custom_1',
+    pinCode: '4321',
+    isPermanent: true,
+  });
+  assert.ok(msg.includes('GLOBAL TECH'));
+  assert.ok(msg.includes('Ing. Pérez'));
+  assert.ok(msg.includes('https://global-tech.surge.sh/?share=sdg_custom_1'));
+  assert.ok(msg.includes('4321'));
+  assert.ok(msg.includes('Permanente'));
+
+  // Round-trip de serialización Firestore
+  const payload = toCloudShareLinkPayload(baseLink);
+  assert.equal(payload.plaqueTitle, 'MEJORAMIENTO CALLE PRINCIPAL ZONA 1');
+  assert.equal(payload.plaqueSnip, '445566');
+  assert.equal(payload.shareMessage, 'Buen día, adjunto el enlace en vivo para supervisión.');
+
+  const hydrated = fromCloudShareLinkDoc(payload);
+  assert.equal(hydrated.plaqueTitle, baseLink.plaqueTitle);
+  assert.equal(hydrated.plaqueDescription, baseLink.plaqueDescription);
+  assert.equal(hydrated.plaqueEntity, baseLink.plaqueEntity);
+  assert.equal(hydrated.plaquePurchaser, baseLink.plaquePurchaser);
+  assert.equal(hydrated.plaqueNog, baseLink.plaqueNog);
+  assert.equal(hydrated.plaqueSnip, baseLink.plaqueSnip);
+  assert.equal(hydrated.shareMessage, baseLink.shareMessage);
+});

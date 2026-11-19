@@ -301,6 +301,13 @@ export async function upsertCloudShareLink(link: ShareLink): Promise<void> {
         maxConcurrentViewers: payload.maxConcurrentViewers,
         accessCount: payload.accessCount,
         lastAccessedAtIso: payload.lastAccessedAtIso,
+        plaqueTitle: payload.plaqueTitle,
+        plaqueDescription: payload.plaqueDescription,
+        plaqueEntity: payload.plaqueEntity,
+        plaquePurchaser: payload.plaquePurchaser,
+        plaqueNog: payload.plaqueNog,
+        plaqueSnip: payload.plaqueSnip,
+        shareMessage: payload.shareMessage,
         updatedAt: serverTimestamp(),
       });
     }
