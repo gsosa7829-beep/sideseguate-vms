@@ -2171,3 +2171,61 @@ test('formatters de tarjeta de cámara limpian nombres, conservan HiLookVision y
     'SD · 512k'
   );
 });
+
+test('parseDeviceQrPayload, detección de SN duplicado y selección/renombrado de canales del Asistente', async () => {
+  const { parseDeviceQrPayload } = await import('./qrCameraParser.ts');
+  const { INITIAL_CAMERAS, INITIAL_PROJECTS } = await import('./initialData.ts');
+  const {
+    buildIntentFromGuidedForm,
+    buildCamerasFromWizard,
+    findExistingCamerasBySerial,
+    probeAndDiscoverChannels,
+  } = await import('./aiCameraWizard.ts');
+
+  const ezvizQr = parseDeviceQrPayload('www.ezvizlife.com\nFF9363192\nWZRIKO\nCS-CB8-R100-2C3WFL');
+  assert.ok(ezvizQr);
+  assert.equal(ezvizQr.deviceSerial, 'FF9363192');
+  assert.equal(ezvizQr.verificationCode, 'WZRIKO');
+  assert.equal(ezvizQr.model, 'CS-CB8-R100-2C3WFL');
+  assert.equal(ezvizQr.suggestedBrand, 'hikvision_ip');
+
+  const dvrQr = parseDeviceQrPayload('F31700438\nHELGDM\nDVR-204Q-K1');
+  assert.ok(dvrQr);
+  assert.equal(dvrQr.deviceSerial, 'F31700438');
+  assert.equal(dvrQr.verificationCode, 'HELGDM');
+  assert.equal(dvrQr.suggestedBrand, 'hikvision_dvr');
+
+  const urlQr = parseDeviceQrPayload('https://h5.hik-connect.com/add?serial=FF9363285&code=UFYQQQ');
+  assert.ok(urlQr);
+  assert.equal(urlQr.deviceSerial, 'FF9363285');
+  assert.equal(urlQr.verificationCode, 'UFYQQQ');
+
+  assert.equal(parseDeviceQrPayload('texto sin credenciales'), null);
+
+  const dup = findExistingCamerasBySerial(INITIAL_CAMERAS, ' f31700438 ');
+  assert.equal(dup.length, 2);
+  assert.equal(findExistingCamerasBySerial(INITIAL_CAMERAS, 'ZZ9999999').length, 0);
+
+  const intent = buildIntentFromGuidedForm({
+    mode: 'local',
+    brand: 'hikvision_dvr',
+    selectedProjectId: 'proj-calle-cementerio',
+    cameraName: 'Bodega',
+    host: '192.168.1.120',
+    username: 'admin',
+    password: 'SecretPassword',
+    deviceSerial: '',
+    verificationCode: '',
+    channelsCount: 4,
+  });
+  const probed = await probeAndDiscoverChannels(intent);
+  const selected = buildCamerasFromWizard(intent, probed, INITIAL_PROJECTS, 'proj-calle-cementerio', {
+    selectedChannels: [1, 3],
+    channelNames: { 1: 'Portón Norte', 3: 'Pasillo Trasero' },
+  });
+  assert.equal(selected.length, 2);
+  assert.equal(selected[0].channel, 1);
+  assert.equal(selected[0].name, 'Portón Norte');
+  assert.equal(selected[1].channel, 3);
+  assert.equal(selected[1].name, 'Pasillo Trasero');
+});

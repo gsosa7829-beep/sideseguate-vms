@@ -1026,6 +1026,13 @@ export async function probeAndDiscoverChannels(
   return results;
 }
 
+export interface BuildWizardCameraOptions {
+  /** Lista opcional de canales marcados manualmente por el operador. */
+  selectedChannels?: number[];
+  /** Nombres personalizados por número de canal (ej. { 1: 'Portón', 2: 'Bodega' }). */
+  channelNames?: Record<number, string>;
+}
+
 /**
  * Construye los objetos Camera listos para insertar en el Muro de Video y Cloud Firestore.
  */
@@ -1033,10 +1040,19 @@ export function buildCamerasFromWizard(
   intent: ParsedCameraSetupIntent,
   probedChannels: ChannelProbeResult[],
   projects: Project[],
-  selectedProjectId?: string
+  selectedProjectId?: string,
+  options?: BuildWizardCameraOptions
 ): Camera[] {
   const activeChannels = probedChannels.filter((c) => c.active);
-  const targetChannels = activeChannels.length > 0 ? activeChannels : probedChannels;
+  const explicitSet =
+    options?.selectedChannels && options.selectedChannels.length > 0
+      ? new Set(options.selectedChannels)
+      : null;
+  const targetChannels = explicitSet
+    ? probedChannels.filter((c) => explicitSet.has(c.channel))
+    : activeChannels.length > 0
+    ? activeChannels
+    : probedChannels;
 
   const cloudName = targetChannels[0]?.detectedDeviceName;
   const isGenericPrefix =
@@ -1075,7 +1091,10 @@ export function buildCamerasFromWizard(
 
   return targetChannels.map((chInfo) => {
     const isTotalOne = targetChannels.length === 1;
-    const baseName = isTotalOne
+    const customName = options?.channelNames?.[chInfo.channel]?.trim();
+    const baseName = customName
+      ? customName
+      : isTotalOne
       ? `${displayPrefix} (CH${chInfo.channel})`
       : `Cámara ${chInfo.channel} · ${displayPrefix} (CH${chInfo.channel})`;
     const is4gCamera = Boolean(
@@ -1233,4 +1252,59 @@ export function buildIntentFromGuidedForm(
     isComplete: true,
     missingFields: [],
   };
+}
+
+/**
+ * Busca cámaras ya registradas con el mismo Número de Serie (SN) para alertar
+ * al operador antes de duplicar canales.
+ */
+export function findExistingCamerasBySerial(
+  cameras: Camera[],
+  serial?: string | null
+): Camera[] {
+  const clean = (serial || '').trim().toUpperCase();
+  if (clean.length < 6) return [];
+  return cameras.filter((cam) => (cam.deviceSerial || '').trim().toUpperCase() === clean);
+}
+
+export interface EzvizPreviewResult {
+  picUrl?: string;
+  errorCode?: string;
+  errorMessage?: string;
+}
+
+/**
+ * Solicita una captura instantánea real en EZVIZ OpenAPI para validar señal e imagen
+ * dentro del Asistente de Cámaras antes de guardar el equipo.
+ */
+export async function fetchEzvizDevicePreview(
+  serial: string,
+  channel: number = 1
+): Promise<EzvizPreviewResult> {
+  const cleanSerial = (serial || '').trim().toUpperCase();
+  if (cleanSerial.length < 6) return { errorMessage: 'Número de serie inválido.' };
+
+  try {
+    const data = await postEzvizOpenApi('/api/lapp/device/capture', {
+      deviceSerial: cleanSerial,
+      channelNo: String(Math.max(1, Math.floor(channel))),
+    });
+    if (!data) {
+      return { errorMessage: 'Sin respuesta de nube P2P.' };
+    }
+    if (data.code === '200' && data.data?.picUrl) {
+      return { picUrl: String(data.data.picUrl) };
+    }
+    const code = String(data.code || '');
+    if (code === '10002') return { errorCode: code, errorMessage: 'Token EZVIZ expirado.' };
+    if (code === '20007') return { errorCode: code, errorMessage: 'Equipo desconectado o sin señal.' };
+    if (code === '60016') return { errorCode: code, errorMessage: 'Cifrado de video activo en el equipo.' };
+    if (code === '20002') return { errorCode: code, errorMessage: 'Equipo no vinculado a la cuenta EZVIZ.' };
+    return {
+      errorCode: code || undefined,
+      errorMessage: typeof data.msg === 'string' && data.msg ? data.msg : 'No se pudo obtener vista previa.',
+    };
+  } catch {
+    return { errorMessage: 'No se pudo contactar el servicio de vista previa.' };
+  }
 }

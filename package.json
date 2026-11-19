@@ -24,6 +24,7 @@
     "express": "^4.21.2",
     "firebase": "^13.1.0",
     "hls.js": "^1.7.3",
+    "jsqr": "^1.4.0",
     "lucide-react": "^0.546.0",
     "motion": "^12.23.24",
     "qrcode": "^1.5.4",
