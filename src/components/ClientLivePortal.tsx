@@ -702,7 +702,7 @@ export const ClientLivePortal: React.FC<ClientLivePortalProps> = ({
                     <p className="text-neutral-400 text-xs">
                       {selectedCamera.locationDesc ? `${selectedCamera.locationDesc} · ` : ''}
                       {selectedCamera.deviceType === 'hikvision_dvr' 
-                        ? 'Hikvision TurboHD DVR' 
+                        ? 'Hikvision HD DVR' 
                         : selectedCamera.deviceType === 'hikvision_ip'
                         ? 'Hikvision Cámara IP POE'
                         : 'Cámara ONVIF / RTSP'}
@@ -765,7 +765,7 @@ export const ClientLivePortal: React.FC<ClientLivePortalProps> = ({
                       <p className="text-neutral-400 text-xs">
                         {selectedCamera.locationDesc ? `${selectedCamera.locationDesc} · ` : ''}
                         {selectedCamera.deviceType === 'hikvision_dvr' 
-                          ? 'Hikvision TurboHD DVR' 
+                          ? 'Hikvision HD DVR' 
                           : selectedCamera.deviceType === 'hikvision_ip'
                           ? 'Hikvision Cámara IP POE'
                           : 'Cámara ONVIF / RTSP'}

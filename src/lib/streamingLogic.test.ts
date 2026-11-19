@@ -2134,3 +2134,40 @@ test('createSubUserAccount, RBAC y sincronización en nube gestionan sub-usuario
   assert.match(scopedSubId, /^[a-zA-Z0-9_\-]+$/);
   assert.equal(parseScopedDocId(scopedSubId).docId, updatedSub.id);
 });
+
+test('formatters de tarjeta de cámara limpian nombres, conservan HiLookVision y eliminan duplicados en 4G', async () => {
+  const {
+    formatCameraDisplayName,
+    formatCameraSubtitle,
+    formatCompactResolution,
+  } = await import('./livePlayback.ts');
+
+  assert.equal(
+    formatCameraDisplayName('Cámara 1 · Portón Calle del Cementerio (CH1)'),
+    'Cámara 1 · Portón Calle del Cementerio'
+  );
+  assert.equal(
+    formatCameraSubtitle({
+      name: 'Cámara 1 · Portón Calle del Cementerio (CH1)',
+      locationDesc: 'Canal 1 HiLookVision · Entrada (F31700438)',
+      deviceSerial: 'F31700438',
+    }),
+    'Canal 1 HiLookVision · Entrada'
+  );
+  assert.equal(
+    formatCameraSubtitle({
+      name: 'Calle Iglesia del Tabernáculo Ocos',
+      locationDesc: 'Calle Iglesia del Tabernáculo Ocos · 4G LTE (FF9363192)',
+      deviceSerial: 'FF9363192',
+    }),
+    null
+  );
+  assert.equal(
+    formatCompactResolution({ resolution: '1920x1080 (1080p FHD)', is4g: false }),
+    '1080p HD'
+  );
+  assert.equal(
+    formatCompactResolution({ resolution: '768x432 (Sub-Stream SD 512k)', bitrateKbps: 512, is4g: true }),
+    'SD · 512k'
+  );
+});

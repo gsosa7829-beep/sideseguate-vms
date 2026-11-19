@@ -1813,40 +1813,34 @@ const LiveCameraPlayerComponent: React.FC<LiveCameraPlayerProps> = ({
                   e.stopPropagation();
                   handleToggleStream(true);
                 }}
-                className="w-14 h-14 rounded-2xl bg-neutral-900/90 hover:bg-neutral-800 active:scale-90 text-white border border-neutral-700 shadow-2xl flex items-center justify-center mb-3 cursor-pointer transition"
+                className="min-h-[44px] px-5 py-2.5 bg-sky-600/95 hover:bg-sky-500 active:scale-95 text-white font-semibold text-xs sm:text-sm rounded-full transition shadow-2xl shadow-black/60 border border-sky-400/50 cursor-pointer flex items-center justify-center gap-2 backdrop-blur-md"
                 title="Reproducir cámara"
               >
-                <Play className="w-6 h-6 fill-current ml-0.5 text-white" />
-              </button>
-
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleToggleStream(true);
-                }}
-                className="min-h-[44px] px-6 py-2.5 bg-sky-600 hover:bg-sky-500 active:scale-95 text-white font-semibold text-xs sm:text-sm rounded-xl transition shadow-xl border border-sky-400/40 mb-2 cursor-pointer flex items-center justify-center gap-2 max-w-xs mx-auto"
-              >
                 <Play className="w-4 h-4 fill-current shrink-0" />
-                <span className="truncate">
+                <span className="whitespace-nowrap">
                   {isClientView
-                    ? (is4gEcoPaused ? 'Reanudar Transmisión' : 'Ver Transmisión en Vivo')
-                    : is4gCamera
-                    ? `Ver en Vivo · ${camera.name.replace(/^Cámara\s*\d+\s*·\s*/i, '').replace(/\s*\(CH\d+\)$/i, '')}`
-                    : `Ver en Vivo · Cámara ${camera.channel}`}
+                    ? is4gEcoPaused
+                      ? 'Reanudar Transmisión'
+                      : 'Ver Transmisión en Vivo'
+                    : is4gCamera && is4gEcoPaused
+                    ? 'Reanudar'
+                    : 'Ver en Vivo'}
                 </span>
               </button>
 
-              <p className="text-[11px] text-neutral-300 font-medium">
-                {isClientView
-                  ? (is4gCamera ? 'Transmisión en vivo · 1 minuto de video' : 'Transmisión en vivo · Cero lag')
-                  : is4gCamera
-                  ? `Transmisión 4G bajo demanda · Auto-pausa: ${ecoSleepSec === 0 ? 'Continuo' : `${ecoSleepSec / 60} min`}`
-                  : 'Transmisión bajo demanda · Cero lag'}
-              </p>
+              {isClientView && is4gCamera && (
+                <p className="mt-2 text-[11px] text-neutral-300/90 font-medium">
+                  Transmisión en vivo · 1 minuto de video
+                </p>
+              )}
+              {!isClientView && is4gCamera && ecoSleepSec > 0 && (
+                <p className="mt-2 text-[11px] text-neutral-300/80 font-mono">
+                  Auto-pausa: {ecoSleepSec / 60} min
+                </p>
+              )}
               {!isClientView && is4gCamera && camSessionBytes > 0 && (
                 <span className="mt-1.5 px-2.5 py-0.5 rounded-full bg-emerald-950/80 border border-emerald-500/30 text-[10px] font-mono text-emerald-300">
-                  Consumo estimado: {formatMobileDataUsage(camSessionBytes)} (0 KB/s en reposo)
+                  {formatMobileDataUsage(camSessionBytes)} · 0 KB/s en reposo
                 </span>
               )}
             </div>

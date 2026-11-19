@@ -17,7 +17,7 @@ export const CLIENT_HIKVISION_HARDWARE = [
     rtspSyntaxExample: 'rtsp://admin:LBNZYU@127.0.0.1:554/Streaming/Channels/101'
   },
   {
-    model: 'HiLook DVR TurboHD (Proyecto Calle del Cementerio)',
+    model: 'HiLook DVR HD (Proyecto Calle del Cementerio)',
     name: 'HiLookVision Desktop Client (F31700438)',
     serial: 'F31700438',
     shortSerial: 'F31700438',
@@ -51,7 +51,7 @@ export const INITIAL_PROJECTS: Project[] = [
     clientPhone: '+502 5555-0199',
     location: 'Calle del Cementerio, Guatemala',
     status: 'instalado_activo',
-    equipmentNotes: 'DVR HiLook TurboHD (SN: F31700438) - Monitoreo Portón y Calle del Cementerio en vivo 24/7.',
+    equipmentNotes: '',
     createdAt: '2026-10-30T12:00:00.000Z'
   }
 ];

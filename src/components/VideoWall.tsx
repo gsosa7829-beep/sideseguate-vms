@@ -3,7 +3,12 @@ import { Camera, Project } from '../lib/types';
 import { LiveCameraPlayer, prewarmHikvisionCameras } from './LiveCameraPlayer';
 import { getFreshCaptureUrl } from '../lib/captureCache';
 import { cloudP2pClient } from '../lib/cloudP2pClient';
-import { formatChannelBadge } from '../lib/livePlayback';
+import {
+  formatCameraDisplayName,
+  formatCameraSubtitle,
+  formatChannelBadge,
+  formatCompactResolution,
+} from '../lib/livePlayback';
 import { getTokenHealth, subscribeEzvizAuth, refreshEzvizToken, TokenHealthInfo } from '../lib/ezvizAuth';
 import {
   ECO_SLEEP_OPTIONS,
@@ -40,7 +45,7 @@ import {
   Signal,
   MapPin,
   Activity,
-  Zap,
+  Clock,
   Leaf,
 } from 'lucide-react';
 
@@ -239,83 +244,22 @@ const CameraFeedCard: React.FC<CameraFeedCardProps> = ({
   const camBytes = is4g ? getCamera4gSessionBytes(telemetry, camera.id) : 0;
   const poster = getCameraPoster(camera);
   const TitleTag = headingAs;
+  const displayName = formatCameraDisplayName(camera.name);
+  const subtitle = formatCameraSubtitle({
+    name: camera.name,
+    locationDesc: camera.locationDesc,
+    deviceSerial: camera.deviceSerial,
+  });
+  const compactResolution = formatCompactResolution({
+    resolution: camera.resolution,
+    bitrateKbps: camera.bitrateKbps,
+    is4g,
+  });
 
   return (
     <article className="group bg-neutral-900/95 border border-neutral-800 hover:border-neutral-700 transition-all duration-200 rounded-2xl overflow-hidden flex flex-col shadow-xl shadow-black/50 ring-1 ring-white/5 hover:shadow-2xl">
-      {/* Franja Superior: Cabecera con Nombre Destacado Completo y Telemetría */}
-      <div className="px-4 py-3 bg-neutral-950/95 border-b border-neutral-800 flex flex-col gap-2">
-        {/* Fila 1: Indicador En Vivo + Canal + Título Completo */}
-        <div className="flex items-start justify-between gap-3 min-w-0">
-          <div className="flex items-center gap-2 min-w-0 flex-1">
-            <span
-              className={`w-2.5 h-2.5 rounded-full shrink-0 ${
-                isPlaying ? 'bg-emerald-400 animate-pulse' : 'bg-neutral-500'
-              }`}
-            />
-            <span
-              className={`font-mono text-[11px] font-bold px-2 py-0.5 rounded-md border shrink-0 ${
-                is4g
-                  ? 'bg-emerald-950/70 border-emerald-500/40 text-emerald-300'
-                  : 'bg-sky-950/70 border-sky-500/40 text-sky-300'
-              }`}
-            >
-              {formatChannelBadge(camera.channel)}
-            </span>
-            <TitleTag className="font-bold text-white text-sm sm:text-base tracking-tight leading-snug break-words">
-              {camera.name}
-            </TitleTag>
-          </div>
-
-          {/* Insignia de Estado */}
-          <div className="shrink-0 pt-0.5">
-            {camera.status === 'offline' ? (
-              <span className="inline-flex items-center gap-1.5 text-red-400 text-[11px] font-mono font-semibold bg-red-950/60 px-2.5 py-0.5 rounded-full border border-red-800/60 shadow-xs">
-                <span className="w-1.5 h-1.5 rounded-full bg-red-400 animate-ping" />
-                Sin Señal
-              </span>
-            ) : is4g ? (
-              <span className="inline-flex items-center gap-1.5 text-emerald-400 text-[11px] font-mono font-semibold bg-emerald-950/60 px-2.5 py-0.5 rounded-full border border-emerald-500/40 shadow-xs">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                4G LTE
-              </span>
-            ) : (
-              <span className="inline-flex items-center gap-1.5 text-sky-400 text-[11px] font-mono font-semibold bg-sky-950/60 px-2.5 py-0.5 rounded-full border border-sky-500/40 shadow-xs">
-                <span className="w-1.5 h-1.5 rounded-full bg-sky-400" />
-                TurboHD
-              </span>
-            )}
-          </div>
-        </div>
-
-        {/* Fila 2: Sub-info técnica espaciosa */}
-        <div className="flex items-center justify-between gap-2 text-[11px] font-mono text-neutral-400 pt-1 border-t border-neutral-900/80">
-          <div className="truncate text-neutral-400 flex items-center gap-1.5 min-w-0">
-            <MapPin className="w-3.5 h-3.5 text-neutral-500 shrink-0" />
-            <span className="truncate text-neutral-300">{camera.locationDesc || `Canal ${camera.channel}`}</span>
-          </div>
-
-          <div className="flex items-center gap-1.5 shrink-0 tabular-nums text-neutral-400">
-            {is4g ? (
-              <>
-                <span>{camera.codec || 'H.265'} SD</span>
-                <span className="text-neutral-600">·</span>
-                <span className="text-sky-300 font-semibold">~{camera.bitrateKbps || 512} kbps</span>
-                <span className="text-neutral-600">·</span>
-                <span className="text-emerald-400 font-semibold">{formatMobileDataUsage(camBytes)}</span>
-              </>
-            ) : (
-              <>
-                <span>{camera.resolution.split(' ')[0]}</span>
-                <span className="text-neutral-600">·</span>
-                <span>{camera.fps || 25} FPS</span>
-              </>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* Viewport Panorámico 16:9 con Controles */}
-      <div className="flex-1 bg-black relative">
+      {/* Viewport Panorámico 16:9 + Controles Integrados */}
+      <div className="bg-black relative">
         <LiveCameraPlayer
           camera={camera}
           allowPtz={!is4g}
@@ -329,20 +273,82 @@ const CameraFeedCard: React.FC<CameraFeedCardProps> = ({
         />
       </div>
 
-      {/* Franja Inferior: Serie / P2P */}
-      <div className="px-4 py-3 bg-neutral-950/95 border-t border-neutral-800 flex items-center justify-between gap-3 text-xs">
-        <div className="flex items-center gap-2 text-neutral-400 font-mono text-[11px] truncate">
-          <span className="text-neutral-500 uppercase">SN:</span>
-          <span className="text-neutral-300 font-bold tracking-wider">{camera.deviceSerial || camera.host}</span>
+      {/* Bloque Inferior Organizado: Nombre de Cámara + Calidad/HD + Serie */}
+      <div className="px-4 py-3.5 bg-neutral-950/95 border-t border-neutral-800/90 flex flex-col gap-2 flex-1 justify-between">
+        <div className="flex flex-col gap-1.5">
+          {/* Fila 1: Estado + Canal + Nombre de Cámara + Insignia HD / 4G LTE */}
+          <div className="flex items-start justify-between gap-2.5 min-w-0">
+            <div className="flex items-center gap-2 min-w-0 flex-1">
+              <span
+                className={`w-2 h-2 rounded-full shrink-0 ${
+                  isPlaying ? 'bg-emerald-400 animate-pulse' : 'bg-neutral-500'
+                }`}
+              />
+              <span
+                className={`font-mono text-[11px] font-bold px-2 py-0.5 rounded-md border shrink-0 ${
+                  is4g
+                    ? 'bg-emerald-950/70 border-emerald-500/40 text-emerald-300'
+                    : 'bg-sky-950/70 border-sky-500/40 text-sky-300'
+                }`}
+              >
+                {formatChannelBadge(camera.channel)}
+              </span>
+              <TitleTag className="font-bold text-white text-sm sm:text-[15px] tracking-tight leading-snug break-words">
+                {displayName}
+              </TitleTag>
+            </div>
+
+            <div className="shrink-0 pt-0.5">
+              {camera.status === 'offline' ? (
+                <span className="inline-flex items-center gap-1.5 text-red-400 text-[11px] font-mono font-semibold bg-red-950/60 px-2.5 py-0.5 rounded-full border border-red-800/60">
+                  <span className="w-1.5 h-1.5 rounded-full bg-red-400 animate-ping" />
+                  Sin Señal
+                </span>
+              ) : is4g ? (
+                <span className="inline-flex items-center gap-1.5 text-emerald-400 text-[11px] font-mono font-semibold bg-emerald-950/60 px-2.5 py-0.5 rounded-full border border-emerald-500/40">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                  4G LTE
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1.5 text-sky-400 text-[11px] font-mono font-semibold bg-sky-950/60 px-2.5 py-0.5 rounded-full border border-sky-500/40">
+                  <span className="w-1.5 h-1.5 rounded-full bg-sky-400" />
+                  HD
+                </span>
+              )}
+            </div>
+          </div>
+
+          {/* Fila 2: Detalle técnico/ubicación solo si aporta info distinta al nombre */}
+          {subtitle && (
+            <div className="flex items-center gap-1.5 text-[11px] text-neutral-400 min-w-0 pl-0.5">
+              <MapPin className="w-3.5 h-3.5 text-neutral-500 shrink-0" />
+              <span className="truncate text-neutral-300">{subtitle}</span>
+            </div>
+          )}
         </div>
 
-        <div className="flex items-center gap-2 font-mono text-[11px] text-neutral-400 shrink-0">
-          <span className="px-2 py-0.5 rounded bg-neutral-900 border border-neutral-800 text-sky-400 font-semibold">
-            {camera.resolution || '1080p'}
-          </span>
-          <span className="px-2 py-0.5 rounded bg-neutral-900 border border-neutral-800 text-emerald-400 font-semibold">
-            {camera.codec || 'H.265'}
-          </span>
+        {/* Fila 3: Ficha técnica esencial (SN + Calidad + Códec [+ Consumo 4G]) */}
+        <div className="pt-2 border-t border-neutral-900 flex flex-wrap items-center justify-between gap-2 font-mono text-[11px]">
+          <div className="flex items-center gap-1.5 text-neutral-400 truncate">
+            <span className="text-neutral-500 uppercase">SN:</span>
+            <span className="text-neutral-200 font-semibold tracking-wider">
+              {camera.deviceSerial || camera.host}
+            </span>
+          </div>
+
+          <div className="flex items-center gap-1.5 shrink-0 tabular-nums">
+            <span className="px-2 py-0.5 rounded bg-neutral-900 border border-neutral-800 text-sky-400 font-semibold">
+              {compactResolution}
+            </span>
+            <span className="px-2 py-0.5 rounded bg-neutral-900 border border-neutral-800 text-emerald-400 font-semibold">
+              {camera.codec || (is4g ? 'H.265' : 'H.264')}
+            </span>
+            {is4g && (
+              <span className="px-2 py-0.5 rounded bg-neutral-900 border border-neutral-800 text-neutral-300 font-semibold">
+                {formatMobileDataUsage(camBytes)}
+              </span>
+            )}
+          </div>
         </div>
       </div>
     </article>
@@ -503,7 +509,7 @@ export const VideoWall: React.FC<VideoWallProps> = ({
               </span>
             </div>
             <p className="text-xs text-neutral-400 mt-0.5">
-              Monitoreo continuo y transmisión bajo demanda · {totalFolders} {totalFolders === 1 ? 'Proyecto Asignado' : 'Proyectos Asignados'}
+              Monitoreo en vivo · {totalFolders} {totalFolders === 1 ? 'Proyecto Asignado' : 'Proyectos Asignados'}
             </p>
           </div>
         </div>
@@ -790,25 +796,25 @@ export const VideoWall: React.FC<VideoWallProps> = ({
       )}
 
       {/* CONTENIDO PRINCIPAL */}
-      {focusedCamera ? (
+      {focusedCamera ? (() => {
+        const focusedIs4g = isCamera4gDevice(focusedCamera);
+        const focusedDisplayName = formatCameraDisplayName(focusedCamera.name);
+        const focusedSubtitle = formatCameraSubtitle({
+          name: focusedCamera.name,
+          locationDesc: focusedCamera.locationDesc,
+          deviceSerial: focusedCamera.deviceSerial,
+        });
+        const focusedResolution = formatCompactResolution({
+          resolution: focusedCamera.resolution,
+          bitrateKbps: focusedCamera.bitrateKbps,
+          is4g: focusedIs4g,
+        });
+        return (
         <div className="max-w-3xl mx-auto bg-neutral-900 border border-neutral-800 rounded-2xl overflow-hidden shadow-2xl">
-          <div className="px-4 py-3 bg-neutral-950/95 border-b border-neutral-800 flex items-center justify-between gap-3">
-            <div className="flex items-center gap-2.5 min-w-0">
-              <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse shrink-0" />
-              <span className="font-mono text-xs text-sky-400 font-bold">CH0{focusedCamera.channel}</span>
-              <h2 className="font-semibold text-white text-sm truncate">{focusedCamera.name}</h2>
-            </div>
-            <div className="flex items-center gap-2 text-neutral-400 text-xs font-mono">
-              <span>{focusedCamera.resolution.split(' ')[0]}</span>
-              <span>·</span>
-              <span className="text-neutral-300">{focusedCamera.codec}</span>
-            </div>
-          </div>
-
           <div className="bg-black">
             <LiveCameraPlayer
               camera={focusedCamera}
-              allowPtz={true}
+              allowPtz={!focusedIs4g}
               allowAudio={true}
               allowSnapshot={true}
               showWatermark={false}
@@ -818,20 +824,62 @@ export const VideoWall: React.FC<VideoWallProps> = ({
             />
           </div>
 
-          <div className="px-4 py-3 bg-neutral-950/95 border-t border-neutral-800 flex items-center justify-between text-xs">
-            <div className="text-neutral-400 truncate">
-              <span>{focusedCamera.locationDesc}</span>
-              <span className="mx-2 text-neutral-600">·</span>
-              <span className="font-mono text-neutral-500">{focusedCamera.host}</span>
-            </div>
-            <div className="flex items-center gap-2 font-mono text-[11px] text-neutral-400">
-              <span className="px-2.5 py-1 rounded bg-neutral-900 border border-neutral-800 text-sky-400 font-semibold">
-                {focusedCamera.resolution || '1080p'}
+          <div className="px-4 py-3.5 bg-neutral-950/95 border-t border-neutral-800 flex flex-col gap-2">
+            <div className="flex items-start justify-between gap-3 min-w-0">
+              <div className="flex items-center gap-2 min-w-0 flex-1">
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shrink-0" />
+                <span
+                  className={`font-mono text-[11px] font-bold px-2 py-0.5 rounded-md border shrink-0 ${
+                    focusedIs4g
+                      ? 'bg-emerald-950/70 border-emerald-500/40 text-emerald-300'
+                      : 'bg-sky-950/70 border-sky-500/40 text-sky-300'
+                  }`}
+                >
+                  {formatChannelBadge(focusedCamera.channel)}
+                </span>
+                <h2 className="font-bold text-white text-sm sm:text-base tracking-tight break-words">
+                  {focusedDisplayName}
+                </h2>
+              </div>
+              <span
+                className={`inline-flex items-center gap-1.5 text-[11px] font-mono font-semibold px-2.5 py-0.5 rounded-full border shrink-0 ${
+                  focusedIs4g
+                    ? 'text-emerald-400 bg-emerald-950/60 border-emerald-500/40'
+                    : 'text-sky-400 bg-sky-950/60 border-sky-500/40'
+                }`}
+              >
+                <span className={`w-1.5 h-1.5 rounded-full ${focusedIs4g ? 'bg-emerald-400 animate-pulse' : 'bg-sky-400'}`} />
+                {focusedIs4g ? '4G LTE' : 'HD'}
               </span>
+            </div>
+
+            {focusedSubtitle && (
+              <div className="flex items-center gap-1.5 text-xs text-neutral-300 min-w-0">
+                <MapPin className="w-3.5 h-3.5 text-neutral-500 shrink-0" />
+                <span className="truncate">{focusedSubtitle}</span>
+              </div>
+            )}
+
+            <div className="pt-2 border-t border-neutral-900 flex flex-wrap items-center justify-between gap-2 font-mono text-[11px]">
+              <div className="flex items-center gap-1.5 text-neutral-400 truncate">
+                <span className="text-neutral-500 uppercase">SN:</span>
+                <span className="text-neutral-200 font-semibold tracking-wider">
+                  {focusedCamera.deviceSerial || focusedCamera.host}
+                </span>
+              </div>
+              <div className="flex items-center gap-1.5 shrink-0">
+                <span className="px-2 py-0.5 rounded bg-neutral-900 border border-neutral-800 text-sky-400 font-semibold">
+                  {focusedResolution}
+                </span>
+                <span className="px-2 py-0.5 rounded bg-neutral-900 border border-neutral-800 text-emerald-400 font-semibold">
+                  {focusedCamera.codec || (focusedIs4g ? 'H.265' : 'H.264')}
+                </span>
+              </div>
             </div>
           </div>
         </div>
-      ) : layoutMode === 'grid' ? (
+        );
+      })() : layoutMode === 'grid' ? (
         /* VISTA MOSAICO DIRECTO */
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5">
           {cameras.map((cam) => (
@@ -938,11 +986,6 @@ export const VideoWall: React.FC<VideoWallProps> = ({
                       </div>
                     </div>
 
-                    {/* Descripción */}
-                    <p className="text-xs text-neutral-400 mb-4 leading-relaxed line-clamp-2">
-                      {bucket.description}
-                    </p>
-
                     {/* Previews de Cámaras en la Carpeta */}
                     {previewCams.length > 0 ? (
                       <div className={`grid ${previewCams.length === 1 ? 'grid-cols-1' : 'grid-cols-2'} gap-2.5 mb-4`}>
@@ -974,8 +1017,8 @@ export const VideoWall: React.FC<VideoWallProps> = ({
                                 </div>
                               )}
                               <div className="absolute bottom-1.5 inset-x-1.5 flex items-center justify-between text-[10px] font-mono bg-black/80 px-2 py-0.5 rounded backdrop-blur-xs gap-1.5">
-                                <span className={`font-bold shrink-0 ${theme.codeText}`}>CH0{cam.channel}</span>
-                                <span className="text-neutral-300 truncate">{cam.name}</span>
+                                <span className={`font-bold shrink-0 ${theme.codeText}`}>{formatChannelBadge(cam.channel)}</span>
+                                <span className="text-neutral-300 truncate">{formatCameraDisplayName(cam.name)}</span>
                               </div>
                             </div>
                           );
@@ -1014,11 +1057,7 @@ export const VideoWall: React.FC<VideoWallProps> = ({
                         <>
                           <span className="flex items-center gap-1.5 bg-sky-950/70 border border-sky-500/40 text-sky-300 px-2.5 py-0.5 rounded-md font-semibold">
                             <span className="w-1.5 h-1.5 rounded-full bg-sky-400" />
-                            DVR TurboHD En Línea
-                          </span>
-                          <span className="flex items-center gap-1 bg-neutral-950 px-2 py-0.5 rounded-md border border-neutral-800 text-neutral-300">
-                            <Zap className="w-3 h-3 text-emerald-400 shrink-0" />
-                            <span>Transmisión bajo demanda</span>
+                            DVR HD En Línea
                           </span>
                           <span className="flex items-center gap-1 bg-neutral-950 px-2 py-0.5 rounded-md border border-neutral-800 text-neutral-300">
                             <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" /> P2P / RTSP
@@ -1165,7 +1204,6 @@ export const VideoWall: React.FC<VideoWallProps> = ({
                             : 'Cámaras'}
                         </span>
                       </div>
-                      <p className="text-xs text-neutral-400">{bucket.description}</p>
                     </div>
 
                     {/* Controles de Ahorro 4G o Control Grupal + Botón Agregar */}
@@ -1207,8 +1245,9 @@ export const VideoWall: React.FC<VideoWallProps> = ({
                         </div>
 
                         <div className="flex flex-col sm:flex-row sm:items-center justify-between sm:justify-start gap-1.5 bg-neutral-950/90 border border-neutral-800 px-2.5 py-1.5 rounded-xl text-xs font-mono">
-                          <span className="text-[11px] text-neutral-400 px-1 shrink-0" title="Auto-pausa para ahorrar datos 4G">
-                            ⏱️ Auto-pausa:
+                          <span className="inline-flex items-center gap-1.5 text-[11px] text-neutral-400 px-1 shrink-0" title="Auto-pausa para ahorrar datos 4G">
+                            <Clock className="w-3 h-3 text-neutral-500 shrink-0" />
+                            <span>Auto-pausa:</span>
                           </span>
                           <div className="grid grid-cols-4 sm:flex items-center gap-1 flex-1 sm:flex-initial">
                             {ECO_SLEEP_OPTIONS.map((opt) => {

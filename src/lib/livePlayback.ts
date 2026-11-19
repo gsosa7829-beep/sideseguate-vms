@@ -68,3 +68,56 @@ export function shouldUseNativeDvrHls(params: {
   if (params.useHlsFallback || params.hasRealPublicHls || params.tryEzFallback) return false;
   return params.isCementerioCamera && !params.is4gCamera && params.codec !== 'H.265';
 }
+
+/** Limpia sufijos redundantes como "(CH1)" cuando el canal ya se muestra en la insignia CH01. */
+export function formatCameraDisplayName(name: string): string {
+  const cleaned = (name || '').replace(/\s*\(CH\d+\)\s*$/i, '').trim();
+  return cleaned || (name || '').trim();
+}
+
+/**
+ * Devuelve un subtítulo limpio para la tarjeta de cámara (ej. "Canal 1 HiLookVision · Entrada")
+ * eliminando serie y etiqueta "4G LTE" repetidas, y omitiéndolo por completo cuando solo
+ * duplica el nombre principal de la cámara.
+ */
+export function formatCameraSubtitle(params: {
+  name?: string;
+  locationDesc?: string;
+  deviceSerial?: string;
+}): string | null {
+  const raw = (params.locationDesc || '').trim();
+  if (!raw) return null;
+
+  let cleaned = raw;
+  const serial = (params.deviceSerial || '').trim();
+  if (serial) {
+    const escaped = serial.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    cleaned = cleaned.replace(new RegExp(`\\s*\\(${escaped}\\)\\s*$`, 'i'), '').trim();
+  }
+  cleaned = cleaned.replace(/\s*·\s*4G\s*LTE\s*$/i, '').trim();
+
+  const normalize = (value: string) => value.toLowerCase().replace(/\s+/g, ' ').trim();
+  const displayName = formatCameraDisplayName(params.name || '');
+  if (!cleaned || (displayName && normalize(cleaned) === normalize(displayName))) {
+    return null;
+  }
+  return cleaned;
+}
+
+/** Etiqueta compacta de calidad para la ficha inferior de la tarjeta sin repetir códec ni texto largo. */
+export function formatCompactResolution(params: {
+  resolution?: string;
+  bitrateKbps?: number;
+  is4g: boolean;
+}): string {
+  const raw = (params.resolution || '').trim();
+  if (params.is4g) {
+    const kb = Number.isFinite(params.bitrateKbps) && (params.bitrateKbps || 0) > 0
+      ? Math.round(params.bitrateKbps!)
+      : 512;
+    return `SD · ${kb}k`;
+  }
+  if (/1080p|1920x1080/i.test(raw)) return '1080p HD';
+  if (/720p|1280x720/i.test(raw)) return '720p HD';
+  return raw.split(' ')[0] || 'HD';
+}
