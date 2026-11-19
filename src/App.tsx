@@ -129,7 +129,6 @@ import {
   Smartphone,
   PhoneCall,
   Clock,
-  Sparkles,
   Download,
   Share2,
   MessageCircle,
@@ -1342,10 +1341,6 @@ function AppShell() {
             setShareDefaultProjectId(null);
             setIsShareModalOpen(true);
           }}
-          onOpenNewCamera={() => {
-            setEditingCamera(null);
-            setIsCameraModalOpen(true);
-          }}
           onOpenMobilePreview={() => setIsMobileSimulatorOpen(true)}
           onOpenDesktopProgram={() => setIsDesktopProgramOpen(true)}
           searchTerm={globalSearchTerm}
@@ -1407,11 +1402,7 @@ function AppShell() {
                 setSelectedCameraId(id);
                 setFocusedCameraId(id);
               }}
-              onOpenNewCamera={(defaultProjectId) => {
-                setEditingCamera(null);
-                setCameraModalDefaultProjectId(defaultProjectId || null);
-                setIsCameraModalOpen(true);
-              }}
+              onOpenAssistant={() => setIsAiAssistantOpen(true)}
               onOpenNewProject={() => {
                 setEditingProject(null);
                 setIsProjectModalOpen(true);
@@ -1712,41 +1703,17 @@ function AppShell() {
                   </select>
 
                   {allowInfraEdit && (
-                    <>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setEditingProject(null);
-                          setIsProjectModalOpen(true);
-                        }}
-                        className="min-h-[40px] sm:min-h-0 px-3 py-1.5 bg-neutral-800 hover:bg-neutral-700 text-white border border-neutral-700 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition shrink-0 cursor-pointer"
-                      >
-                        <FolderPlus className="w-3.5 h-3.5 text-sky-400" />
-                        <span>Nueva Carpeta</span>
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => setIsAiAssistantOpen(true)}
-                        className="min-h-[40px] sm:min-h-0 px-3.5 py-1.5 bg-sky-600 hover:bg-sky-500 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 transition shadow-sm shrink-0 cursor-pointer"
-                      >
-                        <Sparkles className="w-3.5 h-3.5 text-amber-300" />
-                        <span>Asistente IA</span>
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setEditingCamera(null);
-                          setCameraModalDefaultProjectId(projectFilter !== 'all' ? projectFilter : null);
-                          setIsCameraModalOpen(true);
-                        }}
-                        className="min-h-[40px] sm:min-h-0 px-3.5 py-1.5 bg-white hover:bg-neutral-100 text-neutral-950 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition shadow-sm shrink-0 cursor-pointer"
-                      >
-                        <Plus className="w-3.5 h-3.5 text-neutral-700" />
-                        <span>Nueva Cámara</span>
-                      </button>
-                    </>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditingProject(null);
+                        setIsProjectModalOpen(true);
+                      }}
+                      className="min-h-[40px] sm:min-h-0 px-3 py-1.5 bg-neutral-800 hover:bg-neutral-700 text-white border border-neutral-700 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition shrink-0 cursor-pointer"
+                    >
+                      <FolderPlus className="w-3.5 h-3.5 text-sky-400" />
+                      <span>Nueva Carpeta</span>
+                    </button>
                   )}
                 </div>
               </div>
@@ -1852,14 +1819,11 @@ function AppShell() {
                               {allowInfraEdit && (
                                 <button
                                   type="button"
-                                  onClick={() => {
-                                    setEditingCamera(null);
-                                    setCameraModalDefaultProjectId(group.id);
-                                    setIsCameraModalOpen(true);
-                                  }}
-                                  className="px-3 py-1.5 bg-sky-600/20 hover:bg-sky-600/30 text-sky-300 border border-sky-500/30 rounded-lg text-xs font-semibold w-fit cursor-pointer"
+                                  onClick={() => setIsAiAssistantOpen(true)}
+                                  className="px-3 py-1.5 bg-sky-600/20 hover:bg-sky-600/30 text-sky-300 border border-sky-500/30 rounded-lg text-xs font-semibold w-fit inline-flex items-center gap-1.5 cursor-pointer"
                                 >
-                                  + Agregar Cámara aquí
+                                  <Bot className="w-3.5 h-3.5" />
+                                  <span>Asistente de Cámaras</span>
                                 </button>
                               )}
                             </div>

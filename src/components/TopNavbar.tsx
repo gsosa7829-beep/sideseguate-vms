@@ -3,7 +3,6 @@ import { NavigationTab, AccessLog, ShareLink } from '../lib/types';
 import { sectionOfTab, labelOfTab } from '../lib/navigation';
 import { AdminAccount, canManageInfrastructure, canManageUsers } from '../lib/adminAuth';
 import {
-  Plus,
   Search,
   Link2,
   X,
@@ -29,7 +28,6 @@ export type UiThemePreset = 'tactical' | 'sapphire' | 'titanium';
 interface TopNavbarProps {
   currentTab: NavigationTab;
   onOpenNewLink: () => void;
-  onOpenNewCamera: () => void;
   onOpenMobilePreview: () => void;
   onOpenDesktopProgram: () => void;
   searchTerm: string;
@@ -56,7 +54,6 @@ interface TopNavbarProps {
 export const TopNavbar: React.FC<TopNavbarProps> = ({
   currentTab,
   onOpenNewLink,
-  onOpenNewCamera,
   onOpenDesktopProgram,
   searchTerm,
   onSearchChange,
@@ -340,18 +337,6 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
                   aria-label="Más opciones"
                   className="fixed sm:absolute right-3 sm:right-0 top-16 sm:top-11 w-[calc(100vw-1.5rem)] sm:w-64 bg-neutral-900 border border-neutral-700/80 rounded-2xl shadow-2xl z-[100] max-h-[calc(100dvh-9rem)] overflow-y-auto py-1.5 text-xs ring-1 ring-white/10"
                 >
-                {allowInfraEdit && (
-                  <MenuItem
-                    icon={Plus}
-                    label="Añadir cámara"
-                    hint="Registrar una cámara o DVR"
-                    onClick={() => {
-                      setShowMoreMenu(false);
-                      onOpenNewCamera();
-                    }}
-                  />
-                )}
-
                 <MenuItem
                   icon={Monitor}
                   label="Instalar programa PC"

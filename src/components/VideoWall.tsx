@@ -25,7 +25,7 @@ import {
 } from '../lib/ocos4gMonitor';
 import { EzvizTokenRenewalModal } from './EzvizTokenRenewalModal';
 import {
-  Plus,
+  Bot,
   Eye,
   Link2,
   ArrowLeft,
@@ -55,7 +55,7 @@ interface VideoWallProps {
   focusedCameraId?: string | null;
   onSelectCamera: (id: string) => void;
   onClearFocus?: () => void;
-  onOpenNewCamera: (defaultProjectId?: string) => void;
+  onOpenAssistant?: () => void;
   onOpenNewProject: () => void;
   onDeleteProject?: (projectId: string) => void;
   onGenerateLink: (camera: Camera) => void;
@@ -361,7 +361,7 @@ export const VideoWall: React.FC<VideoWallProps> = ({
   focusedCameraId,
   onSelectCamera,
   onClearFocus,
-  onOpenNewCamera,
+  onOpenAssistant,
   onOpenNewProject,
   onDeleteProject,
   onGenerateLink,
@@ -1285,17 +1285,6 @@ export const VideoWall: React.FC<VideoWallProps> = ({
                             </button>
                           </>
                         )}
-
-                        {!readOnly && bucket.project && (
-                          <button
-                            type="button"
-                            onClick={() => onOpenNewCamera(bucket.id)}
-                            className="h-[42px] min-h-[42px] px-3.5 py-2 bg-sky-600 hover:bg-sky-500 text-white text-xs font-semibold rounded-xl transition flex items-center gap-1.5 cursor-pointer"
-                          >
-                            <Plus className="w-3.5 h-3.5" />
-                            <span>Agregar Cámara</span>
-                          </button>
-                        )}
                       </div>
                     )}
                   </div>
@@ -1304,22 +1293,15 @@ export const VideoWall: React.FC<VideoWallProps> = ({
                   {bucket.cameras.length === 0 ? (
                     <div className="bg-neutral-900/70 border border-dashed border-neutral-800 rounded-2xl p-8 text-center space-y-3">
                       <FolderOpen className="w-8 h-8 text-neutral-600 mx-auto" />
-                      <div className="space-y-1">
-                        <p className="text-sm font-semibold text-white">Carpeta "{bucket.title}" vacía</p>
-                        <p className="text-xs text-neutral-400 max-w-md mx-auto">
-                          {readOnly
-                            ? 'Todavía no hay cámaras asignadas a esta carpeta.'
-                            : 'Agrega nuevas cámaras desde el Asistente IA eligiendo esta carpeta o haz clic abajo.'}
-                        </p>
-                      </div>
-                      {!readOnly && (
+                      <p className="text-sm font-semibold text-white">Carpeta "{bucket.title}" vacía</p>
+                      {!readOnly && onOpenAssistant && (
                         <button
                           type="button"
-                          onClick={() => onOpenNewCamera(bucket.id !== 'other' ? bucket.id : undefined)}
+                          onClick={onOpenAssistant}
                           className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-sky-600 hover:bg-sky-500 text-white text-xs font-semibold transition cursor-pointer"
                         >
-                          <Plus className="w-4 h-4" />
-                          <span>Agregar Cámara a {bucket.title}</span>
+                          <Bot className="w-4 h-4" />
+                          <span>Asistente de Cámaras</span>
                         </button>
                       )}
                     </div>
