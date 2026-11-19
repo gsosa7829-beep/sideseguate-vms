@@ -33,7 +33,21 @@ export function mergeCloudShareLinks(
     const local = byToken.get(cloudLink.token);
     byToken.set(
       cloudLink.token,
-      local ? { ...local, ...cloudLink, id: local.id } : { ...cloudLink, id: cloudLink.token }
+      local
+        ? {
+            ...local,
+            ...cloudLink,
+            id: local.id,
+            pinCode: cloudLink.pinCode,
+            plaqueTitle: cloudLink.plaqueTitle,
+            plaqueDescription: cloudLink.plaqueDescription,
+            plaqueEntity: cloudLink.plaqueEntity,
+            plaquePurchaser: cloudLink.plaquePurchaser,
+            plaqueNog: cloudLink.plaqueNog,
+            plaqueSnip: cloudLink.plaqueSnip,
+            shareMessage: cloudLink.shareMessage,
+          }
+        : { ...cloudLink, id: cloudLink.token }
     );
   }
 
@@ -59,6 +73,13 @@ export function shareLinkListsDiffer(a: ShareLink[], b: ShareLink[]): boolean {
     if (Boolean(other.allowSnapshot) !== Boolean(link.allowSnapshot)) return true;
     if (Boolean(other.showWatermark) !== Boolean(link.showWatermark)) return true;
     if ((other.cameraIds || []).join(',') !== (link.cameraIds || []).join(',')) return true;
+    if ((other.plaqueTitle || '') !== (link.plaqueTitle || '')) return true;
+    if ((other.plaqueDescription || '') !== (link.plaqueDescription || '')) return true;
+    if ((other.plaqueEntity || '') !== (link.plaqueEntity || '')) return true;
+    if ((other.plaquePurchaser || '') !== (link.plaquePurchaser || '')) return true;
+    if ((other.plaqueNog || '') !== (link.plaqueNog || '')) return true;
+    if ((other.plaqueSnip || '') !== (link.plaqueSnip || '')) return true;
+    if ((other.shareMessage || '') !== (link.shareMessage || '')) return true;
   }
   return false;
 }

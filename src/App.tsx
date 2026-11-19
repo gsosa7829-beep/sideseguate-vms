@@ -1160,7 +1160,13 @@ function AppShell() {
   const getWhatsAppShareUrl = (link: ShareLink) => {
     const fullUrl = buildPublicShareUrl(link.token);
     const pinNote = link.pinCode ? `\nPIN: ${link.pinCode}` : '';
-    const text = `*${BRAND_NAME}*\nAcceso en vivo para ${link.clientName}:\n\n${fullUrl}${pinNote}`;
+    const defaultText = `*${BRAND_NAME}*\nAcceso en vivo para ${link.clientName}:\n\n${fullUrl}${pinNote}`;
+    const customMsg = (link.shareMessage || '').trim();
+    const text = customMsg
+      ? customMsg.includes(fullUrl)
+        ? customMsg
+        : `${customMsg}\n\n${fullUrl}`
+      : defaultText;
     const project = projects.find((p) => p.id === link.projectId);
     return buildWhatsAppUrl({ text, phone: project?.clientPhone });
   };

@@ -2324,4 +2324,16 @@ test('ficha informativa (recuadro negro) y mensaje de envío son independientes 
   assert.equal(hydrated.plaqueNog, baseLink.plaqueNog);
   assert.equal(hydrated.plaqueSnip, baseLink.plaqueSnip);
   assert.equal(hydrated.shareMessage, baseLink.shareMessage);
+
+  // Verificar que mergeCloudShareLinks limpia campos borrados y shareLinkListsDiffer detecta cambios en ficha/mensaje
+  const { mergeCloudShareLinks, shareLinkListsDiffer } = await import('./shareLinkMerge.ts');
+  const clearedCloud = fromCloudShareLinkDoc(
+    toCloudShareLinkPayload({ ...baseLink, plaqueTitle: '', plaqueSnip: '', shareMessage: '' })
+  );
+  const merged = mergeCloudShareLinks([baseLink], [clearedCloud]);
+  assert.equal(merged[0].plaqueTitle, undefined);
+  assert.equal(merged[0].plaqueSnip, undefined);
+  assert.equal(merged[0].shareMessage, undefined);
+  assert.equal(shareLinkListsDiffer([baseLink], merged), true);
+  assert.equal(shareLinkListsDiffer(merged, merged), false);
 });
