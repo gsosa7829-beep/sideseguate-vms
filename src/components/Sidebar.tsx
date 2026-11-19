@@ -63,34 +63,62 @@ export const Sidebar: React.FC<SidebarProps> = ({
     >
       <div className="min-w-0">
         {/* Marca */}
-        <div className="h-14 border-b border-neutral-800/90 px-3 flex items-center justify-between gap-2 bg-neutral-900/40">
-          <div className="flex items-center gap-2.5 overflow-hidden">
-            <BrandSquareIcon size={32} className="w-8 h-8 rounded-lg" />
-            {!isCollapsed && (
-              <div className="min-w-0">
-                <span className="font-display font-bold text-sm text-white tracking-tight truncate block leading-tight">
-                  {BRAND_NAME}
-                </span>
-                <span className="text-[10px] text-sky-400/90 truncate block leading-tight">
-                  {BRAND_SUBTITLE}
-                </span>
+        <div
+          className={`h-14 border-b border-neutral-800/90 flex items-center bg-neutral-900/40 ${
+            isCollapsed ? 'justify-center px-2' : 'justify-between gap-2 px-3'
+          }`}
+        >
+          {isCollapsed ? (
+            <button
+              type="button"
+              aria-label="Expandir menú"
+              aria-expanded={false}
+              onClick={onToggleCollapse}
+              title="Expandir menú"
+              className="flex items-center justify-center rounded-xl p-1 hover:bg-neutral-850 transition cursor-pointer"
+            >
+              <BrandSquareIcon size={32} className="w-8 h-8 rounded-lg" />
+            </button>
+          ) : (
+            <>
+              <div className="flex items-center gap-2.5 overflow-hidden">
+                <BrandSquareIcon size={32} className="w-8 h-8 rounded-lg" />
+                <div className="min-w-0">
+                  <span className="font-display font-bold text-sm text-white tracking-tight truncate block leading-tight">
+                    {BRAND_NAME}
+                  </span>
+                  <span className="text-[10px] text-sky-400/90 truncate block leading-tight">
+                    {BRAND_SUBTITLE}
+                  </span>
+                </div>
               </div>
-            )}
-          </div>
 
-          <button
-            type="button"
-            aria-label={isCollapsed ? 'Expandir menú' : 'Colapsar menú'}
-            aria-expanded={!isCollapsed}
-            onClick={onToggleCollapse}
-            className="p-1.5 rounded-lg text-neutral-400 hover:text-white hover:bg-neutral-850 transition shrink-0"
-          >
-            {isCollapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
-          </button>
+              <button
+                type="button"
+                aria-label="Colapsar menú"
+                aria-expanded={true}
+                onClick={onToggleCollapse}
+                className="p-1.5 rounded-lg text-neutral-400 hover:text-white hover:bg-neutral-850 transition shrink-0 cursor-pointer"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+            </>
+          )}
         </div>
 
         {/* Secciones */}
         <nav className="p-2 space-y-1">
+          {isCollapsed && (
+            <button
+              type="button"
+              aria-label="Expandir menú lateral"
+              onClick={onToggleCollapse}
+              title="Expandir menú"
+              className="w-full py-1.5 mb-1 rounded-lg text-neutral-500 hover:text-white hover:bg-neutral-900 flex items-center justify-center transition cursor-pointer"
+            >
+              <ChevronRight className="w-4 h-4" />
+            </button>
+          )}
           {NAV_SECTIONS.map((section) => {
             const isActiveSection = section.id === activeSectionId;
             const Icon = section.Icon;

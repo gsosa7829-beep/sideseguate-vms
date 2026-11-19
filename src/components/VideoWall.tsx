@@ -953,8 +953,8 @@ export const VideoWall: React.FC<VideoWallProps> = ({
                             <span className={`text-[11px] font-mono font-bold ${theme.codeText} uppercase tracking-wider shrink-0`}>
                               {projectNumberLabel}
                             </span>
-                            <span className="text-neutral-600 shrink-0">·</span>
-                            <span className="text-[11px] font-mono text-neutral-400 truncate">
+                            <span className="hidden sm:inline text-neutral-600 shrink-0">·</span>
+                            <span className="hidden sm:inline text-[11px] font-mono text-neutral-400 truncate">
                               {bucket.subtitle}
                             </span>
                           </div>
@@ -975,6 +975,9 @@ export const VideoWall: React.FC<VideoWallProps> = ({
                         <h2 className={`text-base sm:text-lg font-bold text-white ${theme.titleHover} transition tracking-tight leading-snug break-words`}>
                           {bucket.title}
                         </h2>
+                        <span className="sm:hidden block text-[11px] font-mono text-neutral-400 mt-0.5">
+                          {bucket.subtitle}
+                        </span>
                       </div>
                     </div>
 

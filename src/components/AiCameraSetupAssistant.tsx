@@ -482,7 +482,7 @@ export const AiCameraSetupAssistant: React.FC<AiCameraSetupAssistantProps> = ({
 
           {/* 4 Pestañas directas (sin botones duplicados) */}
           <div className="px-3.5 sm:px-5 py-2.5 bg-neutral-950 border-b border-neutral-800/90 shrink-0">
-            <div className="grid grid-cols-4 gap-1 p-1 bg-neutral-900 border border-neutral-800 rounded-xl text-[11px] font-semibold">
+            <div className="grid grid-cols-4 gap-1 p-1 bg-neutral-900 border border-neutral-800 rounded-xl text-[10px] sm:text-[11px] font-semibold">
               {(
                 [
                   { id: 'remote', label: '4G / P2P', Icon: Signal },
@@ -498,7 +498,7 @@ export const AiCameraSetupAssistant: React.FC<AiCameraSetupAssistantProps> = ({
                     type="button"
                     disabled={isProbing}
                     onClick={() => switchModeTab(id)}
-                    className={`min-h-[38px] px-2 py-1.5 rounded-lg transition flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50 ${
+                    className={`min-h-[44px] sm:min-h-[38px] px-1 sm:px-2 py-1.5 rounded-lg transition flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-1.5 cursor-pointer disabled:opacity-50 ${
                       selected
                         ? id === 'diagnostics'
                           ? 'bg-emerald-600/25 text-emerald-200 border border-emerald-500/40'
@@ -507,7 +507,7 @@ export const AiCameraSetupAssistant: React.FC<AiCameraSetupAssistantProps> = ({
                     }`}
                   >
                     <Icon className="w-3.5 h-3.5 shrink-0" />
-                    <span className="truncate">{label}</span>
+                    <span className="whitespace-nowrap leading-none">{label}</span>
                   </button>
                 );
               })}
