@@ -282,7 +282,7 @@ export const SubUsersModal: React.FC<SubUsersModalProps> = ({
                   : 'Crear usuarios'}
               </h2>
               <p className="text-[11px] text-neutral-400 truncate">
-                Sub-usuarios de {BRAND_NAME} · Acceso por rol y carpeta desde cualquier dispositivo
+                {BRAND_NAME} · Roles y carpetas
               </p>
             </div>
           </div>

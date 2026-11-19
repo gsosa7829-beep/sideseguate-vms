@@ -1,7 +1,8 @@
 import React from 'react';
 import { 
   CloudOff, 
-  Check
+  Check,
+  X
 } from 'lucide-react';
 
 export const ZeroStorageView: React.FC = () => {
@@ -9,16 +10,11 @@ export const ZeroStorageView: React.FC = () => {
     <div className="space-y-4">
       {/* Header Banner */}
       <div className="bg-neutral-900/60 border border-neutral-850 p-4 rounded-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2 mb-1">
-            <CloudOff className="w-4 h-4 text-emerald-400" />
-            <h3 className="text-sm font-bold text-white tracking-tight">
-              Arquitectura Cero Nube: Streaming en Vivo Bajo Demanda
-            </h3>
-          </div>
-          <p className="text-xs text-neutral-400 max-w-2xl leading-relaxed">
-            Configuración técnica que garantiza 0 MB de almacenamiento de video en disco duro externo. Las cámaras transmiten directamente cuando el cliente abre su enlace web.
-          </p>
+        <div className="flex items-center gap-2">
+          <CloudOff className="w-4 h-4 text-emerald-400" />
+          <h3 className="text-sm font-bold text-white tracking-tight">
+            Streaming Directo sin Grabación en Nube
+          </h3>
         </div>
 
         <div className="flex items-center gap-2 font-mono text-xs">
@@ -94,15 +90,15 @@ export const ZeroStorageView: React.FC = () => {
             </div>
             <ul className="space-y-2 text-neutral-400 text-[11px]">
               <li className="flex items-start gap-2">
-                <span className="text-red-400 font-bold">✕</span>
+                <X className="w-3.5 h-3.5 text-red-400 shrink-0 mt-0.5" />
                 <span>Obliga al comprador o cliente a descargar aplicaciones pesadas y crear cuentas.</span>
               </li>
               <li className="flex items-start gap-2">
-                <span className="text-red-400 font-bold">✕</span>
+                <X className="w-3.5 h-3.5 text-red-400 shrink-0 mt-0.5" />
                 <span>Satura el internet de subida subiendo grabaciones continuas todo el día.</span>
               </li>
               <li className="flex items-start gap-2">
-                <span className="text-red-400 font-bold">✕</span>
+                <X className="w-3.5 h-3.5 text-red-400 shrink-0 mt-0.5" />
                 <span>Comparte credenciales maestras del DVR en lugar de enlaces temporales seguros.</span>
               </li>
             </ul>

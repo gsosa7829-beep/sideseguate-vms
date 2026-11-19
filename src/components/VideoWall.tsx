@@ -508,9 +508,6 @@ export const VideoWall: React.FC<VideoWallProps> = ({
                 <span>{serverOnline ? 'Sistema Activo' : 'Sistema en Reposo'}</span>
               </span>
             </div>
-            <p className="text-xs text-neutral-400 mt-0.5">
-              Monitoreo en vivo · {totalFolders} {totalFolders === 1 ? 'Proyecto Asignado' : 'Proyectos Asignados'}
-            </p>
           </div>
         </div>
 
@@ -898,33 +895,28 @@ export const VideoWall: React.FC<VideoWallProps> = ({
       ) : layoutMode === 'folders' && !activeFolderId ? (
         /* VISTA DE CARPETAS DE PROYECTO (DINÁMICA) */
         <div className="space-y-6">
-          {/* Banner Superior + Botón Nueva Carpeta */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-neutral-900/60 border border-neutral-800/80 px-4 py-3 rounded-2xl text-xs text-neutral-300">
-            <div className="flex items-center gap-2.5 min-w-0">
-              <div className="w-7 h-7 rounded-lg bg-sky-950/60 border border-sky-500/30 text-sky-400 flex items-center justify-center shrink-0 font-bold">
-                <Folder className="w-4 h-4" />
-              </div>
-              <div className="min-w-0">
-                <span className="font-semibold text-white">Carpetas de Vigilancia:</span>{' '}
-                Selecciona el proyecto que deseas inspeccionar o crea nuevas carpetas para próximos sitios.
-              </div>
+          {/* Barra compacta de carpetas */}
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2 min-w-0">
+              <Folder className="w-4 h-4 text-sky-400 shrink-0" />
+              <span className="text-xs font-semibold uppercase tracking-wider text-neutral-300">
+                Proyectos
+              </span>
+              <span className="font-mono text-[11px] text-neutral-400 bg-neutral-900 px-2 py-0.5 rounded-md border border-neutral-800">
+                {totalFolders}
+              </span>
             </div>
 
-            <div className="flex items-center gap-2 shrink-0 justify-end">
-              <span className="hidden sm:inline font-mono text-[11px] text-neutral-400 bg-neutral-950 px-2.5 py-1.5 rounded-lg border border-neutral-800">
-                {totalFolders} {totalFolders === 1 ? 'Carpeta' : 'Carpetas'}
-              </span>
-              {!readOnly && (
-                <button
-                  type="button"
-                  onClick={onOpenNewProject}
-                  className="w-full sm:w-auto min-h-[40px] sm:min-h-[36px] px-3.5 py-2 sm:py-1.5 rounded-xl bg-sky-600 hover:bg-sky-500 active:scale-95 text-white font-semibold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer shadow-sm"
-                >
-                  <FolderPlus className="w-3.5 h-3.5 shrink-0" />
-                  <span>Nueva Carpeta</span>
-                </button>
-              )}
-            </div>
+            {!readOnly && (
+              <button
+                type="button"
+                onClick={onOpenNewProject}
+                className="min-h-[40px] sm:min-h-[36px] px-3.5 py-2 sm:py-1.5 rounded-xl bg-sky-600 hover:bg-sky-500 active:scale-95 text-white font-semibold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer shadow-sm shrink-0"
+              >
+                <FolderPlus className="w-3.5 h-3.5 shrink-0" />
+                <span>Nueva Carpeta</span>
+              </button>
+            )}
           </div>
 
           {/* Grid Dinámico de Carpetas de Proyecto */}
@@ -1026,7 +1018,7 @@ export const VideoWall: React.FC<VideoWallProps> = ({
                       </div>
                     ) : (
                       <div className="mb-4 rounded-xl border border-dashed border-neutral-800 bg-neutral-950/60 p-4 text-center text-xs text-neutral-500">
-                        Carpeta lista para agregar nuevas cámaras
+                        Sin cámaras asignadas
                       </div>
                     )}
 
@@ -1069,10 +1061,9 @@ export const VideoWall: React.FC<VideoWallProps> = ({
 
                   {/* Pie de la Carpeta */}
                   <div className="pt-3 border-t border-neutral-800/80 flex items-center justify-between gap-2">
-                    <span className="text-xs text-neutral-400 group-hover:text-neutral-300 font-medium transition truncate">
-                      {bucket.cameras.length === 0
-                        ? 'Toca para agregar cámaras'
-                        : `Toca para abrir (${bucket.cameras.length})`}
+                    <span className="text-xs font-mono text-neutral-500 truncate">
+                      {bucket.cameras.length}{' '}
+                      {bucket.cameras.length === 1 ? 'cámara' : 'cámaras'}
                     </span>
                     <div className="flex items-center gap-1.5 shrink-0">
                       {!readOnly && bucket.project && onDeleteProject && (

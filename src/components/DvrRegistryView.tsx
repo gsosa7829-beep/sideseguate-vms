@@ -147,21 +147,13 @@ export const DvrRegistryView: React.FC<DvrRegistryViewProps> = ({
   return (
     <div className="space-y-5">
       {/* Encabezado */}
-      <div className="bg-neutral-900/70 border border-neutral-800 rounded-xl p-4 sm:p-5">
-        <div className="flex items-start gap-3">
-          <div className="w-10 h-10 rounded-xl bg-sky-950/60 border border-sky-600/40 flex items-center justify-center shrink-0">
-            <Cctv className="w-5 h-5 text-sky-400" />
-          </div>
-          <div className="min-w-0">
-            <h2 className="text-sm sm:text-base font-bold text-white">
-              Agregar mi DVR o NVR
-            </h2>
-            <p className="text-xs text-neutral-400 mt-0.5 leading-relaxed">
-              Solo necesitas los datos de la etiqueta de tu grabador. Nosotros configuramos
-              el resto y te avisamos cuando tus cámaras estén en línea.
-            </p>
-          </div>
+      <div className="bg-neutral-900/70 border border-neutral-800 rounded-xl p-4 flex items-center gap-3">
+        <div className="w-9 h-9 rounded-xl bg-sky-950/60 border border-sky-600/40 flex items-center justify-center shrink-0">
+          <Cctv className="w-5 h-5 text-sky-400" />
         </div>
+        <h2 className="text-sm sm:text-base font-bold text-white">
+          Registro de DVR / NVR
+        </h2>
       </div>
 
       {/* Formulario de 3 campos */}
@@ -184,7 +176,6 @@ export const DvrRegistryView: React.FC<DvrRegistryViewProps> = ({
               placeholder="FB2200254"
               className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-3 py-2.5 text-sm font-mono text-white placeholder-neutral-600 focus:outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500 uppercase"
             />
-            <p className="text-[10px] text-neutral-500 mt-1">Etiqueta inferior del equipo</p>
           </div>
 
           <div>

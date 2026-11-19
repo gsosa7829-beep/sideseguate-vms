@@ -169,12 +169,12 @@ export const WhatsAppTimedShareModal: React.FC<WhatsAppTimedShareModalProps> = (
   // Mensaje estructurado de WhatsApp
   const formattedWhatsAppMessage = useMemo(() => {
     const namePart = clientName.trim() ? ` *${clientName.trim()}*` : '';
-    const pinPart = usePin && pinCode.trim() ? `\n🔒 *Código PIN de Acceso:* \`${pinCode.trim()}\`` : '';
-    const vigenciaPart = isPermanent 
-      ? '♾️ *Vigencia:* Enlace permanente sin caducidad'
-      : `⏳ *Vigencia del enlace:* ${durationLabel} (Vence: ${expiryTimeFormatted})`;
+    const pinPart = usePin && pinCode.trim() ? `\n*PIN:* \`${pinCode.trim()}\`` : '';
+    const vigenciaPart = isPermanent
+      ? '*Vigencia:* Permanente'
+      : `*Vigencia:* ${durationLabel} (Vence: ${expiryTimeFormatted})`;
 
-    return `📹 *${BRAND_NAME} - Videovigilancia en Vivo*\nHola${namePart}, aquí tienes tu enlace privado temporal para ver la transmisión de seguridad en directo:\n\n🔗 *Enlace de Video:* ${fullPublicUrl}${pinPart}\n${vigenciaPart}\n🛡️ *Seguridad:* No requiere descargar ninguna aplicación. Abre directo en cualquier celular o PC (4G/Wi-Fi).\n\n_Toca el enlace azul para abrir la transmisión._`;
+    return `*${BRAND_NAME} · Acceso en Vivo*\nHola${namePart}, enlace privado de monitoreo:\n\n*Enlace:* ${fullPublicUrl}${pinPart}\n${vigenciaPart}`;
   }, [clientName, fullPublicUrl, usePin, pinCode, isPermanent, durationLabel, expiryTimeFormatted]);
 
   // Enlace directo a WhatsApp
@@ -317,8 +317,8 @@ export const WhatsAppTimedShareModal: React.FC<WhatsAppTimedShareModalProps> = (
               />
               <span className="text-[10px] text-neutral-500 mt-0.5 block">
                 {normalizePhoneNumber(clientPhone)
-                  ? '✓ Se abrirá el chat directo con este cliente'
-                  : 'Si lo dejas vacío, WhatsApp te permitirá elegir el contacto al enviar.'}
+                  ? 'Chat directo habilitado'
+                  : 'Opcional · vacío abre selector de WhatsApp'}
               </span>
             </div>
           </div>

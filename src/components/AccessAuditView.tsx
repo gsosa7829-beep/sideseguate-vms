@@ -45,16 +45,11 @@ export const AccessAuditView: React.FC<AccessAuditViewProps> = ({
     <div className="space-y-4">
       {/* Header */}
       <div className="bg-neutral-900/60 border border-neutral-850 p-4 rounded-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2 mb-1">
-            <History className="w-4 h-4 text-neutral-400" />
-            <h3 className="text-sm font-bold text-white tracking-tight">
-              Auditoría & Historial de Accesos de Clientes
-            </h3>
-          </div>
-          <p className="text-xs text-neutral-400 max-w-2xl leading-relaxed">
-            Registro en tiempo real (Google Cloud Firestore) de cada comprador que abre su enlace desde celular 4G o Wi-Fi, capturas tomadas e intentos de PIN.
-          </p>
+        <div className="flex items-center gap-2">
+          <History className="w-4 h-4 text-neutral-400" />
+          <h3 className="text-sm font-bold text-white tracking-tight">
+            Historial de Accesos
+          </h3>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
@@ -65,11 +60,11 @@ export const AccessAuditView: React.FC<AccessAuditViewProps> = ({
               className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold flex items-center gap-1.5 transition shadow-sm"
             >
               <Smartphone className="w-3.5 h-3.5" />
-              <span>Simular Entrada de Comprador en Vivo (4G)</span>
+              <span>Simular acceso</span>
             </button>
           )}
           <span className="px-2.5 py-1.5 rounded-lg bg-neutral-950 border border-neutral-800 text-xs font-mono text-emerald-400">
-            {logs.length} Eventos Registrados
+            {logs.length} eventos
           </span>
         </div>
       </div>

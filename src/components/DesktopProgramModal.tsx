@@ -108,13 +108,13 @@ export const DesktopProgramModal: React.FC<DesktopProgramModalProps> = ({
           {/* Feature Badges */}
           <div className="pt-2 flex flex-wrap items-center justify-center gap-2 text-[11px] font-mono text-neutral-400">
             <span className="px-2.5 py-1 rounded-full bg-neutral-950 border border-neutral-800 text-sky-300">
-              ✓ Ejecutable Nativo (.exe)
+              Ejecutable Nativo (.exe)
             </span>
             <span className="px-2.5 py-1 rounded-full bg-neutral-950 border border-neutral-800 text-emerald-300">
-              ✓ Conexión en Vivo 24/7
+              Conexión 24/7
             </span>
             <span className="px-2.5 py-1 rounded-full bg-neutral-950 border border-neutral-800 text-neutral-300">
-              ✓ Windows 10 / 11
+              Windows 10 / 11
             </span>
           </div>
         </div>

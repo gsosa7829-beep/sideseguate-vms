@@ -390,11 +390,11 @@ const GuidedCameraSetupCard: React.FC<GuidedCameraSetupCardProps> = ({
           >
             {projects.map((p) => (
               <option key={p.id} value={p.id}>
-                📁 {p.name}
+                {p.name}
               </option>
             ))}
-            <option value="__NEW__">➕ Crear nueva carpeta de proyecto...</option>
-            <option value="">✨ Automático según equipo/nombre</option>
+            <option value="__NEW__">+ Crear nueva carpeta...</option>
+            <option value="">Automático según equipo</option>
           </select>
         </div>
 
@@ -956,7 +956,7 @@ export const AiCameraSetupAssistant: React.FC<AiCameraSetupAssistantProps> = ({
                       )}
                       {msg.probedChannels.some((c) => c.requiresManualDecrypt) && (
                         <div className="text-[11px] text-amber-300 bg-amber-950/40 border border-amber-500/30 rounded-lg px-2.5 py-1.5 leading-relaxed">
-                          Código guardado en este navegador. Si deseas verla también desde otros celulares sin ingresar código, desactiva &ldquo;Cifrado de video&rdquo; en HiLookVision (Ajustes ⚙ de la cámara).
+                          Código guardado localmente. Para abrir en otros dispositivos sin clave, desactiva &ldquo;Cifrado de video&rdquo; en Ajustes de la cámara (HiLookVision).
                         </div>
                       )}
                     </div>

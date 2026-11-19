@@ -231,8 +231,8 @@ export const ShareLinkModal: React.FC<ShareLinkModalProps> = ({
 
     if (mode === 'save_and_whatsapp') {
       const proj = projects.find((p) => p.id === link.projectId);
-      const pinNote = link.pinCode ? `\n🔒 Código PIN: ${link.pinCode}` : '';
-      const text = `📹 *${BRAND_NAME}*\nHola ${link.clientName}, aquí tienes tu enlace privado para ver las cámaras en vivo (${link.title}):\n\n${fullUrl}${pinNote}\n\nÁbrelo directo en tu celular o PC.`;
+      const pinNote = link.pinCode ? `\nPIN: ${link.pinCode}` : '';
+      const text = `*${BRAND_NAME}*\nAcceso en vivo (${link.title}) para ${link.clientName}:\n\n${fullUrl}${pinNote}`;
       const waUrl = buildWhatsAppUrl({ text, phone: proj?.clientPhone });
       window.open(waUrl, '_blank', 'noopener,noreferrer');
     }

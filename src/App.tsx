@@ -141,6 +141,7 @@ import {
   RotateCw,
   Cloud,
   Bot,
+  Activity,
   FolderOpen,
   FolderPlus
 } from 'lucide-react';
@@ -868,7 +869,7 @@ function AppShell() {
       })
       .catch((err) => {
         console.error('Cloud share link sync error:', err);
-        showToast('⚠️ El enlace se copió localmente, pero no se pudo sincronizar en la nube todavía.');
+        showToast('El enlace se copió localmente, pero no se pudo sincronizar en la nube todavía.');
       });
   };
 
@@ -895,7 +896,7 @@ function AppShell() {
         )
         .catch((err) => {
           console.error('Cloud share link toggle error:', err);
-          showToast('⚠️ No se pudo actualizar el enlace en la nube. Revisa la conexión e inténtalo de nuevo.');
+          showToast('No se pudo actualizar el enlace en la nube. Revisa la conexión e inténtalo de nuevo.');
         });
     }
   };
@@ -917,7 +918,7 @@ function AppShell() {
         .then(() => showToast('Enlace expirado en la nube inmediatamente'))
         .catch((err) => {
           console.error('Cloud share link expire error:', err);
-          showToast('⚠️ No se pudo expirar el enlace en la nube. Revisa la conexión e inténtalo de nuevo.');
+          showToast('No se pudo expirar el enlace en la nube. Revisa la conexión e inténtalo de nuevo.');
         });
     }
   };
@@ -1159,8 +1160,8 @@ function AppShell() {
 
   const getWhatsAppShareUrl = (link: ShareLink) => {
     const fullUrl = buildPublicShareUrl(link.token);
-    const pinNote = link.pinCode ? `\n🔒 Código PIN: ${link.pinCode}` : '';
-    const text = `📹 *${BRAND_NAME}*\nHola ${link.clientName}, aquí tienes tu enlace privado para ver las cámaras en vivo desde tu celular o PC (4G/Wi-Fi):\n\n${fullUrl}${pinNote}\n\nÁbrelo directo en tu navegador sin descargar ninguna aplicación.`;
+    const pinNote = link.pinCode ? `\nPIN: ${link.pinCode}` : '';
+    const text = `*${BRAND_NAME}*\nAcceso en vivo para ${link.clientName}:\n\n${fullUrl}${pinNote}`;
     const project = projects.find((p) => p.id === link.projectId);
     return buildWhatsAppUrl({ text, phone: project?.clientPhone });
   };
@@ -1429,22 +1430,15 @@ function AppShell() {
           {activeTab === 'share_links' && (
             <div className="space-y-4">
               <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                <div>
-                  <div className="flex items-center gap-2.5 flex-wrap">
-                    <h2 className="text-sm font-bold text-white flex items-center gap-2">
-                      <Link2 className="w-4 h-4 text-sky-400" />
-                      Enlaces de Cámaras para Clientes y Vecinos
-                    </h2>
-                    <span className="text-[11px] font-mono text-emerald-400 flex items-center gap-1.5">
-                      <Cloud className="w-3.5 h-3.5 text-sky-400" />
-                      Sincronización activa (4G / Wi-Fi)
-                    </span>
-                  </div>
-                  <p className="text-xs text-neutral-400 mt-0.5 max-w-2xl leading-relaxed">
-                    {allowInfraEdit
-                      ? 'Crea un enlace y envíalo en 1 clic por WhatsApp o cópialo directamente. Puedes eliminar cualquier enlace cuando desees.'
-                      : 'Consulta y comparte por WhatsApp o código QR los enlaces autorizados para tus proyectos.'}
-                  </p>
+                <div className="flex items-center gap-2.5 flex-wrap">
+                  <h2 className="text-sm font-bold text-white flex items-center gap-2">
+                    <Link2 className="w-4 h-4 text-sky-400" />
+                    Enlaces de Acceso
+                  </h2>
+                  <span className="text-[11px] font-mono text-emerald-400 flex items-center gap-1.5">
+                    <Cloud className="w-3.5 h-3.5 text-sky-400" />
+                    Sincronizado
+                  </span>
                 </div>
 
                 {allowInfraEdit && (
@@ -1482,12 +1476,7 @@ function AppShell() {
                   <div className="w-11 h-11 rounded-2xl bg-neutral-800/80 border border-neutral-700 flex items-center justify-center mb-3 text-sky-400">
                     <Link2 className="w-5 h-5" />
                   </div>
-                  <h3 className="text-sm font-bold text-white mb-1">No hay enlaces disponibles</h3>
-                  <p className="text-xs text-neutral-400 max-w-sm mb-4">
-                    {allowInfraEdit
-                      ? 'Crea un enlace nuevo para compartir el acceso a las cámaras por WhatsApp o enlace directo.'
-                      : 'Todavía no hay enlaces asignados a tus carpetas permitidas.'}
-                  </p>
+                  <h3 className="text-sm font-bold text-white mb-3">Sin enlaces activos</h3>
                   {allowInfraEdit && (
                     <button
                       type="button"
@@ -1820,9 +1809,12 @@ function AppShell() {
                                 {group.items.length} {group.items.length === 1 ? 'cámara' : 'cámaras'}
                               </span>
                               {projMetrics && (
-                                <span className="px-2 py-0.5 rounded-full bg-emerald-950/70 border border-emerald-500/30 text-[11px] font-mono text-emerald-300">
-                                  📊 Datos 4G: {formatMobileDataUsage(projMetrics.sessionBytes)}
-                                  {projMetrics.isStreaming ? ` · ~${projMetrics.currentRateKBs} KB/s` : ' · Reposo'}
+                                <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-950/70 border border-emerald-500/30 text-[11px] font-mono text-emerald-300">
+                                  <Activity className="w-3 h-3 shrink-0" />
+                                  <span>
+                                    4G: {formatMobileDataUsage(projMetrics.sessionBytes)}
+                                    {projMetrics.isStreaming ? ` · ~${projMetrics.currentRateKBs} KB/s` : ' · Reposo'}
+                                  </span>
                                 </span>
                               )}
                             </div>
@@ -1897,11 +1889,11 @@ function AppShell() {
                                           CH0{cam.channel}
                                         </span>
                                         <span className="px-2 py-0.5 rounded bg-neutral-800/90 border border-neutral-700 text-[10px] font-semibold text-neutral-200">
-                                          📁 {group.name}
+                                          {group.name}
                                         </span>
                                         {is4g && (
                                           <span className="px-2 py-0.5 rounded bg-emerald-950/70 border border-emerald-500/30 text-[10px] font-mono text-emerald-300">
-                                            🍃 4G Ahorro Auto · {cam.codec} · {formatMobileDataUsage(camBytes)}
+                                            4G · {cam.codec} · {formatMobileDataUsage(camBytes)}
                                           </span>
                                         )}
                                       </div>
@@ -1934,7 +1926,7 @@ function AppShell() {
                                           )}
                                           {visibleProjects.map((p) => (
                                             <option key={p.id} value={p.id}>
-                                              📁 {p.name}
+                                              {p.name}
                                             </option>
                                           ))}
                                         </select>

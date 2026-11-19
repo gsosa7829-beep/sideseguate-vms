@@ -26,6 +26,7 @@ import {
   Clock, 
   PauseCircle,
   Video,
+  MapPin,
 } from 'lucide-react';
 
 type FailureReason = 'expired' | 'inactive' | 'invalid_pin' | 'pin_required' | 'not_found';
@@ -873,8 +874,9 @@ export const ClientLivePortal: React.FC<ClientLivePortalProps> = ({
                     <OcosTenderPlaque metadata={ocosMeta} compact={true} className="border-t-2 border-x-0 border-b-0" />
                   ) : (
                     <div className="px-4 py-2.5 bg-neutral-950/95 border-t border-neutral-800 flex items-center justify-between text-xs text-neutral-400">
-                      <span className="truncate text-neutral-300 text-xs">
-                        📍 {cam.locationDesc || 'Calle del Cementerio'}
+                      <span className="inline-flex items-center gap-1.5 truncate text-neutral-300 text-xs min-w-0">
+                        <MapPin className="w-3.5 h-3.5 text-neutral-500 shrink-0" />
+                        <span className="truncate">{cam.locationDesc || 'Calle del Cementerio'}</span>
                       </span>
                       <span className="font-mono text-[11px] text-sky-300 shrink-0 font-semibold">
                         {cam.resolution.split(' ')[0]}
