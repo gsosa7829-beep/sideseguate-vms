@@ -18,6 +18,7 @@ import {
   getDeviceVerificationCode,
   hasEzvizCredentials,
   hasValidAccessToken,
+  markAccessTokenInvalid,
   refreshEzvizToken,
   saveDeviceVerificationCode,
   subscribeEzvizAuth,
@@ -204,11 +205,14 @@ export async function fetchEzvizLiveHls(
 
       let data = await queryStream();
 
-      // Auto-renovación si el token venció (10002) y hay AppKey / AppSecret configurados
-      if (data?.code === '10002' && hasEzvizCredentials()) {
-        const renewed = await refreshEzvizToken();
-        if (renewed.success && renewed.accessToken) {
-          data = await queryStream(renewed.accessToken);
+      // Auto-renovación / invalidación si el token venció (10002)
+      if (data?.code === '10002') {
+        markAccessTokenInvalid();
+        if (hasEzvizCredentials()) {
+          const renewed = await refreshEzvizToken();
+          if (renewed.success && renewed.accessToken) {
+            data = await queryStream(renewed.accessToken);
+          }
         }
       }
 

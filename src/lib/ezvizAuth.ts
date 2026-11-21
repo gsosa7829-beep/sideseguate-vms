@@ -161,8 +161,15 @@ export function syncEzvizAuthFromRemote(remote: {
       ? DEFAULT_FALLBACK_EXPIRE_MS
       : Date.now() + 7 * 86400 * 1000;
 
-  // Nunca reemplazar un token vigente por un fallback expirado o más antiguo
-  const currentValid = typeof current.expireTime === 'number' && current.expireTime > Date.now() + 60_000;
+  // Nunca reemplazar un token vigente por un fallback expirado o más antiguo,
+  // pero SÍ sanar de inmediato si el token local es el fallback o fue rechazado con 10002.
+  const currentBroken =
+    current.accessToken === DEFAULT_FALLBACK_TOKEN ||
+    (current.lastError || '').includes('10002');
+  const currentValid =
+    !currentBroken &&
+    typeof current.expireTime === 'number' &&
+    current.expireTime > Date.now() + 60_000;
   if (currentValid && remoteExpire <= current.expireTime) {
     return;
   }
@@ -172,7 +179,7 @@ export function syncEzvizAuthFromRemote(remote: {
   const significantExpireBump =
     remoteExpireValid && remote.expireTime! > (current.expireTime || 0) + 3600_000;
 
-  if (tokenChanged || significantExpireBump) {
+  if (tokenChanged || significantExpireBump || currentBroken) {
     saveEzvizAuth({
       accessToken: cleanToken,
       expireTime: remoteExpire,
@@ -182,6 +189,21 @@ export function syncEzvizAuthFromRemote(remote: {
       lastError: undefined,
     });
   }
+}
+
+/**
+ * Marca como inválido el token local cuando EZVIZ responde Código 10002,
+ * permitiendo que el token vigente en Firestore lo reemplace de inmediato.
+ */
+export function markAccessTokenInvalid(failedToken?: string): void {
+  const current = loadEzvizAuth();
+  if (failedToken && current.accessToken && failedToken.trim() !== current.accessToken.trim()) {
+    return;
+  }
+  saveEzvizAuth({
+    expireTime: 0,
+    lastError: 'AccessToken reportado expirado o no autorizado por EZVIZ (10002)',
+  });
 }
 
 /**
@@ -565,8 +587,8 @@ export async function verifyTokenLive(serial: string = 'FF9363270'): Promise<{
     }
 
     if (data.code === '10002') {
-      // Registrar error reportado por la API sin destruir forzosamente el timer local
-      saveEzvizAuth({ lastError: 'AccessToken reportado expirado o no autorizado por EZVIZ (10002)' });
+      // Invalidar el token local vencido para que Firestore pueda sanarlo de inmediato
+      markAccessTokenInvalid();
       return { valid: false, code: data.code, msg: 'Token expirado o inválido según EZVIZ' };
     }
 

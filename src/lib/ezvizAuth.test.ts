@@ -268,3 +268,28 @@ test('resolveSafeCloudCameraTokenFields protege token vigente y etiqueta de nota
   assert.equal(updated.cloudId, newerToken);
   assert.ok(updated.notes.includes(`[EZVIZ_TOKEN:${newerToken}|${newerExpire}]`));
 });
+
+test('markAccessTokenInvalid sana de inmediato un token local rechazado con 10002 desde Firestore', async () => {
+  const { markAccessTokenInvalid } = await import('./ezvizAuth.ts');
+  const now = Date.now();
+  const staleToken = 'at.revoked-local-token-111222333';
+  const validCloudToken = 'at.valid-cloud-token-999888777';
+
+  // Simular un navegador con un token revocado pero con expireTime futuro artificial
+  saveEzvizAuth({
+    accessToken: staleToken,
+    expireTime: now + 6 * 86400 * 1000,
+    lastError: undefined,
+  });
+
+  markAccessTokenInvalid(staleToken);
+  assert.equal(loadEzvizAuth().expireTime, 0);
+
+  // Al llegar el token real vigente desde Firestore (aunque expire en 4 días), debe reemplazarlo
+  syncEzvizAuthFromRemote({
+    accessToken: validCloudToken,
+    expireTime: now + 4 * 86400 * 1000,
+  });
+  assert.equal(loadEzvizAuth().accessToken, validCloudToken);
+  assert.equal(loadEzvizAuth().lastError, undefined);
+});
