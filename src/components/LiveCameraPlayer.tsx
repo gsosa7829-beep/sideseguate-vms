@@ -18,7 +18,7 @@ import {
   getDeviceVerificationCode,
   hasEzvizCredentials,
   hasValidAccessToken,
-  markAccessTokenInvalid,
+  recoverEzvizTokenAfter10002,
   refreshEzvizToken,
   saveDeviceVerificationCode,
   subscribeEzvizAuth,
@@ -203,12 +203,15 @@ export async function fetchEzvizLiveHls(
         return res.ok ? await res.json() : null;
       };
 
-      let data = await queryStream();
+      const initialToken = getAccessToken();
+      let data = await queryStream(initialToken);
 
-      // Auto-renovación / invalidación si el token venció (10002)
+      // Auto-sanación inmediata si el token local venció (10002): promueve el de Firestore y reintenta en el acto
       if (data?.code === '10002') {
-        markAccessTokenInvalid();
-        if (hasEzvizCredentials()) {
+        const recoveredToken = recoverEzvizTokenAfter10002(initialToken);
+        if (recoveredToken) {
+          data = await queryStream(recoveredToken);
+        } else if (hasEzvizCredentials()) {
           const renewed = await refreshEzvizToken();
           if (renewed.success && renewed.accessToken) {
             data = await queryStream(renewed.accessToken);
@@ -260,11 +263,17 @@ async function fetchEzvizLiveCapture(channel: number, serial: string): Promise<s
     return res.ok ? await res.json() : null;
   };
   try {
-    let data = await queryCapture();
-    if (data?.code === '10002' && hasEzvizCredentials()) {
-      const renewed = await refreshEzvizToken();
-      if (renewed.success && renewed.accessToken) {
-        data = await queryCapture(renewed.accessToken);
+    const initialToken = getAccessToken();
+    let data = await queryCapture(initialToken);
+    if (data?.code === '10002') {
+      const recoveredToken = recoverEzvizTokenAfter10002(initialToken);
+      if (recoveredToken) {
+        data = await queryCapture(recoveredToken);
+      } else if (hasEzvizCredentials()) {
+        const renewed = await refreshEzvizToken();
+        if (renewed.success && renewed.accessToken) {
+          data = await queryCapture(renewed.accessToken);
+        }
       }
     }
     if (data?.code === '200' && data.data?.picUrl) {

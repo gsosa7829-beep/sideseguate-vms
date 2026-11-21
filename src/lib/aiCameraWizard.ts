@@ -91,6 +91,7 @@ import {
   disableEzvizEncryption,
   getAccessToken,
   hasEzvizCredentials,
+  recoverEzvizTokenAfter10002,
   refreshEzvizToken,
   saveDeviceVerificationCode,
 } from './ezvizAuth';
@@ -117,11 +118,17 @@ async function postEzvizOpenApi(
     });
     return res.ok ? await res.json() : null;
   };
-  let data = await send();
-  if (data?.code === '10002' && hasEzvizCredentials()) {
-    const renewed = await refreshEzvizToken();
-    if (renewed.success && renewed.accessToken) {
-      data = await send(renewed.accessToken);
+  const initialToken = getEzvizAccessToken();
+  let data = await send(initialToken);
+  if (data?.code === '10002') {
+    const recoveredToken = recoverEzvizTokenAfter10002(initialToken);
+    if (recoveredToken) {
+      data = await send(recoveredToken);
+    } else if (hasEzvizCredentials()) {
+      const renewed = await refreshEzvizToken();
+      if (renewed.success && renewed.accessToken) {
+        data = await send(renewed.accessToken);
+      }
     }
   }
   return data;

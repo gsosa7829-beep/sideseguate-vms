@@ -269,27 +269,34 @@ test('resolveSafeCloudCameraTokenFields protege token vigente y etiqueta de nota
   assert.ok(updated.notes.includes(`[EZVIZ_TOKEN:${newerToken}|${newerExpire}]`));
 });
 
-test('markAccessTokenInvalid sana de inmediato un token local rechazado con 10002 desde Firestore', async () => {
-  const { markAccessTokenInvalid } = await import('./ezvizAuth.ts');
+test('markAccessTokenInvalid y recoverEzvizTokenAfter10002 sanan en el acto un token local rechazado con 10002', async () => {
+  const { markAccessTokenInvalid, recoverEzvizTokenAfter10002 } = await import('./ezvizAuth.ts');
   const now = Date.now();
   const staleToken = 'at.revoked-local-token-111222333';
   const validCloudToken = 'at.valid-cloud-token-999888777';
 
-  // Simular un navegador con un token revocado pero con expireTime futuro artificial
+  // Simular un navegador con un token revocado pero con expireTime futuro artificial (6 días)
   saveEzvizAuth({
     accessToken: staleToken,
     expireTime: now + 6 * 86400 * 1000,
     lastError: undefined,
   });
 
-  markAccessTokenInvalid(staleToken);
-  assert.equal(loadEzvizAuth().expireTime, 0);
-
-  // Al llegar el token real vigente desde Firestore (aunque expire en 4 días), debe reemplazarlo
+  // Firestore entrega el token bueno (vigente 4 días): inicialmente no sobrescribe el local,
+  // pero queda guardado en memoria como respaldo remoto inmediato.
   syncEzvizAuthFromRemote({
     accessToken: validCloudToken,
     expireTime: now + 4 * 86400 * 1000,
   });
+  assert.equal(loadEzvizAuth().accessToken, staleToken);
+
+  // Al primer 10002 de EZVIZ, recoverEzvizTokenAfter10002 lo promueve en el acto sin recargar
+  const recovered = recoverEzvizTokenAfter10002(staleToken);
+  assert.equal(recovered, validCloudToken);
   assert.equal(loadEzvizAuth().accessToken, validCloudToken);
   assert.equal(loadEzvizAuth().lastError, undefined);
+
+  // Y markAccessTokenInvalid por sí solo invalida expireTime a 0
+  markAccessTokenInvalid(validCloudToken);
+  assert.equal(loadEzvizAuth().expireTime, 0);
 });

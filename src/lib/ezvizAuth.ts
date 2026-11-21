@@ -139,6 +139,9 @@ export function saveEzvizAuth(updates: Partial<EzvizAuthConfig>): EzvizAuthConfi
   return cachedConfig;
 }
 
+/** Último token válido visto desde Firestore en esta sesión (respaldo inmediato ante 10002). */
+let lastRemoteCloudToken: { accessToken: string; expireTime?: number } | null = null;
+
 /** Sincroniza el token recibido desde Firestore para que nunca se restablezca */
 export function syncEzvizAuthFromRemote(remote: {
   accessToken?: string;
@@ -160,6 +163,11 @@ export function syncEzvizAuthFromRemote(remote: {
       : cleanToken === DEFAULT_FALLBACK_TOKEN
       ? DEFAULT_FALLBACK_EXPIRE_MS
       : Date.now() + 7 * 86400 * 1000;
+
+  // Recordar siempre el último token remoto válido (no fallback) para recuperación instantánea ante 10002
+  if (cleanToken !== DEFAULT_FALLBACK_TOKEN && remoteExpire > Date.now() + 60_000) {
+    lastRemoteCloudToken = { accessToken: cleanToken, expireTime: remoteExpire };
+  }
 
   // Nunca reemplazar un token vigente por un fallback expirado o más antiguo,
   // pero SÍ sanar de inmediato si el token local es el fallback o fue rechazado con 10002.
@@ -204,6 +212,33 @@ export function markAccessTokenInvalid(failedToken?: string): void {
     expireTime: 0,
     lastError: 'AccessToken reportado expirado o no autorizado por EZVIZ (10002)',
   });
+}
+
+/**
+ * Auto-sanación ante Código 10002: invalida el token fallido en localStorage y,
+ * si ya se recibió un token vigente distinto desde Firestore, lo promueve de inmediato
+ * y lo devuelve para reintentar la solicitud en el acto sin recargar la página.
+ */
+export function recoverEzvizTokenAfter10002(failedToken?: string): string | null {
+  const failed = (failedToken || getAccessToken() || '').trim();
+  markAccessTokenInvalid(failed || undefined);
+
+  if (
+    lastRemoteCloudToken &&
+    lastRemoteCloudToken.accessToken &&
+    lastRemoteCloudToken.accessToken !== DEFAULT_FALLBACK_TOKEN &&
+    lastRemoteCloudToken.accessToken !== failed &&
+    (lastRemoteCloudToken.expireTime || 0) > Date.now() + 60_000
+  ) {
+    saveEzvizAuth({
+      accessToken: lastRemoteCloudToken.accessToken,
+      expireTime: lastRemoteCloudToken.expireTime || Date.now() + 7 * 86400 * 1000,
+      lastRefreshAt: Date.now(),
+      lastError: undefined,
+    });
+    return lastRemoteCloudToken.accessToken;
+  }
+  return null;
 }
 
 /**
