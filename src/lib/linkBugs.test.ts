@@ -14,7 +14,7 @@ const sampleLink: ShareLink = {
   clientName: 'Don Carlos',
   cameraIds: ['cam-1', 'cam-2'],
   pinCode: '1234',
-  expiresAt: '2026-11-20T18:00:00.000Z',
+  expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
   isActive: true,
   allowPtz: false,
   allowAudio: true,

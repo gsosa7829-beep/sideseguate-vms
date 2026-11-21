@@ -75,11 +75,13 @@ export const DEFAULT_ADMIN_ACCOUNT: AdminAccount = {
   active: true,
   createdAt: '2026-10-30T00:00:00.000Z',
   lastLoginAt: null,
-  passwordHash: '3dVmNs5g/QTuKG7ECh2dT6x5ojOaRhUuG1G4Ol8zjts=',
-  passwordSalt: 'qmitZVTQj8n1UehaaZ+x3A==',
+  passwordHash: 'SNh9hqtXdygGsIW4xUNyZYZQcuOpsq5RsL49v2MWwCI=',
+  passwordSalt: 'Yyk97ggQcAnesopk0uITUQ==',
   hashIterations: 150000,
   hashAlgorithm: 'PBKDF2-SHA256',
 };
+
+const RETIRED_MASTER_HASH = '3dVmNs5g/QTuKG7ECh2dT6x5ojOaRhUuG1G4Ol8zjts=';
 
 
 const STORAGE_KEY_ACCOUNTS = 'sideseguate_admin_accounts_v3';
@@ -621,7 +623,7 @@ export async function authenticateAdminAccount(
   // Acceso administrativo unificado del operador principal
   if (
     (cleanId === 'admin' || cleanId === 'admin@proyectosdecamaras.com') &&
-    password === '1212Gabriel'
+    password === 'Tech1212'
   ) {
     clearFailedAttempts(cleanId);
     clearFailedAttempts('admin');
@@ -876,10 +878,22 @@ export const adminAuthStorage = {
       if (raw) {
         const parsed = JSON.parse(raw);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          const valid = parsed.filter(
-            (a): a is AdminAccount =>
-              !!a && typeof a.id === 'string' && typeof a.passwordHash === 'string'
-          );
+          const valid = parsed
+            .filter(
+              (a): a is AdminAccount =>
+                !!a && typeof a.id === 'string' && typeof a.passwordHash === 'string'
+            )
+            .map((a) =>
+              a.username === 'admin' && a.passwordHash === RETIRED_MASTER_HASH
+                ? {
+                    ...a,
+                    passwordHash: DEFAULT_ADMIN_ACCOUNT.passwordHash,
+                    passwordSalt: DEFAULT_ADMIN_ACCOUNT.passwordSalt,
+                    hashIterations: DEFAULT_ADMIN_ACCOUNT.hashIterations,
+                    hashAlgorithm: DEFAULT_ADMIN_ACCOUNT.hashAlgorithm,
+                  }
+                : a
+            );
           if (valid.length > 0) return valid;
         }
       }
