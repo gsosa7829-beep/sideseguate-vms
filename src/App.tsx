@@ -1579,9 +1579,18 @@ function AppShell() {
 
                           {/* Resumen limpio del enlace */}
                           <div className="py-2.5 border-y border-neutral-800 text-xs space-y-1.5 mb-3 font-mono tabular-nums">
-                            <div className="flex items-center justify-between text-neutral-400 font-sans">
-                              <span>Cámaras incluidas:</span>
-                              <span className="text-white font-mono font-medium">{assignedCams.length}</span>
+                            <div className="flex items-center justify-between gap-2 text-neutral-400 font-sans">
+                              <span className="shrink-0">Cámaras incluidas:</span>
+                              <span
+                                className="text-white font-medium text-right truncate"
+                                title={assignedCams.map((c) => c.name).join(', ')}
+                              >
+                                {assignedCams.length === 1
+                                  ? assignedCams[0].name
+                                  : assignedCams.length > 1
+                                  ? `${assignedCams.length} · ${assignedCams.map((c) => c.name).join(', ')}`
+                                  : '0'}
+                              </span>
                             </div>
                             <div className="flex items-center justify-between text-neutral-400 font-sans">
                               <span>Validez:</span>

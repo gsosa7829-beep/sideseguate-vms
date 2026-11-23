@@ -11,6 +11,7 @@ import { getOcosMetadataForCamera } from '../lib/ocosMetadata';
 import {
   buildDefaultShareMessage,
   hasCustomShareLinkPlaque,
+  resolveSuggestedLinkTitle,
   ShareLinkPlaqueData,
 } from '../lib/shareLinkPlaque';
 import {
@@ -97,6 +98,7 @@ export const ShareLinkModal: React.FC<ShareLinkModalProps> = ({
     Boolean(initialLink?.shareMessage)
   );
   const [copiedFeedback, setCopiedFeedback] = useState<'url' | 'message' | null>(null);
+  const [titleManuallyEdited, setTitleManuallyEdited] = useState<boolean>(Boolean(initialLink));
 
   React.useEffect(() => {
     if (isOpen) {
@@ -104,12 +106,13 @@ export const ShareLinkModal: React.FC<ShareLinkModalProps> = ({
       const proj = projects.find((p) => p.id === pid);
       setProjectId(pid);
       setDraftToken(initialLink?.token || generateShareToken('sdg'));
-      setTitle(
-        initialLink?.title || (proj ? `Cámaras en Vivo - ${proj.name}` : 'Acceso a Cámaras en Vivo')
-      );
-      setClientName(initialLink?.clientName || proj?.clientName || 'Cliente Autorizado');
       const projCams = cameras.filter((c) => c.projectId === pid).map((c) => c.id);
-      setSelectedCameraIds(initialLink?.cameraIds && initialLink.cameraIds.length > 0 ? initialLink.cameraIds : projCams);
+      const nextCamIds =
+        initialLink?.cameraIds && initialLink.cameraIds.length > 0 ? initialLink.cameraIds : projCams;
+      setSelectedCameraIds(nextCamIds);
+      setTitle(initialLink?.title || resolveSuggestedLinkTitle(proj, nextCamIds, cameras));
+      setTitleManuallyEdited(Boolean(initialLink));
+      setClientName(initialLink?.clientName || proj?.clientName || 'Cliente Autorizado');
       setUsePin(!!initialLink?.pinCode);
       setPinCode(initialLink?.pinCode || '');
 
@@ -192,24 +195,34 @@ export const ShareLinkModal: React.FC<ShareLinkModalProps> = ({
   const handleProjectChange = (newProjId: string) => {
     setProjectId(newProjId);
     const newProj = projects.find((p) => p.id === newProjId);
-    if (newProj) {
-      setTitle(`Cámaras en Vivo - ${newProj.name}`);
-      setClientName(newProj.clientName || 'Cliente Autorizado');
-    }
     const newProjCams = cameras.filter((c) => c.projectId === newProjId).map((c) => c.id);
     setSelectedCameraIds(newProjCams);
+    if (newProj) {
+      setClientName(newProj.clientName || 'Cliente Autorizado');
+    }
+    if (!titleManuallyEdited) {
+      setTitle(resolveSuggestedLinkTitle(newProj, newProjCams, cameras));
+    }
   };
 
   const toggleCameraSelection = (camId: string) => {
-    if (selectedCameraIds.includes(camId)) {
-      setSelectedCameraIds(selectedCameraIds.filter((id) => id !== camId));
-    } else {
-      setSelectedCameraIds([...selectedCameraIds, camId]);
+    const nextIds = selectedCameraIds.includes(camId)
+      ? selectedCameraIds.filter((id) => id !== camId)
+      : [...selectedCameraIds, camId];
+    setSelectedCameraIds(nextIds);
+    if (!titleManuallyEdited) {
+      const proj = projects.find((p) => p.id === projectId);
+      setTitle(resolveSuggestedLinkTitle(proj, nextIds, cameras));
     }
   };
 
   const selectAllCameras = () => {
-    setSelectedCameraIds(projectCameras.map((c) => c.id));
+    const allIds = projectCameras.map((c) => c.id);
+    setSelectedCameraIds(allIds);
+    if (!titleManuallyEdited) {
+      const proj = projects.find((p) => p.id === projectId);
+      setTitle(resolveSuggestedLinkTitle(proj, allIds, cameras));
+    }
   };
 
   const calculateExpiryDate = (): string | null => {
@@ -437,6 +450,24 @@ export const ShareLinkModal: React.FC<ShareLinkModalProps> = ({
             </div>
           </div>
 
+          {/* Nombre visible del enlace (editable directamente) */}
+          <div>
+            <label className="block text-neutral-300 font-medium mb-1">
+              Nombre / Título del enlace:
+            </label>
+            <input
+              type="text"
+              required
+              value={title}
+              onChange={(e) => {
+                setTitleManuallyEdited(true);
+                setTitle(e.target.value);
+              }}
+              placeholder="Ej. CALLE OSCAR MENDEZ"
+              className="w-full bg-neutral-950 border border-neutral-700 rounded-xl px-3 py-2 text-white focus:border-sky-500 focus:outline-none"
+            />
+          </div>
+
           {/* 2. Duración Personalizada ("Yo decido cuánto tiempo dura el enlace") */}
           <div className="bg-neutral-950/80 border border-neutral-800 rounded-2xl p-3.5 space-y-3">
             <div className="flex items-center justify-between flex-wrap gap-2">
@@ -558,19 +589,6 @@ export const ShareLinkModal: React.FC<ShareLinkModalProps> = ({
 
             {showAdvanced && (
               <div className="mt-3 p-3.5 rounded-xl bg-neutral-950/90 border border-neutral-800 space-y-4">
-                <div>
-                  <label className="block text-neutral-300 font-medium mb-1">
-                    Título del enlace:
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={title}
-                    onChange={(e) => setTitle(e.target.value)}
-                    className="w-full bg-neutral-900 border border-neutral-700 rounded-xl px-3 py-2 text-white focus:border-sky-500 focus:outline-none"
-                  />
-                </div>
-
                 {/* Selección de cámaras */}
                 <div className="space-y-1.5">
                   <div className="flex items-center justify-between">

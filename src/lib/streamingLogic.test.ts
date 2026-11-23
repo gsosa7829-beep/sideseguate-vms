@@ -2339,4 +2339,16 @@ test('ficha informativa (recuadro negro) y mensaje de envío son independientes 
   assert.equal(merged[0].shareMessage, undefined);
   assert.equal(shareLinkListsDiffer([baseLink], merged), true);
   assert.equal(shareLinkListsDiffer(merged, merged), false);
+
+  // Verificar resolveSuggestedLinkTitle: 1 cámara -> nombre de cámara; varias -> nombre del proyecto
+  const { resolveSuggestedLinkTitle } = await import('./shareLinkPlaque.ts');
+  const { INITIAL_PROJECTS, INITIAL_CAMERAS } = await import('./initialData.ts');
+  const proj = INITIAL_PROJECTS[0];
+  const cam1 = { ...INITIAL_CAMERAS[0], id: 'cam-oscar', name: 'CALLE OSCAR MENDEZ' };
+  const cam2 = { ...INITIAL_CAMERAS[0], id: 'cam-otra', name: 'OTRA CALLE' };
+  assert.equal(resolveSuggestedLinkTitle(proj, ['cam-oscar'], [cam1, cam2]), 'CALLE OSCAR MENDEZ');
+  assert.equal(
+    resolveSuggestedLinkTitle(proj, ['cam-oscar', 'cam-otra'], [cam1, cam2]),
+    `Cámaras en Vivo - ${proj.name}`
+  );
 });

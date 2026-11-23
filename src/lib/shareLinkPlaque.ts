@@ -1,5 +1,19 @@
-import { ShareLink } from './types';
+import { Camera, Project, ShareLink } from './types';
 import { OcosProjectMetadata } from './ocosMetadata';
+
+export function resolveSuggestedLinkTitle(
+  project: Project | undefined,
+  selectedCameraIds: string[],
+  allCameras: Camera[]
+): string {
+  if (selectedCameraIds.length === 1) {
+    const cam = allCameras.find((c) => c.id === selectedCameraIds[0]);
+    if (cam?.name?.trim()) {
+      return cam.name.trim();
+    }
+  }
+  return project ? `Cámaras en Vivo - ${project.name}` : 'Acceso a Cámaras en Vivo';
+}
 
 export interface ShareLinkPlaqueData {
   title?: string;

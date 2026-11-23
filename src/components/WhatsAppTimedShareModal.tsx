@@ -8,6 +8,7 @@ import { getOcosMetadataForCamera } from '../lib/ocosMetadata';
 import {
   buildDefaultShareMessage,
   hasCustomShareLinkPlaque,
+  resolveSuggestedLinkTitle,
   ShareLinkPlaqueData,
 } from '../lib/shareLinkPlaque';
 import {
@@ -103,15 +104,13 @@ export const WhatsAppTimedShareModal: React.FC<WhatsAppTimedShareModalProps> = (
       const proj = projects.find((p) => p.id === pid);
       setClientName(existingLink?.clientName || proj?.clientName || '');
       setClientPhone(proj?.clientPhone || '');
-      setTitle(
-        existingLink?.title || (proj ? `Cámaras en Vivo - ${proj.name}` : 'Transmisión en Vivo de Seguridad')
-      );
       const projCams = cameras.filter((c) => !pid || c.projectId === pid).map((c) => c.id);
-      setSelectedCameraIds(
+      const nextCamIds =
         existingLink?.cameraIds && existingLink.cameraIds.length > 0
           ? existingLink.cameraIds
-          : (projCams.length > 0 ? projCams : cameras.map((c) => c.id))
-      );
+          : (projCams.length > 0 ? projCams : cameras.map((c) => c.id));
+      setSelectedCameraIds(nextCamIds);
+      setTitle(existingLink?.title || resolveSuggestedLinkTitle(proj, nextCamIds, cameras));
       setUsePin(!!existingLink?.pinCode);
       setPinCode(existingLink?.pinCode || '');
       setAllowAudio(existingLink?.allowAudio ?? true);
@@ -251,12 +250,17 @@ export const WhatsAppTimedShareModal: React.FC<WhatsAppTimedShareModalProps> = (
   if (!isOpen) return null;
 
   const toggleCamera = (camId: string) => {
+    let nextIds = selectedCameraIds;
     if (selectedCameraIds.includes(camId)) {
       if (selectedCameraIds.length > 1) {
-        setSelectedCameraIds(selectedCameraIds.filter((id) => id !== camId));
+        nextIds = selectedCameraIds.filter((id) => id !== camId);
       }
     } else {
-      setSelectedCameraIds([...selectedCameraIds, camId]);
+      nextIds = [...selectedCameraIds, camId];
+    }
+    setSelectedCameraIds(nextIds);
+    if (!existingLink) {
+      setTitle(resolveSuggestedLinkTitle(targetProj, nextIds, cameras));
     }
   };
 
