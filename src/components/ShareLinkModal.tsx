@@ -329,7 +329,7 @@ export const ShareLinkModal: React.FC<ShareLinkModalProps> = ({
   };
 
   const handleAction = async (
-    mode: 'save_and_copy' | 'save_and_copy_message' | 'save_and_whatsapp' | 'save_and_native_share'
+    mode: 'save_only' | 'save_and_copy' | 'save_and_copy_message' | 'save_and_whatsapp' | 'save_and_native_share'
   ) => {
     if (expiryError) return;
     const link = buildLinkObject();
@@ -337,6 +337,11 @@ export const ShareLinkModal: React.FC<ShareLinkModalProps> = ({
     const finalText = activeShareMessage.trim() || defaultShareMessage;
 
     onSave(link);
+
+    if (mode === 'save_only') {
+      onClose();
+      return;
+    }
 
     if (mode === 'save_and_copy') {
       try {
@@ -384,7 +389,7 @@ export const ShareLinkModal: React.FC<ShareLinkModalProps> = ({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    handleAction('save_and_copy');
+    handleAction(initialLink ? 'save_only' : 'save_and_copy');
   };
 
   return (
@@ -742,7 +747,7 @@ export const ShareLinkModal: React.FC<ShareLinkModalProps> = ({
             />
           </div>
 
-          {/* Botones de Envío */}
+          {/* Botones de Acción y Envío */}
           <div className="pt-3 border-t border-neutral-800 flex flex-wrap items-center justify-end gap-2">
             <button
               type="button"
@@ -750,6 +755,17 @@ export const ShareLinkModal: React.FC<ShareLinkModalProps> = ({
               className="px-3.5 py-2.5 bg-neutral-800 hover:bg-neutral-700 text-neutral-300 rounded-xl transition cursor-pointer font-medium"
             >
               Cancelar
+            </button>
+
+            <button
+              type="button"
+              disabled={Boolean(expiryError)}
+              onClick={() => handleAction('save_only')}
+              className="px-4 py-2.5 bg-sky-600 hover:bg-sky-500 disabled:opacity-50 text-white font-semibold rounded-xl transition shadow-md flex items-center justify-center gap-1.5 cursor-pointer"
+              title="Guardar los cambios del enlace sin abrir WhatsApp"
+            >
+              <Check className="w-4 h-4" />
+              <span>{initialLink ? 'Guardar Cambios' : 'Solo Guardar'}</span>
             </button>
 
             <button
@@ -767,10 +783,10 @@ export const ShareLinkModal: React.FC<ShareLinkModalProps> = ({
               type="button"
               disabled={Boolean(expiryError)}
               onClick={() => handleAction('save_and_copy_message')}
-              className="px-3.5 py-2.5 bg-sky-600 hover:bg-sky-500 disabled:opacity-50 text-white font-semibold rounded-xl transition shadow-md flex items-center justify-center gap-1.5 cursor-pointer"
+              className="px-3.5 py-2.5 bg-neutral-800 hover:bg-neutral-700 disabled:opacity-50 text-white font-semibold rounded-xl transition border border-neutral-700 flex items-center justify-center gap-1.5 cursor-pointer"
               title="Guardar y copiar el mensaje completo con descripción y enlace para pegarlo en cualquier app"
             >
-              {copiedFeedback === 'message' ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+              {copiedFeedback === 'message' ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4 text-sky-400" />}
               <span>Copiar Mensaje</span>
             </button>
 
