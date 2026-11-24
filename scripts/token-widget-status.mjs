@@ -17,6 +17,7 @@ const __dirname = path.dirname(__filename);
 const projectRoot = path.resolve(__dirname, '..');
 const STATE_FILE_PATH = path.join(projectRoot, 'logs', 'token-sync-state.json');
 const TOKEN_TTL_MS = 7 * 86400 * 1000;
+const RETIRED_FALLBACK_TOKEN = 'at.dw0j6l0mc8iltishdqp82b6v91w62mt0-6t7ybvn2iq-1sl45m4-yb5utk7cf';
 
 function maskToken(token) {
   if (!token || token.length < 16) return '***';
@@ -110,19 +111,20 @@ async function readFirestoreSummary() {
       const m = notes.match(/\[EZVIZ_TOKEN:([^|\]]+)\|(\d+)\]/);
       const token = (m && m[1]?.startsWith('at.') ? m[1].trim() : '') ||
         (typeof data?.cloudId === 'string' && data.cloudId.startsWith('at.') ? data.cloudId.trim() : '');
-      const expireMs = m && m[2] ? Number(m[2]) : 0;
+      const isRetiredFallback = token === RETIRED_FALLBACK_TOKEN;
+      const expireMs = !isRetiredFallback && m && m[2] ? Number(m[2]) : 0;
 
-      if (m && token && expireMs > Date.now() + 60_000) {
+      if (m && token && !isRetiredFallback && expireMs > Date.now() + 60_000) {
         camerasWithValidTag++;
       }
       const serial = String(data?.deviceSerial || '').toUpperCase();
       if (serial === 'F31700438' || docSnap.id.includes('hilook')) {
         seenCementerio = true;
-        if (!m || !expireMs || expireMs <= Date.now() + 60_000) {
+        if (!m || isRetiredFallback || !expireMs || expireMs <= Date.now() + 60_000) {
           cementerioTagged = false;
         }
       }
-      if (token && expireMs > bestExpireMs) {
+      if (token && !isRetiredFallback && expireMs > bestExpireMs) {
         bestToken = token;
         bestExpireMs = expireMs;
       }

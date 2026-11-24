@@ -382,7 +382,17 @@ async function tryLaunchAndAwaitFreshToken(exePath, staleToken) {
   }
   console.log('Abriendo HiLookVision Client para generar token nuevo vía Auto-Login...');
   try {
-    const child = spawn(exePath, [], { detached: true, stdio: 'ignore' });
+    const child =
+      process.platform === 'win32'
+        ? spawn('cmd.exe', ['/c', 'start', '', exePath], {
+            detached: true,
+            stdio: 'ignore',
+            windowsHide: true,
+          })
+        : spawn(exePath, [], { detached: true, stdio: 'ignore' });
+    child.on('error', (err) => {
+      console.warn('No se pudo abrir HiLookVision Client automáticamente:', err?.message);
+    });
     child.unref();
   } catch (err) {
     console.warn('No se pudo abrir HiLookVision Client automáticamente:', err?.message);
