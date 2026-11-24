@@ -96,7 +96,7 @@ function saveSyncState(token, firstSeenMs) {
   }
 }
 
-function readTailUtf8(filePath, maxBytes = 2_000_000) {
+function readTailUtf8(filePath, maxBytes = 12_000_000) {
   const stat = fs.statSync(filePath);
   const start = Math.max(0, stat.size - maxBytes);
   const len = stat.size - start;
@@ -203,8 +203,22 @@ async function autoUnlockKnownCameras(token) {
 }
 
 async function findFirstValidToken(logFilePath, excludedToken = null) {
-  const candidates = extractTokenEntriesNewestFirst(logFilePath).slice(0, 12);
-  for (const entry of candidates) {
+  const filesToScan = [];
+  if (logFilePath && fs.existsSync(logFilePath)) {
+    filesToScan.push(logFilePath);
+    const plugPath = path.join(path.dirname(logFilePath), 'plug.log');
+    if (fs.existsSync(plugPath)) filesToScan.push(plugPath);
+  }
+  const seen = new Set();
+  const candidates = [];
+  for (const file of filesToScan) {
+    for (const entry of extractTokenEntriesNewestFirst(file)) {
+      if (seen.has(entry.token)) continue;
+      seen.add(entry.token);
+      candidates.push(entry);
+    }
+  }
+  for (const entry of candidates.slice(0, 16)) {
     if (excludedToken && entry.token === excludedToken) continue;
     const check = await verifyTokenLive(entry.token);
     if (check.valid) {
