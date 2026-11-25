@@ -113,8 +113,11 @@ export function loadEzvizAuth(): EzvizAuthConfig {
   return cachedConfig;
 }
 
-/** Guarda cambios de autenticación y notifica a los componentes */
-export function saveEzvizAuth(updates: Partial<EzvizAuthConfig>): EzvizAuthConfig {
+/** Guarda cambios de autenticación y notifica a los componentes locales */
+export function saveEzvizAuth(
+  updates: Partial<EzvizAuthConfig>,
+  options?: { broadcastCloud?: boolean }
+): EzvizAuthConfig {
   const current = loadEzvizAuth();
   cachedConfig = {
     ...current,
@@ -129,7 +132,17 @@ export function saveEzvizAuth(updates: Partial<EzvizAuthConfig>): EzvizAuthConfi
     console.warn('Error al persistir EZVIZ auth:', e);
   }
 
-  if (typeof window !== 'undefined') {
+  // Solo publicar hacia Firestore cuando el usuario o la API emitieron explícitamente un token nuevo vigente.
+  // NUNCA publicar cuando se invalida (expireTime: 0 / lastError) ni al recibir un token ya existente desde Firestore.
+  if (
+    typeof window !== 'undefined' &&
+    options?.broadcastCloud === true &&
+    !cachedConfig.lastError &&
+    cachedConfig.accessToken?.startsWith('at.') &&
+    cachedConfig.accessToken !== DEFAULT_FALLBACK_TOKEN &&
+    typeof cachedConfig.expireTime === 'number' &&
+    cachedConfig.expireTime > Date.now() + 60_000
+  ) {
     window.dispatchEvent(new CustomEvent('sideseguate_ezviz_token_refreshed', {
       detail: cachedConfig,
     }));
@@ -536,14 +549,7 @@ export async function refreshEzvizToken(
           expireTime,
           lastRefreshAt: Date.now(),
           lastError: undefined,
-        });
-
-        // Disparar evento global para limpiar cachés HLS y sincronizar Firestore
-        if (typeof window !== 'undefined') {
-          window.dispatchEvent(new CustomEvent('sideseguate_ezviz_token_refreshed', {
-            detail: { accessToken: data.data.accessToken, expireTime }
-          }));
-        }
+        }, { broadcastCloud: true });
 
         return {
           success: true,
@@ -581,7 +587,7 @@ export function setManualToken(token: string, daysValid: number = 7): EzvizAuthC
     expireTime,
     lastRefreshAt: Date.now(),
     lastError: undefined,
-  });
+  }, { broadcastCloud: true });
 }
 
 /** Verifica en tiempo real si el token actual es aceptado por la API de EZVIZ */

@@ -300,3 +300,48 @@ test('markAccessTokenInvalid y recoverEzvizTokenAfter10002 sanan en el acto un t
   markAccessTokenInvalid(validCloudToken);
   assert.equal(loadEzvizAuth().expireTime, 0);
 });
+
+test('markAccessTokenInvalid y syncEzvizAuthFromRemote NUNCA propagan eventos de escritura hacia Firestore', async () => {
+  const { markAccessTokenInvalid } = await import('./ezvizAuth.ts');
+  const now = Date.now();
+  const prevWindow = (globalThis as { window?: unknown }).window;
+  const dispatched: unknown[] = [];
+
+  (globalThis as { window?: unknown }).window = {
+    dispatchEvent: (evt: unknown) => {
+      dispatched.push(evt);
+      return true;
+    },
+  };
+
+  try {
+    const expiredTok = 'at.expired-10002-token-000111222';
+    saveEzvizAuth({
+      accessToken: expiredTok,
+      expireTime: now + 3 * 86400 * 1000,
+      lastError: undefined,
+    });
+    dispatched.length = 0;
+
+    // Al marcar como 10002, NO debe emitir evento para sobrescribir Firestore con el token muerto
+    markAccessTokenInvalid(expiredTok);
+    assert.equal(dispatched.length, 0);
+
+    // Al recibir un token de Firestore, tampoco debe re-emitirlo de vuelta a Firestore
+    syncEzvizAuthFromRemote({
+      accessToken: 'at.cloud-good-token-555666777',
+      expireTime: now + 7 * 86400 * 1000,
+    });
+    assert.equal(dispatched.length, 0);
+
+    // Solo setManualToken (acción explícita del usuario) emite evento de publicación a Firestore
+    setManualToken('at.manual-fresh-token-888999000', 7);
+    assert.equal(dispatched.length, 1);
+  } finally {
+    if (prevWindow === undefined) {
+      delete (globalThis as { window?: unknown }).window;
+    } else {
+      (globalThis as { window?: unknown }).window = prevWindow;
+    }
+  }
+});

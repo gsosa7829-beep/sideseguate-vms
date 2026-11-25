@@ -205,16 +205,23 @@ function AppShell() {
   useEffect(() => {
     const handleTokenRefreshed = (e: any) => {
       const detail = e.detail;
-      if (!detail || !detail.accessToken) return;
+      if (
+        !detail ||
+        !detail.accessToken ||
+        !String(detail.accessToken).startsWith('at.') ||
+        detail.lastError ||
+        typeof detail.expireTime !== 'number' ||
+        detail.expireTime <= Date.now() + 60_000
+      ) {
+        return;
+      }
       const currentCams = storage.getCameras();
       const carriers = pickTokenCarrierCameras(currentCams);
       const cloudManaged = currentCams.filter((c) => isCloudManagedCamera(c));
       if (carriers.length === 0 && cloudManaged.length === 0) return;
 
       const carrierIds = new Set([...carriers, ...cloudManaged].map((c) => c.id));
-      const expireMs = typeof detail.expireTime === 'number' && detail.expireTime > 0
-        ? detail.expireTime
-        : Date.now() + 7 * 86400 * 1000;
+      const expireMs = detail.expireTime;
 
       const updatedCarriers: Camera[] = [];
       const nextList = currentCams.map((cam) => {
