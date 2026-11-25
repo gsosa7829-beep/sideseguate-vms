@@ -36,8 +36,17 @@ export interface TokenHealthInfo {
 export const EZVIZ_AUTH_STORAGE_KEY = 'sideseguate_ezviz_auth_v2';
 export const EZVIZ_DEVICE_CODES_KEY = 'sideseguate_device_codes_v1';
 export const DEFAULT_FALLBACK_TOKEN = 'at.dw0j6l0mc8iltishdqp82b6v91w62mt0-6t7ybvn2iq-1sl45m4-yb5utk7cf';
-// Vigencia estimada del token actual (7 días desde su emisión del 06 nov 2026)
+// Vigencia estimada del token fallback inicial (ya expirado para nunca usarse como token vigente)
 export const DEFAULT_FALLBACK_EXPIRE_MS = Date.parse('2026-11-14T05:51:00.000Z');
+export const RETIRED_EZVIZ_TOKENS: ReadonlySet<string> = new Set([
+  DEFAULT_FALLBACK_TOKEN,
+  'at.c0xhcpuuabgivlnlau4l3ehz4o1p28s4-54ylljvtmd-1m5iwfn-vze4tinzc',
+]);
+
+export function isRetiredEzvizToken(token?: string | null): boolean {
+  const clean = (token || '').trim();
+  return Boolean(clean && RETIRED_EZVIZ_TOKENS.has(clean));
+}
 
 function getEnvEzvizCredentials(): { appKey: string; appSecret: string } {
   try {
@@ -79,17 +88,16 @@ export function loadEzvizAuth(): EzvizAuthConfig {
       const raw = localStorage.getItem(EZVIZ_AUTH_STORAGE_KEY);
       if (raw) {
         const parsed = JSON.parse(raw);
-        let activeToken = String(parsed.accessToken || DEFAULT_FALLBACK_TOKEN);
-        if (activeToken === 'at.dw0j6l0mc8iltishdqp82b6v91w62mt0-6t7ybvn2iq-1sl45m4-yb5utk7cf' || !activeToken) {
-          activeToken = DEFAULT_FALLBACK_TOKEN;
+        let activeToken = String(parsed.accessToken || DEFAULT_FALLBACK_TOKEN).trim();
+        if (!activeToken || isRetiredEzvizToken(activeToken)) {
+          if (!activeToken) activeToken = DEFAULT_FALLBACK_TOKEN;
         }
         const rawExpireTime = typeof parsed.expireTime === 'number' ? parsed.expireTime : 0;
-        const resolvedExpire =
-          rawExpireTime > 0
-            ? rawExpireTime
-            : activeToken === DEFAULT_FALLBACK_TOKEN
-            ? DEFAULT_FALLBACK_EXPIRE_MS
-            : Date.now() + 7 * 86400 * 1000;
+        const resolvedExpire = isRetiredEzvizToken(activeToken)
+          ? 0
+          : typeof parsed.expireTime === 'number'
+          ? Math.max(0, rawExpireTime)
+          : 0;
         cachedConfig = {
           appKey: String(parsed.appKey || envCreds.appKey || '').trim(),
           appSecret: String(parsed.appSecret || envCreds.appSecret || '').trim(),
@@ -168,6 +176,9 @@ export function syncEzvizAuthFromRemote(remote: {
   if (cleanToken === 'at.dw0j6l0mc8iltishdqp82b6v91w62mt0-6t7ybvn2iq-1sl45m4-yb5utk7cf') {
     cleanToken = DEFAULT_FALLBACK_TOKEN;
   }
+  if (isRetiredEzvizToken(cleanToken)) {
+    return;
+  }
 
   const current = loadEzvizAuth();
   const remoteExpire =
@@ -177,15 +188,15 @@ export function syncEzvizAuthFromRemote(remote: {
       ? DEFAULT_FALLBACK_EXPIRE_MS
       : Date.now() + 7 * 86400 * 1000;
 
-  // Recordar siempre el último token remoto válido (no fallback) para recuperación instantánea ante 10002
-  if (cleanToken !== DEFAULT_FALLBACK_TOKEN && remoteExpire > Date.now() + 60_000) {
+  // Recordar siempre el último token remoto válido (no fallback/retirado) para recuperación instantánea ante 10002
+  if (!isRetiredEzvizToken(cleanToken) && remoteExpire > Date.now() + 60_000) {
     lastRemoteCloudToken = { accessToken: cleanToken, expireTime: remoteExpire };
   }
 
   // Nunca reemplazar un token vigente por un fallback expirado o más antiguo,
-  // pero SÍ sanar de inmediato si el token local es el fallback o fue rechazado con 10002.
+  // pero SÍ sanar de inmediato si el token local está retirado o fue rechazado con 10002.
   const currentBroken =
-    current.accessToken === DEFAULT_FALLBACK_TOKEN ||
+    isRetiredEzvizToken(current.accessToken) ||
     (current.lastError || '').includes('10002');
   const currentValid =
     !currentBroken &&
@@ -352,7 +363,7 @@ export function resolveSafeCloudCameraTokenFields(
 
   const existingMeta = extractEzvizTokenFromCamera(existing);
   const incomingMeta = extractEzvizTokenFromCamera(incoming);
-  if (!existingMeta?.accessToken || existingMeta.accessToken === DEFAULT_FALLBACK_TOKEN) {
+  if (!existingMeta?.accessToken || isRetiredEzvizToken(existingMeta.accessToken)) {
     return { cloudId: rawCloudId, notes: rawNotes };
   }
 
@@ -361,7 +372,7 @@ export function resolveSafeCloudCameraTokenFields(
   const incomingExpire = incomingMeta?.expireTime || 0;
   const incomingIsFallbackOrExpired =
     !incomingMeta?.accessToken ||
-    incomingMeta.accessToken === DEFAULT_FALLBACK_TOKEN ||
+    isRetiredEzvizToken(incomingMeta.accessToken) ||
     (incomingExpire > 0 && incomingExpire <= nowMs + 60_000);
   const incomingIsOlder =
     existingExpire > 0 && incomingExpire > 0 && incomingExpire < existingExpire - 60_000;

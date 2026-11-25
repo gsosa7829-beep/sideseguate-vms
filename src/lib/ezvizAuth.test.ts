@@ -345,3 +345,44 @@ test('markAccessTokenInvalid y syncEzvizAuthFromRemote NUNCA propagan eventos de
     }
   }
 });
+
+test('loadEzvizAuth conserva expireTime=0 tras recargar y marca tokens retirados como expirados', async () => {
+  const { EZVIZ_AUTH_STORAGE_KEY, isRetiredEzvizToken } = await import('./ezvizAuth.ts');
+  const prevStorage = (globalThis as { localStorage?: unknown }).localStorage;
+  const store = new Map<string, string>();
+  (globalThis as { localStorage?: unknown }).localStorage = {
+    getItem: (k: string) => (store.has(k) ? store.get(k)! : null),
+    setItem: (k: string, v: string) => void store.set(k, String(v)),
+    removeItem: (k: string) => void store.delete(k),
+  };
+
+  try {
+    // Caso 1: token marcado inválido con expireTime = 0 no debe revivir como +7 días
+    store.set(
+      EZVIZ_AUTH_STORAGE_KEY,
+      JSON.stringify({
+        accessToken: 'at.9u08uiue3aw_not_retired_sample_000111',
+        expireTime: 0,
+      })
+    );
+    // Limpiar caché en memoria cargando con expireTime: 0 explícito vía saveEzvizAuth o simulando token retirado
+    const retiredTok = 'at.c0xhcpuuabgivlnlau4l3ehz4o1p28s4-54ylljvtmd-1m5iwfn-vze4tinzc';
+    assert.equal(isRetiredEzvizToken(retiredTok), true);
+    saveEzvizAuth({ accessToken: retiredTok, expireTime: 0 });
+    assert.equal(loadEzvizAuth().expireTime, 0);
+
+    // Al recibir el token válido desde Firestore, debe adoptarlo de inmediato aunque tenga 6 días restantes
+    const goodTok = 'at.9u08uiue3aw_fresh_cloud_token_777888999';
+    syncEzvizAuthFromRemote({
+      accessToken: goodTok,
+      expireTime: Date.now() + 6 * 86400 * 1000,
+    });
+    assert.equal(loadEzvizAuth().accessToken, goodTok);
+  } finally {
+    if (prevStorage === undefined) {
+      delete (globalThis as { localStorage?: unknown }).localStorage;
+    } else {
+      (globalThis as { localStorage?: unknown }).localStorage = prevStorage;
+    }
+  }
+});

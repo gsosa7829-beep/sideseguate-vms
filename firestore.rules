@@ -205,6 +205,23 @@ service cloud.firestore {
         data.updatedAt is timestamp;
     }
 
+    // Rejects retired/revoked EZVIZ AccessTokens so stale browser tabs cannot
+    // re-inject them into /cloud_cameras via cloudId or embedded notes tags.
+    function isRetiredEzvizTokenPayload(data) {
+      return (
+        'cloudId' in data &&
+        data.cloudId is string &&
+        data.cloudId in [
+          'at.dw0j6l0mc8iltishdqp82b6v91w62mt0-6t7ybvn2iq-1sl45m4-yb5utk7cf',
+          'at.c0xhcpuuabgivlnlau4l3ehz4o1p28s4-54ylljvtmd-1m5iwfn-vze4tinzc'
+        ]
+      ) || (
+        'notes' in data &&
+        data.notes is string &&
+        data.notes.matches('(?s).*(at\\.dw0j6l0mc8iltishdqp82b6v91w62mt0-6t7ybvn2iq-1sl45m4-yb5utk7cf|at\\.c0xhcpuuabgivlnlau4l3ehz4o1p28s4-54ylljvtmd-1m5iwfn-vze4tinzc).*')
+      );
+    }
+
     function isValidCloudCamera(data) {
       return data.keys().hasAll([
           'id',
@@ -284,6 +301,7 @@ service cloud.firestore {
         data.cloudId is string && data.cloudId.size() >= 0 && data.cloudId.size() <= 128 &&
         (!data.keys().hasAny(['deviceSerial']) || (data.deviceSerial is string && data.deviceSerial.size() >= 0 && data.deviceSerial.size() <= 64)) &&
         data.notes is string && data.notes.size() >= 0 && data.notes.size() <= 1000 &&
+        !isRetiredEzvizTokenPayload(data) &&
         data.createdAt is timestamp &&
         data.updatedAt is timestamp;
     }
